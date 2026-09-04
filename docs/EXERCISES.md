@@ -171,3 +171,17 @@ Planned types (examples, not specs):
   absolute/relative pins with all three sliders, all six pinned types,
   pawn/knight/king-created pins, multi-answer, existing-pin and decoy cases;
   every example independently verified at seed time).
+
+## Eleventh slice
+
+**Balance Scale** — IMPLEMENTED (`balance-scale`).
+
+- Route: `/exercises/balance-scale` (dedicated `BalanceScalePlay` loop reusing
+  design-system/api/i18n/hint/feedback primitives and SVG pieces; no
+  chessboard — bank-to-pan drag plus tap fallback, tilting beam, live totals).
+- Validator: `backend/app/modules/balance_scale/validator.py` (no
+  python-chess: multiset bank check plus submitted total against the stored
+  right-pan total; any valid combination accepted).
+- Seed: `python -m app.modules.balance_scale.seed` (15 hand-designed puzzles
+  of rising difficulty with independent subset-sum verification; 15 persisted
+  puzzles).

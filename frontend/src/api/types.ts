@@ -53,7 +53,13 @@ export interface AttemptResponse {
   score: number;
   feedback_key: string;
   rating_delta: number | null;
-  detail: { correct: string[]; missed: string[]; wrong: string[] };
+  detail: {
+    correct: string[];
+    missed: string[];
+    wrong: string[];
+    submitted_value?: number;
+    target_value?: number;
+  };
   hints_used: string[];
   started_at: string | null;
   duration_ms: number | null;

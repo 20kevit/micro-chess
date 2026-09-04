@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AppShell } from "./components/ui/AppShell";
+import { BalanceScalePage } from "./pages/BalanceScalePage";
 import { CapturesPage } from "./pages/CapturesPage";
 import { CastlingRightsPage } from "./pages/CastlingRightsPage";
 import { EqualAttackersDefendersPage } from "./pages/EqualAttackersDefendersPage";
@@ -28,6 +29,7 @@ const router = createBrowserRouter([
       { path: "/exercises/piece-recognition", element: <PieceRecognitionPage /> },
       { path: "/exercises/legal-destinations", element: <LegalDestinationsPage /> },
       { path: "/exercises/captures", element: <CapturesPage /> },
+      { path: "/exercises/balance-scale", element: <BalanceScalePage /> },
       { path: "/exercises/hanging-pieces", element: <HangingPiecesPage /> },
       { path: "/exercises/equal-attackers-defenders", element: <EqualAttackersDefendersPage /> },
       { path: "/exercises/castling-rights", element: <CastlingRightsPage /> },

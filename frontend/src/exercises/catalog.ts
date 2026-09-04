@@ -27,7 +27,7 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
   { slug: "get-out-of-check", titleKey: "exercises.get-out-of-check.title", descKey: "exercises.get-out-of-check.desc", status: "active", route: "/exercises/get-out-of-check" },
   { slug: "pathfinding", titleKey: "exercises.pathfinding.title", descKey: "exercises.pathfinding.desc", status: "active", route: "/exercises/pathfinding" },
   { slug: "pin", titleKey: "exercises.pin.title", descKey: "exercises.pin.desc", status: "active", route: "/exercises/pin" },
-  { slug: "balance-scale", titleKey: "exercises.balance-scale.title", descKey: "exercises.balance-scale.desc", status: "coming_soon", route: null },
+  { slug: "balance-scale", titleKey: "exercises.balance-scale.title", descKey: "exercises.balance-scale.desc", status: "active", route: "/exercises/balance-scale" },
   { slug: "heavier-side", titleKey: "exercises.heavier-side.title", descKey: "exercises.heavier-side.desc", status: "coming_soon", route: null },
   { slug: "is-checkmate", titleKey: "exercises.is-checkmate.title", descKey: "exercises.is-checkmate.desc", status: "coming_soon", route: null },
   { slug: "memory-board", titleKey: "exercises.memory-board.title", descKey: "exercises.memory-board.desc", status: "coming_soon", route: null },
