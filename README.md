@@ -38,6 +38,10 @@ cd backend
 python -m app.modules.piece_recognition.seed
 ```
 
+Dev database note: tables are created with `create_all` (no migrations at this
+stage), so after model columns change, stop the server, delete the gitignored
+`backend/microchess.db`, restart, and re-run the seed above.
+
 ## Quality gates
 
 ```bash

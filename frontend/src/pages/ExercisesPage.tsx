@@ -6,7 +6,8 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { EXERCISE_CATALOG, type ExerciseMeta } from "../exercises/catalog";
 import { t } from "../i18n";
 
-// Catalog renders every exercise from the central registry.
+// Exercise-selection menu. Serves both "/" (main menu) and "/exercises".
+// Renders every exercise from the central registry.
 // Availability is status-driven: active cards link to their route,
 // coming-soon cards show a badge and no link. No per-slug conditionals.
 export function ExercisesPage() {
