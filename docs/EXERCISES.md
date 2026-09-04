@@ -156,3 +156,18 @@ Planned types (examples, not specs):
 - Generator + seed: `python -m app.modules.pathfinding.seed` (deterministic
   templates for all six piece types, every template proven solvable by BFS;
   15 persisted puzzles).
+
+## Tenth slice
+
+**Pin** — IMPLEMENTED (`pin`).
+
+- Route: `/exercises/pin` (shared `ExercisePlay` move-input loop in drag-only
+  mode, same pattern as Get Out of Check).
+- Validator: `backend/app/modules/pin/validator.py` (any legal python-chess
+  move whose resulting position contains a classical pin absent before the
+  move; ray-based detection independent of side to move; FEN travels in the
+  server-only `answer_json`, never exposed).
+- Seed: `python -m app.modules.pin.seed` (15 hand-designed puzzles covering
+  absolute/relative pins with all three sliders, all six pinned types,
+  pawn/knight/king-created pins, multi-answer, existing-pin and decoy cases;
+  every example independently verified at seed time).

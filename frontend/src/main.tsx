@@ -14,6 +14,7 @@ import { LegalDestinationsPage } from "./pages/LegalDestinationsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PathfindingPage } from "./pages/PathfindingPage";
 import { PieceRecognitionPage } from "./pages/PieceRecognitionPage";
+import { PinPage } from "./pages/PinPage";
 import "./index.css";
 
 // Routes only. Keep data fetching inside pages via api client.
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
       { path: "/exercises/give-check", element: <GiveCheckPage /> },
       { path: "/exercises/get-out-of-check", element: <GetOutOfCheckPage /> },
       { path: "/exercises/pathfinding", element: <PathfindingPage /> },
+      { path: "/exercises/pin", element: <PinPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

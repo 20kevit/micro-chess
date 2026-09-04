@@ -23,6 +23,7 @@ import app.modules.hanging_pieces as _hanging_pieces  # noqa: F401
 import app.modules.legal_destinations as _legal_destinations  # noqa: F401
 import app.modules.pathfinding as _pathfinding  # noqa: F401
 import app.modules.piece_recognition as _piece_recognition  # noqa: F401
+import app.modules.pin as _pin  # noqa: F401
 
 
 @asynccontextmanager
