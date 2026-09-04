@@ -268,6 +268,13 @@ function PlayLoop({
     setSelected((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
   }
 
+  function setMove(from: string, to: string) {
+    if (result) return; // Locked after submission; feedback shows states.
+    // A dragged or drawn move replaces any previous selection/arrow.
+    setSelected([from, to]);
+    setPromotion("q");
+  }
+
   async function submit(clientResult?: string) {
     if (!puzzle || submitting) return;
     setSubmitting(true);
@@ -353,6 +360,15 @@ function PlayLoop({
         onSquarePress={useOptions ? undefined : toggleSquare}
         squareStates={squareStates}
         disabled={result !== null || submitting}
+        draggablePieces={config.moveInput}
+        arrowsEnabled={config.moveInput}
+        arrow={
+          config.moveInput && selected.length === 2
+            ? { from: selected[0], to: selected[1] }
+            : null
+        }
+        onMove={config.moveInput ? setMove : undefined}
+        onArrowDraw={config.moveInput ? setMove : undefined}
       />
 
       {!result ? (
