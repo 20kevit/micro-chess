@@ -99,3 +99,16 @@ Planned types (examples, not specs):
 - Seed: `python -m app.modules.equal_attackers_defenders.seed` (15 puzzles
   covering 1v1/2v2/3v3, unequal counts, empty boards, all piece types as
   attackers and defenders, blockers, king attack/defense, decoys).
+
+## Sixth slice
+
+**Castling Rights** — IMPLEMENTED (`castling-rights`).
+
+- Route: `/exercises/castling-rights` (shared `ExercisePlay` loop extended
+  with a fixed four-option mode; board shows the position as context only).
+- Validator: `backend/app/modules/castling_rights/validator.py` (each option
+  must appear in that color's python-chess legal moves on a turn-flipped
+  board; explicit king/rook presence guards stale FEN flags safely).
+- Seed: `python -m app.modules.castling_rights.seed` (15 puzzles covering all
+  four options, single-option cases, absent rights, blocked paths incl. b-file,
+  check, transit/destination attacks, stale rook/king flags, partial subsets).

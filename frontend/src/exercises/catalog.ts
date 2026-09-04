@@ -22,7 +22,7 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
   { slug: "captures", titleKey: "exercises.captures.title", descKey: "exercises.captures.desc", status: "active", route: "/exercises/captures" },
   { slug: "hanging-pieces", titleKey: "exercises.hanging-pieces.title", descKey: "exercises.hanging-pieces.desc", status: "active", route: "/exercises/hanging-pieces" },
   { slug: "equal-attackers-defenders", titleKey: "exercises.equal-attackers-defenders.title", descKey: "exercises.equal-attackers-defenders.desc", status: "active", route: "/exercises/equal-attackers-defenders" },
-  { slug: "castling-rights", titleKey: "exercises.castling-rights.title", descKey: "exercises.castling-rights.desc", status: "coming_soon", route: null },
+  { slug: "castling-rights", titleKey: "exercises.castling-rights.title", descKey: "exercises.castling-rights.desc", status: "active", route: "/exercises/castling-rights" },
   { slug: "give-check", titleKey: "exercises.give-check.title", descKey: "exercises.give-check.desc", status: "coming_soon", route: null },
   { slug: "get-out-of-check", titleKey: "exercises.get-out-of-check.title", descKey: "exercises.get-out-of-check.desc", status: "coming_soon", route: null },
   { slug: "pathfinding", titleKey: "exercises.pathfinding.title", descKey: "exercises.pathfinding.desc", status: "coming_soon", route: null },
