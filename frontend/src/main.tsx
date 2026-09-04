@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AppShell } from "./components/ui/AppShell";
+import { CapturesPage } from "./pages/CapturesPage";
 import { ExercisesPage } from "./pages/ExercisesPage";
 import { LegalDestinationsPage } from "./pages/LegalDestinationsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
       { path: "/exercises", element: <ExercisesPage /> },
       { path: "/exercises/piece-recognition", element: <PieceRecognitionPage /> },
       { path: "/exercises/legal-destinations", element: <LegalDestinationsPage /> },
+      { path: "/exercises/captures", element: <CapturesPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

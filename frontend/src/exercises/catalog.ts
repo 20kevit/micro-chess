@@ -19,7 +19,7 @@ export interface ExerciseMeta {
 export const EXERCISE_CATALOG: ExerciseMeta[] = [
   { slug: "piece-recognition", titleKey: "exercises.piece-recognition.title", descKey: "exercises.piece-recognition.desc", status: "active", route: "/exercises/piece-recognition" },
   { slug: "legal-destinations", titleKey: "exercises.legal-destinations.title", descKey: "exercises.legal-destinations.desc", status: "active", route: "/exercises/legal-destinations" },
-  { slug: "captures", titleKey: "exercises.captures.title", descKey: "exercises.captures.desc", status: "coming_soon", route: null },
+  { slug: "captures", titleKey: "exercises.captures.title", descKey: "exercises.captures.desc", status: "active", route: "/exercises/captures" },
   { slug: "hanging-pieces", titleKey: "exercises.hanging-pieces.title", descKey: "exercises.hanging-pieces.desc", status: "coming_soon", route: null },
   { slug: "equal-attackers-defenders", titleKey: "exercises.equal-attackers-defenders.title", descKey: "exercises.equal-attackers-defenders.desc", status: "coming_soon", route: null },
   { slug: "castling-rights", titleKey: "exercises.castling-rights.title", descKey: "exercises.castling-rights.desc", status: "coming_soon", route: null },

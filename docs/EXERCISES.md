@@ -59,3 +59,17 @@ Planned types (examples, not specs):
   without touching the attempt flow.
 - Seed: `python -m app.modules.legal_destinations.seed` (15 puzzles covering
   all six piece kinds, blockers, pawn/king edge cases, both profiles).
+
+## Third slice
+
+**Captures** — IMPLEMENTED (`captures`).
+
+- Route: `/exercises/captures` (shared `ExercisePlay` loop; hunter square
+  highlighted, capturable squares server-authoritative).
+- Validator: `backend/app/modules/captures/validator.py` (legal captures via
+  `is_capture` on `legal_moves`: sliding rays stop at first occupation, pawn
+  pushes never count, king safety enforced; empty answer accepts only an
+  empty submission).
+- Seed: `python -m app.modules.captures.seed` (15 puzzles covering all six
+  hunter kinds, friendly/enemy blockers, pawn diagonals, legal/illegal king
+  captures, no-capture positions).
