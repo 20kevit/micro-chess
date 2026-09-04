@@ -24,6 +24,7 @@ import app.modules.give_check as _give_check  # noqa: F401
 import app.modules.hanging_pieces as _hanging_pieces  # noqa: F401
 import app.modules.legal_destinations as _legal_destinations  # noqa: F401
 import app.modules.material_comparison as _material_comparison  # noqa: F401
+import app.modules.memory_board as _memory_board  # noqa: F401
 import app.modules.pathfinding as _pathfinding  # noqa: F401
 import app.modules.piece_recognition as _piece_recognition  # noqa: F401
 import app.modules.pin as _pin  # noqa: F401

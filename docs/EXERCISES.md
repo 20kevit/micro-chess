@@ -213,3 +213,19 @@ Planned types (examples, not specs):
   5 checkmate / 5 check / 5 not_check incl. stalemate, double checks,
   blockable/capturable/king-escape and decoy cases; every classification
   independently verified at seed time).
+
+## Fourteenth slice
+
+**Memory Board** — IMPLEMENTED (`memory-board`).
+
+- Route: `/exercises/memory-board` (dedicated `MemoryBoardPlay` loop reusing
+  board/attempt/timing/hint/feedback primitives: memorize phase with
+  countdown, rebuild phase with palette + turn selector on an empty board,
+  full reconstruction auto-compared server-side).
+- Validator: `backend/app/modules/memory_board/validator.py` (submitted
+  placement must equal the stored FEN placement exactly, plus side to move;
+  castling/en-passant metadata ignored; FEN travels in the server-only
+  `answer_json`, never exposed).
+- Seed: `python -m app.modules.memory_board.seed` (15 hand-designed puzzles
+  of rising difficulty, 8s/6s/4s memorize durations, every FEN independently
+  verified at seed time).
