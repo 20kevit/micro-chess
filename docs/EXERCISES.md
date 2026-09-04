@@ -46,3 +46,16 @@ Planned types (examples, not specs):
   and `queen-any`); new targets need no flow changes.
 - Seed: `python -m app.modules.piece_recognition.seed` (15 puzzles, answers
   derived from FEN and covered by `tests/test_piece_recognition.py`).
+
+## Second slice
+
+**Legal Destinations** — IMPLEMENTED (`legal-destinations`).
+
+- Route: `/exercises/legal-destinations` (shared `ExercisePlay` loop; target
+  square highlighted, destinations server-authoritative).
+- Validator: `backend/app/modules/legal_destinations/validator.py`.
+- Rule profiles are data (`RULE_PROFILES`: `standard` via `legal_moves`,
+  `ignore-enemy-attacks` via `pseudo_legal_moves`); new profiles plug in
+  without touching the attempt flow.
+- Seed: `python -m app.modules.legal_destinations.seed` (15 puzzles covering
+  all six piece kinds, blockers, pawn/king edge cases, both profiles).

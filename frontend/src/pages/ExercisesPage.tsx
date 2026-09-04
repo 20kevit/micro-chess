@@ -39,7 +39,7 @@ function ExerciseCard({ meta, number }: { meta: ExerciseMeta; number: number }) 
       <p className="mt-1 text-sm text-stone-500">{t(meta.descKey)}</p>
       {playable && meta.route ? (
         <Link to={meta.route} className="mt-3 block" aria-label={t(meta.titleKey)}>
-          <Button className="w-full">{t("piece.start")}</Button>
+          <Button className="w-full">{t("play.start")}</Button>
         </Link>
       ) : null}
     </Card>

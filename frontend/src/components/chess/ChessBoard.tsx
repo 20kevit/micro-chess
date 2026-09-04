@@ -18,7 +18,7 @@ interface Props {
   /** Multi-square selection (e.g. piece-recognition answers). */
   selectedSquares?: string[];
   /** Explicit per-square visual state; wins over selection props. */
-  squareStates?: Partial<Record<string, "selected" | "correct" | "missed" | "wrong">>;
+  squareStates?: Partial<Record<string, "selected" | "correct" | "missed" | "wrong" | "target">>;
   /** Disable interaction (e.g. after submitting). */
   disabled?: boolean;
   squareSize?: number;
@@ -29,6 +29,8 @@ const STATE_RING: Record<string, string> = {
   correct: "outline-4 outline -outline-offset-4 outline-green-500",
   missed: "outline-4 outline-dashed -outline-offset-4 outline-amber-500",
   wrong: "outline-4 outline -outline-offset-4 outline-red-500",
+  // Marks the task's target piece. Never implies a correct destination.
+  target: "outline-4 outline -outline-offset-4 outline-sky-400",
 };
 
 export function ChessBoard({

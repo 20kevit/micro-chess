@@ -19,7 +19,7 @@ squares_for_target); the validation flow itself never changes.
 from typing import Any
 
 from app.modules.chess_engine import board as chess_board
-from app.modules.rule_engine.base import AttemptResult, ValidationResult
+from app.modules.rule_engine.base import AttemptResult, ValidationResult, split_squares
 
 SLUG = "piece-recognition"
 
@@ -43,34 +43,6 @@ TARGETS: dict[str, dict[str, Any]] = {
 }
 
 _FILES = "abcdefgh"
-
-
-def normalize_square(raw: Any) -> str | None:
-    """Lowercase/validate a single square name. Returns None when malformed."""
-    if not isinstance(raw, str):
-        return None
-    sq = raw.strip().lower()
-    if len(sq) != 2 or sq[0] not in _FILES or sq[1] not in "12345678":
-        return None
-    return sq
-
-
-def normalize_squares(raw: Any) -> tuple[set[str], list[str]]:
-    """Split raw input into (valid squares, malformed entries).
-
-    Malformed entries are returned as strings so callers can count them
-    as incorrect selections without crashing.
-    """
-    items = raw if isinstance(raw, list) else []
-    valid: set[str] = set()
-    malformed: list[str] = []
-    for entry in items:
-        sq = normalize_square(entry)
-        if sq is None:
-            malformed.append(str(entry))
-        else:
-            valid.add(sq)
-    return valid, malformed
 
 
 def squares_for_target(fen: str, target: dict[str, Any]) -> list[str]:
@@ -98,8 +70,8 @@ def squares_for_target(fen: str, target: dict[str, Any]) -> list[str]:
 
 
 def validate(puzzle_answer: dict[str, Any], attempt: dict[str, Any]) -> ValidationResult:
-    expected, _ = normalize_squares(puzzle_answer.get("squares", []))
-    selected, malformed = normalize_squares(attempt.get("selected_squares", []))
+    expected, _ = split_squares(puzzle_answer.get("squares", []))
+    selected, malformed = split_squares(attempt.get("selected_squares", []))
 
     correct = sorted(selected & expected)
     missed = sorted(expected - selected)

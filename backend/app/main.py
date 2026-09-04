@@ -13,6 +13,7 @@ from app.modules.puzzles.router import router as puzzles_router
 from app.modules.users.router import router as users_router
 
 # Register exercise validators (no core-flow changes needed per exercise).
+import app.modules.legal_destinations as _legal_destinations  # noqa: F401
 import app.modules.piece_recognition as _piece_recognition  # noqa: F401
 
 

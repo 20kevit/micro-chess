@@ -4,6 +4,7 @@ import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AppShell } from "./components/ui/AppShell";
 import { ExercisesPage } from "./pages/ExercisesPage";
+import { LegalDestinationsPage } from "./pages/LegalDestinationsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PieceRecognitionPage } from "./pages/PieceRecognitionPage";
 import "./index.css";
@@ -17,6 +18,7 @@ const router = createBrowserRouter([
       { path: "/", element: <ExercisesPage /> },
       { path: "/exercises", element: <ExercisesPage /> },
       { path: "/exercises/piece-recognition", element: <PieceRecognitionPage /> },
+      { path: "/exercises/legal-destinations", element: <LegalDestinationsPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
