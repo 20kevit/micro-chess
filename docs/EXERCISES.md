@@ -86,3 +86,16 @@ Planned types (examples, not specs):
 - Seed: `python -m app.modules.hanging_pieces.seed` (15 puzzles covering
   single/multiple/none hanging, multi-attack/defense, all piece types as
   attackers and defenders, blockers, king attack/defense, decoys).
+
+## Fifth slice
+
+**Equal Attackers & Defenders** — IMPLEMENTED (`equal-attackers-defenders`).
+
+- Route: `/exercises/equal-attackers-defenders` (shared `ExercisePlay` loop
+  with no pre-highlight; only the user's selections are shown).
+- Validator: `backend/app/modules/equal_attackers_defenders/validator.py`
+  (target = attackers > 0 AND attackers == defenders, from python-chess
+  attack geometry, never legal moves; own square never counts as a defender).
+- Seed: `python -m app.modules.equal_attackers_defenders.seed` (15 puzzles
+  covering 1v1/2v2/3v3, unequal counts, empty boards, all piece types as
+  attackers and defenders, blockers, king attack/defense, decoys).
