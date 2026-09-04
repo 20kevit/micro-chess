@@ -45,7 +45,7 @@ interface Props {
   onArrowDraw?: (from: string, to: string) => void;
   /** Decorative square markers (e.g. the pathfinding goal star).
    * Never derived from the answer; the parent decides what to mark. */
-  markers?: Partial<Record<string, "star">>;
+  markers?: Partial<Record<string, "star" | "dot">>;
 }
 
 const STATE_RING: Record<string, string> = {
@@ -341,6 +341,14 @@ export function ChessBoard({
                           strokeLinejoin="round"
                         />
                       </svg>
+                    </span>
+                  ) : null}
+                  {markers[square] === "dot" ? (
+                    <span
+                      className="pointer-events-none absolute inset-0 grid place-items-center"
+                      aria-hidden="true"
+                    >
+                      <span className="block h-[22%] w-[22%] rounded-full bg-sky-500/70" />
                     </span>
                   ) : null}
                 </button>

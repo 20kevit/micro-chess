@@ -61,6 +61,8 @@ export interface AttemptResponse {
     target_value?: number;
     left_value?: number;
     right_value?: number;
+    moves?: number;
+    path?: string[];
   };
   hints_used: string[];
   started_at: string | null;

@@ -229,3 +229,19 @@ Planned types (examples, not specs):
 - Seed: `python -m app.modules.memory_board.seed` (15 hand-designed puzzles
   of rising difficulty, 8s/6s/4s memorize durations, every FEN independently
   verified at seed time).
+
+## Fifteenth slice
+
+**Blindfold Square Vision** — IMPLEMENTED (`blindfold-square-vision`).
+
+- Route: `/exercises/blindfold-square-vision` (dedicated
+  `BlindfoldSquareVisionPlay` loop reusing attempt/timing/hint/feedback
+  primitives: empty board with neutral start/target markers, piece info card
+  with SVG icon, large numeric input, post-submit shortest path display).
+- Validator: `backend/app/modules/blindfold_square_vision/validator.py`
+  (closed-form distances for king/queen/rook/bishop, BFS for knight and
+  forward-only pawn; task params travel in the server-only `answer_json`,
+  never exposed; unreachable pairs fail closed).
+- Seed: `python -m app.modules.blindfold_square_vision.seed` (15
+  hand-designed puzzles, K3/Q2/R2/B2/N4/P2 with 1/2/3/6-move knight cases;
+  every distance independently verified at seed time).

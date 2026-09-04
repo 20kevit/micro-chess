@@ -14,6 +14,7 @@ from app.modules.puzzles.router import router as puzzles_router
 from app.modules.users.router import router as users_router
 
 # Register exercise validators (no core-flow changes needed per exercise).
+import app.modules.blindfold_square_vision as _blindfold_square_vision  # noqa: F401
 import app.modules.captures as _captures  # noqa: F401
 import app.modules.balance_scale as _balance_scale  # noqa: F401
 import app.modules.castling_rights as _castling_rights  # noqa: F401

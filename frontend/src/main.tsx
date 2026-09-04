@@ -4,6 +4,7 @@ import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AppShell } from "./components/ui/AppShell";
 import { BalanceScalePage } from "./pages/BalanceScalePage";
+import { BlindfoldSquareVisionPage } from "./pages/BlindfoldSquareVisionPage";
 import { CapturesPage } from "./pages/CapturesPage";
 import { CastlingRightsPage } from "./pages/CastlingRightsPage";
 import { CheckmatePage } from "./pages/CheckmatePage";
@@ -41,6 +42,7 @@ const router = createBrowserRouter([
       { path: "/exercises/get-out-of-check", element: <GetOutOfCheckPage /> },
       { path: "/exercises/heavier-side", element: <MaterialComparisonPage /> },
       { path: "/exercises/memory-board", element: <MemoryBoardPage /> },
+      { path: "/exercises/blindfold-square-vision", element: <BlindfoldSquareVisionPage /> },
       { path: "/exercises/pathfinding", element: <PathfindingPage /> },
       { path: "/exercises/pin", element: <PinPage /> },
       { path: "*", element: <NotFoundPage /> },
