@@ -41,6 +41,7 @@ export const fa = {
   "givecheck.allChecks": "همه کیش‌ها",
   "givecheck.appropriateChecks": "کیش‌های مناسب",
   "givecheck.promotion": "ترفیع",
+  "getoutcheck.intro": "شاه تو کیش است! مهره‌ای را حرکت بده که شاه از کیش خارج شود.",
   "play.start": "شروع",
   "play.submit": "بررسی جواب",
   "play.clear": "پاک کردن",

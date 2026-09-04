@@ -126,3 +126,18 @@ Planned types (examples, not specs):
 - Seed: `python -m app.modules.give_check.seed` (15 hand-designed puzzles
   covering all piece types, discovered/capture/blocked/pinned/multi-answer
   and promotion checks; every example independently verified at seed time).
+
+## Eighth slice
+
+**Get Out of Check** — IMPLEMENTED (`get-out-of-check`).
+
+- Route: `/exercises/get-out-of-check` (shared `ExercisePlay` move-input loop
+  in drag-only mode: arrows stay off, from/to rings carry the selection).
+- Validator: `backend/app/modules/get_out_of_check/validator.py` (position
+  must start in check; any legal python-chess move leaving the mover's own
+  king safe, tested via `is_attacked_by` after the push; FEN travels in the
+  server-only `answer_json`, never exposed).
+- Seed: `python -m app.modules.get_out_of_check.seed` (15 hand-designed
+  puzzles covering king escapes, captures, blocks, knight/pawn checks,
+  doubles, pinned and discovered-fail cases, single/multi answers and a
+  black-to-move position; every example independently verified at seed time).

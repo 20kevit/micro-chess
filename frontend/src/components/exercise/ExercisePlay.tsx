@@ -121,6 +121,9 @@ export interface ExercisePlayConfig {
   detailLabelOf?: (id: string) => string;
   /** from→to move input instead of square-set toggle. */
   moveInput?: boolean;
+  /** Draw move arrows on the board (right-drag / long-press-drag).
+   * Defaults to moveInput; set false for drag-only move exercises. */
+  arrowsEnabled?: boolean;
   /** Minimum selected items before submit is enabled. Default: always enabled. */
   requiredSelection?: number;
   /** Exercise variants (e.g. all-checks vs appropriate-checks) chosen at entry.
@@ -361,14 +364,14 @@ function PlayLoop({
         squareStates={squareStates}
         disabled={result !== null || submitting}
         draggablePieces={config.moveInput}
-        arrowsEnabled={config.moveInput}
+        arrowsEnabled={config.arrowsEnabled ?? config.moveInput}
         arrow={
-          config.moveInput && selected.length === 2
+          config.moveInput && (config.arrowsEnabled ?? config.moveInput) && selected.length === 2
             ? { from: selected[0], to: selected[1] }
             : null
         }
         onMove={config.moveInput ? setMove : undefined}
-        onArrowDraw={config.moveInput ? setMove : undefined}
+        onArrowDraw={config.moveInput && (config.arrowsEnabled ?? config.moveInput) ? setMove : undefined}
       />
 
       {!result ? (
