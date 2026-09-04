@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+/* Design tokens: friendly, game-like, still professional. */
+/* Keep components mobile-first; board stays square via aspect-square. */
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  font-family: "Vazirmatn", system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #f6f4ff;
+  color: #1f2430;
+  -webkit-tap-highlight-color: transparent;
+}

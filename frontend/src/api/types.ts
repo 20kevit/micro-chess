@@ -1,0 +1,39 @@
+// Shared API types. Mirror backend schemas; no validation logic here.
+export interface Exercise {
+  slug: string;
+  title_fa: string;
+  title_en: string;
+  description: string;
+  is_active: boolean;
+}
+
+export interface Puzzle {
+  id: number;
+  exercise_slug: string;
+  fen: string | null;
+  position_json: Record<string, unknown>;
+  hint_json: Record<string, unknown>;
+  initial_rating: number;
+  is_published: boolean;
+  is_archived: boolean;
+}
+
+export type AttemptMode = "rated" | "practice";
+export type AttemptResult =
+  | "correct"
+  | "partial"
+  | "wrong"
+  | "timeout"
+  | "skipped"
+  | "abandoned";
+
+export interface AttemptResponse {
+  id: number;
+  puzzle_id: number;
+  exercise_slug: string;
+  mode: AttemptMode;
+  result: AttemptResult;
+  score: number;
+  feedback_key: string;
+  rating_delta: number | null;
+}

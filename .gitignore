@@ -1,0 +1,16 @@
+# ---> Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+backend/microchess.db
+backend/.env
+# ---> Node
+node_modules/
+frontend/dist/
+frontend/.env
+# ---> Misc
+.opencode/
+*.log
+.DS_Store
