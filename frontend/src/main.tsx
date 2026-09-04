@@ -5,6 +5,7 @@ import App from "./App";
 import { AppShell } from "./components/ui/AppShell";
 import { CapturesPage } from "./pages/CapturesPage";
 import { ExercisesPage } from "./pages/ExercisesPage";
+import { HangingPiecesPage } from "./pages/HangingPiecesPage";
 import { LegalDestinationsPage } from "./pages/LegalDestinationsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PieceRecognitionPage } from "./pages/PieceRecognitionPage";
@@ -21,6 +22,7 @@ const router = createBrowserRouter([
       { path: "/exercises/piece-recognition", element: <PieceRecognitionPage /> },
       { path: "/exercises/legal-destinations", element: <LegalDestinationsPage /> },
       { path: "/exercises/captures", element: <CapturesPage /> },
+      { path: "/exercises/hanging-pieces", element: <HangingPiecesPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

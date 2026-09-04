@@ -73,3 +73,16 @@ Planned types (examples, not specs):
 - Seed: `python -m app.modules.captures.seed` (15 puzzles covering all six
   hunter kinds, friendly/enemy blockers, pawn diagonals, legal/illegal king
   captures, no-capture positions).
+
+## Fourth slice
+
+**Hanging Pieces** — IMPLEMENTED (`hanging-pieces`).
+
+- Route: `/exercises/hanging-pieces` (shared `ExercisePlay` loop with no
+  pre-highlight; only the user's selections are shown).
+- Validator: `backend/app/modules/hanging_pieces/validator.py` (hanging =
+  enemy attackers > 0 AND friendly defenders == 0, from python-chess attack
+  geometry, never legal moves; own square never counts as a defender).
+- Seed: `python -m app.modules.hanging_pieces.seed` (15 puzzles covering
+  single/multiple/none hanging, multi-attack/defense, all piece types as
+  attackers and defenders, blockers, king attack/defense, decoys).
