@@ -112,3 +112,17 @@ Planned types (examples, not specs):
 - Seed: `python -m app.modules.castling_rights.seed` (15 puzzles covering all
   four options, single-option cases, absent rights, blocked paths incl. b-file,
   check, transit/destination attacks, stale rook/king flags, partial subsets).
+
+## Seventh slice
+
+**Give Check** — IMPLEMENTED (`give-check`).
+
+- Route: `/exercises/give-check` (shared `ExercisePlay` loop extended with a
+  from→to move-input mode, promotion picker and exercise-mode toggle; the
+  modes `all-checks`/`appropriate-checks` currently behave identically).
+- Validator: `backend/app/modules/give_check/validator.py` (any legal
+  python-chess move that leaves the opponent king in check; FEN travels in
+  the server-only `answer_json`, never exposed).
+- Seed: `python -m app.modules.give_check.seed` (15 hand-designed puzzles
+  covering all piece types, discovered/capture/blocked/pinned/multi-answer
+  and promotion checks; every example independently verified at seed time).

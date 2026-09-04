@@ -16,6 +16,7 @@ from app.modules.users.router import router as users_router
 import app.modules.captures as _captures  # noqa: F401
 import app.modules.castling_rights as _castling_rights  # noqa: F401
 import app.modules.equal_attackers_defenders as _equal  # noqa: F401
+import app.modules.give_check as _give_check  # noqa: F401
 import app.modules.hanging_pieces as _hanging_pieces  # noqa: F401
 import app.modules.legal_destinations as _legal_destinations  # noqa: F401
 import app.modules.piece_recognition as _piece_recognition  # noqa: F401

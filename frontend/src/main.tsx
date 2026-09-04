@@ -7,6 +7,7 @@ import { CapturesPage } from "./pages/CapturesPage";
 import { CastlingRightsPage } from "./pages/CastlingRightsPage";
 import { EqualAttackersDefendersPage } from "./pages/EqualAttackersDefendersPage";
 import { ExercisesPage } from "./pages/ExercisesPage";
+import { GiveCheckPage } from "./pages/GiveCheckPage";
 import { HangingPiecesPage } from "./pages/HangingPiecesPage";
 import { LegalDestinationsPage } from "./pages/LegalDestinationsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -27,6 +28,7 @@ const router = createBrowserRouter([
       { path: "/exercises/hanging-pieces", element: <HangingPiecesPage /> },
       { path: "/exercises/equal-attackers-defenders", element: <EqualAttackersDefendersPage /> },
       { path: "/exercises/castling-rights", element: <CastlingRightsPage /> },
+      { path: "/exercises/give-check", element: <GiveCheckPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
