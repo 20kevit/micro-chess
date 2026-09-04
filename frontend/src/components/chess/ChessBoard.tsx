@@ -33,6 +33,8 @@ interface Props {
   squareSize?: number;
   /** Allow dragging a piece onto another square (pointer + touch). */
   draggablePieces?: boolean;
+  /** restricts drag initiation to these squares when set (null = any piece). */
+  draggableSquares?: string[] | null;
   /** Allow drawing a move arrow (right-drag on desktop, long-press-drag on touch). */
   arrowsEnabled?: boolean;
   /** Currently displayed arrow (controlled by the parent). */
@@ -41,6 +43,9 @@ interface Props {
   onMove?: (from: string, to: string) => void;
   /** Fired after an arrow gesture completes (replaces any arrow). */
   onArrowDraw?: (from: string, to: string) => void;
+  /** Decorative square markers (e.g. the pathfinding goal star).
+   * Never derived from the answer; the parent decides what to mark. */
+  markers?: Partial<Record<string, "star">>;
 }
 
 const STATE_RING: Record<string, string> = {
@@ -69,10 +74,12 @@ export function ChessBoard({
   squareStates = {},
   disabled = false,
   draggablePieces = false,
+  draggableSquares = null,
   arrowsEnabled = false,
   arrow = null,
   onMove,
   onArrowDraw,
+  markers = {},
 }: Props) {
   const files = orientation === "white" ? FILES : [...FILES].reverse();
   const ranks = orientation === "white" ? RANKS : [...RANKS].reverse();
@@ -89,6 +96,7 @@ export function ChessBoard({
     startX: 0,
     startY: 0,
     hasPiece: false,
+    canDrag: false,
     timer: 0 as number | ReturnType<typeof setTimeout> | null,
     previewTo: "",
   });
@@ -158,6 +166,7 @@ export function ChessBoard({
     g.startY = e.clientY;
     g.previewTo = square;
     g.hasPiece = pieces[square] !== undefined;
+    g.canDrag = g.hasPiece && (!draggableSquares || draggableSquares.includes(square));
     capture(e);
 
     if (e.pointerType === "mouse") {
@@ -192,7 +201,7 @@ export function ChessBoard({
       const moved = Math.hypot(e.clientX - g.startX, e.clientY - g.startY) > DRAG_THRESHOLD_PX;
       if (!moved) return;
       clearTimer();
-      if (g.hasPiece && draggablePieces) {
+      if (g.canDrag && draggablePieces) {
         g.mode = "drag";
         const pos = fractionAt(e.clientX, e.clientY);
         const symbol = pieces[g.origin];
@@ -316,6 +325,22 @@ export function ChessBoard({
                   {piece ? (
                     <span className="pointer-events-none absolute inset-0 grid place-items-center p-[4%]">
                       <ChessPiece symbol={piece} />
+                    </span>
+                  ) : null}
+                  {markers[square] === "star" ? (
+                    <span
+                      className="pointer-events-none absolute inset-0 grid place-items-center"
+                      aria-hidden="true"
+                    >
+                      <svg viewBox="0 0 24 24" className="block h-[55%] w-[55%]">
+                        <path
+                          d="M12 2.5l2.95 5.98 6.6.96-4.78 4.66 1.13 6.58L12 17.57l-5.9 3.1 1.13-6.57L2.45 9.44l6.6-.96L12 2.5z"
+                          fill="#fbbf24"
+                          stroke="#92400e"
+                          strokeWidth="1.2"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
                     </span>
                   ) : null}
                 </button>

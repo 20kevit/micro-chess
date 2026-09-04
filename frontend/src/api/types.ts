@@ -35,6 +35,15 @@ export type AttemptResult =
   | "skipped"
   | "abandoned";
 
+export interface PathStepResponse {
+  ok: boolean;
+  fen: string;
+  selected_at: string;
+  reached: boolean;
+  captured: string | null;
+  message_key: string;
+}
+
 export interface AttemptResponse {
   id: number;
   puzzle_id: number;

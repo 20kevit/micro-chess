@@ -141,3 +141,18 @@ Planned types (examples, not specs):
   puzzles covering king escapes, captures, blocks, knight/pawn checks,
   doubles, pinned and discovered-fail cases, single/multi answers and a
   black-to-move position; every example independently verified at seed time).
+
+## Ninth slice
+
+**Pathfinding** — IMPLEMENTED (`pathfinding`).
+
+- Route: `/exercises/pathfinding` (dedicated `PathfindingPlay` loop reusing
+  board/attempt/timing/hint/feedback primitives: per-move drag validated by
+  `POST /api/v1/pathfinding/step`, star-marked target, full path auto-submitted
+  as one attempt on arrival).
+- Validator: `backend/app/modules/pathfinding/validator.py` (legal
+  python-chess move plus exercise rule: captures only onto enemies, empty
+  squares only when unattacked; control recalculated after every move).
+- Generator + seed: `python -m app.modules.pathfinding.seed` (deterministic
+  templates for all six piece types, every template proven solvable by BFS;
+  15 persisted puzzles).
