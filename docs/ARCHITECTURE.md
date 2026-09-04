@@ -23,6 +23,7 @@ docs/      product + architecture + api + exercises
 | `feedback_engine` | pure result → i18n key |
 | `learning` | placeholder (educational content later) |
 | `progress` | `Attempt` model + submit flow |
+| `piece_recognition` | first exercise: validator + seed data (registers `piece-recognition`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
@@ -52,6 +53,14 @@ No `if/elif` per exercise in core flow. New exercise = new validator function + 
 - `puzzles(id, exercise_slug FK, fen?, position_json, answer_json, hint_json, initial_rating, is_published, is_archived, published_at, created_at)`
 - `attempts(id, user_id? FK, puzzle_id FK, exercise_slug, mode, result, answer_json, score, rating_delta?, created_at)`
 
+Piece Recognition additions (same tables, new columns only):
+
+- `puzzles.prompt_fa` (question text), `puzzles.explanation` (shown after answering).
+- `puzzles.answer_json` convention: `{"squares": [...], "target": "<key>"}`.
+- `puzzles.hint_json` convention: `{"hints": [{"id", "text_fa", "rating_cost"}]}`.
+- `attempts.started_at?`, `attempts.duration_ms?` (server-computed), `attempts.hints_used` (JSON list).
+- `ValidationResult.detail` carries `{"correct", "missed", "wrong"}` back to the client.
+
 Notes:
 
 - Portable types only; `DATABASE_URL` switch + Alembic later for PostgreSQL.
@@ -73,3 +82,7 @@ Notes:
 4. `rating_delta` nullable now; `preview_rating_delta` returns None until Glicko-2.
 5. Tailwind v4 (`@import "tailwindcss"`) to avoid config boilerplate.
 6. No Alembic yet — `init_db()` + `create_all` is enough for the foundation stage.
+7. Piece Recognition: set-compare validator (malformed squares count as wrong);
+   targets are data (`color` + `kinds`), not separate exercise types.
+8. No target-piece highlighting on the board — avoids leaking the answer.
+9. Hints recorded per attempt (`hints_used` + `rating_cost` in data); rating math still stubbed.

@@ -12,6 +12,9 @@ from app.modules.progress.router import router as attempts_router
 from app.modules.puzzles.router import router as puzzles_router
 from app.modules.users.router import router as users_router
 
+# Register exercise validators (no core-flow changes needed per exercise).
+import app.modules.piece_recognition as _piece_recognition  # noqa: F401
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):

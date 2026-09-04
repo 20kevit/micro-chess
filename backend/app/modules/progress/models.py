@@ -28,4 +28,10 @@ class Attempt(Base):
     score: Mapped[float] = mapped_column(Float, default=0.0)
     # Reserved for future rating engine; null until rating is implemented.
     rating_delta: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Client-reported start of the attempt (nullable for old rows).
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Milliseconds between started_at and submission. None when unknown.
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Hint ids the user consumed, e.g. ["h1"]. Recorded for rating impact later.
+    hints_used: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, index=True)

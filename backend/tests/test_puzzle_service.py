@@ -45,7 +45,7 @@ def test_answer_immutable_after_publish(db_session, seeded):
 
 
 def test_practice_attempt_scores_without_rating(db_session, seeded):
-    attempt, _key = attempt_service.submit_attempt(
+    attempt, _key, _detail = attempt_service.submit_attempt(
         db_session,
         user_id=None,
         puzzle_id=seeded.id,
@@ -71,7 +71,7 @@ def test_archived_puzzle_rejects_attempts(db_session, seeded):
 
 
 def test_client_timeout_result(db_session, seeded):
-    attempt, _key = attempt_service.submit_attempt(
+    attempt, _key, _detail = attempt_service.submit_attempt(
         db_session,
         user_id=None,
         puzzle_id=seeded.id,

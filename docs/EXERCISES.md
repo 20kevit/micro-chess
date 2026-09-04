@@ -37,4 +37,12 @@ Planned types (examples, not specs):
 
 ## First slice
 
-**Piece Recognition** — detailed spec comes separately. Do not invent requirements.
+**Piece Recognition** — IMPLEMENTED (`piece-recognition`).
+
+- Route: `/exercises/piece-recognition` (entry → play → feedback → next).
+- Validator: `backend/app/modules/piece_recognition/validator.py` (set compare;
+  correct/partial/wrong per spec; malformed squares count as wrong).
+- Targets are data (`color` + piece `kinds`, incl. `minor-white`/`minor-black`
+  and `queen-any`); new targets need no flow changes.
+- Seed: `python -m app.modules.piece_recognition.seed` (15 puzzles, answers
+  derived from FEN and covered by `tests/test_piece_recognition.py`).

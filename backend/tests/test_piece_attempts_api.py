@@ -1,0 +1,143 @@
+"""Piece Recognition API flow: submit, attempts, hints, modes, timing."""
+
+from datetime import datetime, timedelta, timezone
+
+from app.core.security import create_access_token
+from app.modules.users.models import User
+from app.modules.piece_recognition import seed as seed_mod
+from app.modules.piece_recognition.validator import SLUG
+from app.modules.progress.models import Attempt
+from app.modules.puzzles.models import Puzzle
+
+
+def _seeded_puzzle(db_session) -> Puzzle:
+    seed_mod.seed_db(db_session)
+    puzzle = (
+        db_session.query(Puzzle)
+        .filter(Puzzle.exercise_slug == SLUG)
+        .order_by(Puzzle.id)
+        .first()
+    )
+    assert puzzle is not None
+    return puzzle
+
+
+def _auth_header(db_session) -> dict[str, str]:
+    # Insert directly to avoid the passlib/bcrypt env issue; this test only
+    # needs an authenticated user id, not password verification.
+    user = User(email="kid@example.com", password_hash="not-verified", display_name="Kid")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return {"Authorization": f"Bearer {create_access_token(str(user.id))}"}
+
+
+def test_puzzle_list_hides_answer_but_shows_prompt(client, db_session):
+    puzzle = _seeded_puzzle(db_session)
+    res = client.get(f"/api/v1/puzzles?exercise={SLUG}")
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body) == 15
+    first = body[0]
+    assert first["prompt_fa"]
+    assert first["explanation"]
+    assert "answer_json" not in first
+    assert first["fen"] == puzzle.fen
+
+
+def test_puzzle_detail_and_404(client, db_session):
+    puzzle = _seeded_puzzle(db_session)
+    res = client.get(f"/api/v1/puzzles/{puzzle.id}")
+    assert res.status_code == 200
+    assert res.json()["prompt_fa"] == puzzle.prompt_fa
+    assert "answer_json" not in res.json()
+    assert client.get("/api/v1/puzzles/999999").status_code == 404
+
+
+def test_practice_submit_correct_records_attempt(client, db_session):
+    puzzle = _seeded_puzzle(db_session)
+    res = client.post(
+        "/api/v1/attempts",
+        json={
+            "puzzle_id": puzzle.id,
+            "answer": {"selected_squares": puzzle.answer_json["squares"]},
+            "mode": "practice",
+        },
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["result"] == "correct"
+    assert body["score"] == 1.0
+    assert body["rating_delta"] is None
+    assert body["detail"]["missed"] == [] and body["detail"]["wrong"] == []
+
+    attempt = db_session.query(Attempt).filter(Attempt.id == body["id"]).one()
+    assert attempt.answer_json == {"selected_squares": puzzle.answer_json["squares"]}
+    assert attempt.hints_used == []
+    assert attempt.mode == "practice"
+
+
+def test_partial_scores_half(client, db_session):
+    puzzle = _seeded_puzzle(db_session)
+    squares = puzzle.answer_json["squares"]
+    assert len(squares) >= 2
+    res = client.post(
+        "/api/v1/attempts",
+        json={"puzzle_id": puzzle.id, "answer": {"selected_squares": squares[:1]}, "mode": "practice"},
+    )
+    assert res.json()["result"] == "partial"
+    assert res.json()["score"] == 0.5
+
+
+def test_rated_requires_auth(client, db_session):
+    puzzle = _seeded_puzzle(db_session)
+    res = client.post(
+        "/api/v1/attempts",
+        json={"puzzle_id": puzzle.id, "answer": {"selected_squares": []}, "mode": "rated"},
+    )
+    assert res.status_code == 401
+
+
+def test_rated_with_auth_stays_unrated_stub_but_records_user(client, db_session):
+    puzzle = _seeded_puzzle(db_session)
+    headers = _auth_header(db_session)
+    res = client.post(
+        "/api/v1/attempts",
+        headers=headers,
+        json={
+            "puzzle_id": puzzle.id,
+            "answer": {"selected_squares": puzzle.answer_json["squares"]},
+            "mode": "rated",
+        },
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["result"] == "correct"
+    # Rating engine is still a stub: rated intent recorded, delta None.
+    assert body["rating_delta"] is None
+    attempt = db_session.query(Attempt).filter(Attempt.id == body["id"]).one()
+    assert attempt.user_id is not None
+    assert attempt.mode == "rated"
+
+
+def test_hints_and_timing_recorded(client, db_session):
+    puzzle = _seeded_puzzle(db_session)
+    started = (datetime.now(timezone.utc) - timedelta(seconds=42)).isoformat()
+    res = client.post(
+        "/api/v1/attempts",
+        json={
+            "puzzle_id": puzzle.id,
+            "answer": {"selected_squares": []},
+            "mode": "practice",
+            "hints_used": ["h1"],
+            "started_at": started,
+            "client_result": None,
+        },
+    )
+    body = res.json()
+    assert body["hints_used"] == ["h1"]
+    assert body["duration_ms"] is not None and body["duration_ms"] >= 40000
+    attempt = db_session.query(Attempt).filter(Attempt.id == body["id"]).one()
+    assert attempt.hints_used == ["h1"]
+    assert attempt.duration_ms is not None
+    assert attempt.started_at is not None

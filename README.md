@@ -31,6 +31,13 @@ cp .env.example .env
 npm run dev
 ```
 
+Seed Piece Recognition demo puzzles:
+
+```bash
+cd backend
+python -m app.modules.piece_recognition.seed
+```
+
 ## Quality gates
 
 ```bash

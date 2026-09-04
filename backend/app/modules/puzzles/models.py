@@ -23,6 +23,10 @@ class Puzzle(Base):
     # Definitive answer. Immutable once published (enforced in service layer).
     answer_json: Mapped[dict] = mapped_column(JSON, default=dict)
     hint_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Question/instruction shown to the user (Persian).
+    prompt_fa: Mapped[str] = mapped_column(String(500), default="")
+    # Educational content shown after answering (solution/explanation).
+    explanation: Mapped[str] = mapped_column(String(2000), default="")
     initial_rating: Mapped[float] = mapped_column(Float, default=1200.0)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False)

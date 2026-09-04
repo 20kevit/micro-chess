@@ -21,6 +21,7 @@ Base URL: `http://localhost:8000`. All module routes under `/api/v1`.
 
 - `GET /api/v1/puzzles?exercise=<slug>` → published + non-archived puzzles
 - Response omits `answer_json` (backend authoritative). Admin authoring comes later.
+- `GET /api/v1/puzzles/{id}` → single puzzle (education stays accessible later); 404 `puzzle_not_available`
 
 Example:
 
@@ -44,9 +45,10 @@ Example:
 
 - `POST /api/v1/attempts`
   - Auth: optional for `practice`; required for `rated` (`auth_required_for_rated` 401).
-  - Body: `{puzzle_id, answer: {}, mode: "practice"|"rated", client_result?: "timeout"|"skipped"|"abandoned"}`
+  - Body: `{puzzle_id, answer: {selected_squares: []}, mode, client_result?, hints_used?: [], started_at?}`
   - `client_result` short-circuits validation for terminal states; otherwise the exercise validator runs.
-  - Response: `{id, puzzle_id, exercise_slug, mode, result, score, feedback_key, rating_delta, created_at}`
+  - Response: `{id, puzzle_id, exercise_slug, mode, result, score, feedback_key, rating_delta, detail, hints_used, started_at, duration_ms, created_at}`
+  - `detail` is `{correct: [], missed: [], wrong: []}` for piece-recognition.
   - `result` in correct/partial/wrong/timeout/skipped/abandoned.
   - `rating_delta` is `null` until Glicko-2 lands; practice attempts never set it.
   - Errors: `puzzle_not_available` (404 for missing/unpublished/archived).

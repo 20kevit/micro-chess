@@ -4,6 +4,8 @@ Backend is authoritative. Frontend never decides correctness.
 Practice attempts never affect rating (rating_delta stays None).
 """
 
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.modules.exercises import registry
@@ -21,6 +23,21 @@ CLIENT_TERMINAL_RESULTS = {
 }
 
 
+def _answer_squares(answer_json: dict) -> list[str]:
+    squares = answer_json.get("squares", [])
+    return sorted({s for s in squares if isinstance(s, str)})
+
+
+def _duration_ms(started_at: datetime | None, now: datetime) -> int | None:
+    if started_at is None:
+        return None
+    start = started_at
+    if start.tzinfo is not None:
+        start = start.replace(tzinfo=None)
+    delta = (now.replace(tzinfo=None) - start).total_seconds() * 1000
+    return max(0, int(delta))
+
+
 def submit_attempt(
     db: Session,
     *,
@@ -29,19 +46,31 @@ def submit_attempt(
     answer: dict,
     mode: AttemptMode,
     client_result: str | None = None,
-) -> tuple[Attempt, str]:
+    hints_used: list[str] | None = None,
+    started_at: datetime | None = None,
+) -> tuple[Attempt, str, dict]:
     puzzle: Puzzle | None = db.get(Puzzle, puzzle_id)
     if puzzle is None or not puzzle.is_published or puzzle.is_archived:
         raise ValueError("puzzle_not_available")
+
+    used_hints = [h for h in (hints_used or []) if isinstance(h, str)]
 
     normalized_client = (client_result or "").lower()
     if normalized_client in CLIENT_TERMINAL_RESULTS:
         result = CLIENT_TERMINAL_RESULTS[normalized_client]
         feedback_key = feedback_key_for(result)
+        selected = answer.get("selected_squares", [])
+        selected_set = {s for s in selected if isinstance(s, str)}
+        detail = {
+            "correct": [],
+            "missed": _answer_squares(puzzle.answer_json),
+            "wrong": sorted(selected_set),
+        }
     else:
         validation = registry.validate_answer(puzzle.exercise_slug, puzzle.answer_json, answer)
         result = validation.result
         feedback_key = validation.message_key or feedback_key_for(result)
+        detail = dict(validation.detail)
 
     score = score_for(result)
     rating_delta: float | None = None
@@ -51,8 +80,11 @@ def submit_attempt(
         AttemptResult.WRONG,
     ):
         # Placeholder until Glicko-2 lands; records intent without real math.
+        # hints_used and puzzle initial_rating are persisted so the future
+        # engine can account for hint usage and puzzle difficulty.
         rating_delta = preview_rating_delta(score=score)
 
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     attempt = Attempt(
         user_id=user_id,
         puzzle_id=puzzle.id,
@@ -62,8 +94,11 @@ def submit_attempt(
         answer_json=answer,
         score=score,
         rating_delta=rating_delta,
+        started_at=started_at.replace(tzinfo=None) if started_at and started_at.tzinfo else started_at,
+        duration_ms=_duration_ms(started_at, now),
+        hints_used=used_hints,
     )
     db.add(attempt)
     db.commit()
     db.refresh(attempt)
-    return attempt, feedback_key
+    return attempt, feedback_key, detail

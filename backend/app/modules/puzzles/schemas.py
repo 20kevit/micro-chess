@@ -12,6 +12,8 @@ class PuzzleOut(BaseModel):
     position_json: dict = {}
     # Answer is NOT exposed to clients; only hints/metadata.
     hint_json: dict = {}
+    prompt_fa: str = ""
+    explanation: str = ""
     initial_rating: float = 1200.0
     is_published: bool
     is_archived: bool

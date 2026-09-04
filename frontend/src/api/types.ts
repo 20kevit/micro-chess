@@ -7,12 +7,20 @@ export interface Exercise {
   is_active: boolean;
 }
 
+export interface Hint {
+  id: string;
+  text_fa: string;
+  rating_cost?: number;
+}
+
 export interface Puzzle {
   id: number;
   exercise_slug: string;
   fen: string | null;
   position_json: Record<string, unknown>;
-  hint_json: Record<string, unknown>;
+  hint_json: { hints?: Hint[] };
+  prompt_fa: string;
+  explanation: string;
   initial_rating: number;
   is_published: boolean;
   is_archived: boolean;
@@ -36,4 +44,8 @@ export interface AttemptResponse {
   score: number;
   feedback_key: string;
   rating_delta: number | null;
+  detail: { correct: string[]; missed: string[]; wrong: string[] };
+  hints_used: string[];
+  started_at: string | null;
+  duration_ms: number | null;
 }

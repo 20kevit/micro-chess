@@ -15,16 +15,19 @@ def create_attempt(body: schemas.AttemptIn, db: Session = Depends(get_db), user=
     if body.mode == AttemptMode.RATED and user is None:
         raise HTTPException(status_code=401, detail="auth_required_for_rated")
     try:
-        attempt, feedback_key = service.submit_attempt(
+        attempt, feedback_key, detail = service.submit_attempt(
             db,
             user_id=user.id if user else None,
             puzzle_id=body.puzzle_id,
             answer=body.answer,
             mode=body.mode,
             client_result=body.client_result,
+            hints_used=body.hints_used,
+            started_at=body.started_at,
         )
     except ValueError:
         raise HTTPException(status_code=404, detail="puzzle_not_available")
     out = schemas.AttemptOut.model_validate(attempt)
     out.feedback_key = feedback_key
+    out.detail = detail
     return out

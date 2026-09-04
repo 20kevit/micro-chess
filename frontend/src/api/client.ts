@@ -16,7 +16,15 @@ export const api = {
   listExercises: () => request<Exercise[]>("/api/v1/exercises"),
   listPuzzles: (exercise?: string) =>
     request<Puzzle[]>(`/api/v1/puzzles${exercise ? `?exercise=${exercise}` : ""}`),
-  submitAttempt: (body: { puzzle_id: number; answer: Record<string, unknown>; mode: AttemptMode }) =>
+  getPuzzle: (id: number) => request<Puzzle>(`/api/v1/puzzles/${id}`),
+  submitAttempt: (body: {
+    puzzle_id: number;
+    answer: Record<string, unknown>;
+    mode: AttemptMode;
+    hints_used?: string[];
+    started_at?: string | null;
+    client_result?: string | null;
+  }) =>
     request<AttemptResponse>("/api/v1/attempts", {
       method: "POST",
       body: JSON.stringify(body),
