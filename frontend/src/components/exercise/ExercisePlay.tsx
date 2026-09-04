@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { api } from "../../api/client";
 import type { AttemptMode, AttemptResponse, Puzzle } from "../../api/types";
 import type { FaKey } from "../../i18n/fa";
@@ -126,12 +127,20 @@ export interface ExercisePlayConfig {
   arrowsEnabled?: boolean;
   /** Minimum selected items before submit is enabled. Default: always enabled. */
   requiredSelection?: number;
+  /** Single-choice options: selecting replaces the previous choice. */
+  singleChoice?: boolean;
   /** Exercise variants (e.g. all-checks vs appropriate-checks) chosen at entry.
    * Puzzles are filtered by modeOf when both are present. */
   exerciseModes?: ExerciseVariant[];
   exerciseModeLabelKey?: FaKey;
   /** Variant id for a puzzle. */
   modeOf?: (puzzle: Puzzle) => string | null;
+  /** Hide the chessboard (for non-board exercises). Default: shown. */
+  hideBoard?: boolean;
+  /** Extra puzzle content rendered in place of the board area. */
+  renderPuzzleContent?: (puzzle: Puzzle) => ReactNode;
+  /** Extra feedback rendered inside the result card. */
+  renderResultExtra?: (result: AttemptResponse, puzzle: Puzzle) => ReactNode;
 }
 
 // Shared Entry → Play → Feedback/Education → Next loop for square-selection
@@ -268,6 +277,10 @@ function PlayLoop({
 
   function toggleSelected(id: string) {
     if (result) return; // Locked after submission; feedback shows states.
+    if (config.singleChoice) {
+      setSelected((prev) => (prev.includes(id) ? [] : [id]));
+      return;
+    }
     setSelected((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
   }
 
@@ -358,21 +371,25 @@ function PlayLoop({
         </button>
       </div>
 
-      <ChessBoard
-        pieces={pieces}
-        onSquarePress={useOptions ? undefined : toggleSquare}
-        squareStates={squareStates}
-        disabled={result !== null || submitting}
-        draggablePieces={config.moveInput}
-        arrowsEnabled={config.arrowsEnabled ?? config.moveInput}
-        arrow={
-          config.moveInput && (config.arrowsEnabled ?? config.moveInput) && selected.length === 2
-            ? { from: selected[0], to: selected[1] }
-            : null
-        }
-        onMove={config.moveInput ? setMove : undefined}
-        onArrowDraw={config.moveInput && (config.arrowsEnabled ?? config.moveInput) ? setMove : undefined}
-      />
+      {config.hideBoard ? (
+        (config.renderPuzzleContent?.(puzzle) ?? null)
+      ) : (
+        <ChessBoard
+          pieces={pieces}
+          onSquarePress={useOptions ? undefined : toggleSquare}
+          squareStates={squareStates}
+          disabled={result !== null || submitting}
+          draggablePieces={config.moveInput}
+          arrowsEnabled={config.arrowsEnabled ?? config.moveInput}
+          arrow={
+            config.moveInput && (config.arrowsEnabled ?? config.moveInput) && selected.length === 2
+              ? { from: selected[0], to: selected[1] }
+              : null
+          }
+          onMove={config.moveInput ? setMove : undefined}
+          onArrowDraw={config.moveInput && (config.arrowsEnabled ?? config.moveInput) ? setMove : undefined}
+        />
+      )}
 
       {!result ? (
         <div>
@@ -502,6 +519,7 @@ function PlayLoop({
             {t("play.correctAnswer")}:{" "}
             {result.detail.correct.concat(result.detail.missed).map(labelOf).join("، ")}
           </p>
+          {config.renderResultExtra?.(result, puzzle) ?? null}
           {puzzle.explanation ? (
             <p className="mt-2 text-sm text-stone-600">
               {t("play.explanation")}: {puzzle.explanation}

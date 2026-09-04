@@ -185,3 +185,16 @@ Planned types (examples, not specs):
 - Seed: `python -m app.modules.balance_scale.seed` (15 hand-designed puzzles
   of rising difficulty with independent subset-sum verification; 15 persisted
   puzzles).
+
+## Twelfth slice
+
+**Which Side is Heavier?** — IMPLEMENTED (`heavier-side`).
+
+- Route: `/exercises/heavier-side` (shared `ExercisePlay` options loop with
+  board hidden: three fixed choices, both sides rendered as SVG pieces with
+  no values shown, totals revealed after submit).
+- Validator: `backend/app/modules/material_comparison/validator.py` (no
+  python-chess: choice matched against the relation derived from stored
+  totals; client-supplied totals ignored).
+- Seed: `python -m app.modules.material_comparison.seed` (15 hand-designed
+  puzzles, 6 left / 6 right / 3 equal, with independent total verification).

@@ -59,6 +59,8 @@ export interface AttemptResponse {
     wrong: string[];
     submitted_value?: number;
     target_value?: number;
+    left_value?: number;
+    right_value?: number;
   };
   hints_used: string[];
   started_at: string | null;

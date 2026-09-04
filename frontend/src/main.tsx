@@ -12,6 +12,7 @@ import { GetOutOfCheckPage } from "./pages/GetOutOfCheckPage";
 import { GiveCheckPage } from "./pages/GiveCheckPage";
 import { HangingPiecesPage } from "./pages/HangingPiecesPage";
 import { LegalDestinationsPage } from "./pages/LegalDestinationsPage";
+import { MaterialComparisonPage } from "./pages/MaterialComparisonPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PathfindingPage } from "./pages/PathfindingPage";
 import { PieceRecognitionPage } from "./pages/PieceRecognitionPage";
@@ -35,6 +36,7 @@ const router = createBrowserRouter([
       { path: "/exercises/castling-rights", element: <CastlingRightsPage /> },
       { path: "/exercises/give-check", element: <GiveCheckPage /> },
       { path: "/exercises/get-out-of-check", element: <GetOutOfCheckPage /> },
+      { path: "/exercises/heavier-side", element: <MaterialComparisonPage /> },
       { path: "/exercises/pathfinding", element: <PathfindingPage /> },
       { path: "/exercises/pin", element: <PinPage /> },
       { path: "*", element: <NotFoundPage /> },
