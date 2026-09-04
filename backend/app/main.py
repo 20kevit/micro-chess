@@ -17,6 +17,7 @@ from app.modules.users.router import router as users_router
 import app.modules.captures as _captures  # noqa: F401
 import app.modules.balance_scale as _balance_scale  # noqa: F401
 import app.modules.castling_rights as _castling_rights  # noqa: F401
+import app.modules.checkmate as _checkmate  # noqa: F401
 import app.modules.equal_attackers_defenders as _equal  # noqa: F401
 import app.modules.get_out_of_check as _get_out_of_check  # noqa: F401
 import app.modules.give_check as _give_check  # noqa: F401

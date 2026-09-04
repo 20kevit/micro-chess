@@ -198,3 +198,18 @@ Planned types (examples, not specs):
   totals; client-supplied totals ignored).
 - Seed: `python -m app.modules.material_comparison.seed` (15 hand-designed
   puzzles, 6 left / 6 right / 3 equal, with independent total verification).
+
+## Thirteenth slice
+
+**Is it Checkmate?** — IMPLEMENTED (`is-checkmate`).
+
+- Route: `/exercises/is-checkmate` (shared `ExercisePlay` options loop with
+  read-only board: three fixed choices مات/کیش/بدون کیش, no hints of the
+  answer on the board).
+- Validator: `backend/app/modules/checkmate/validator.py` (state derived
+  from the stored FEN via `is_check`/`is_checkmate`; stalemate classifies as
+  not_check; FEN travels in the server-only `answer_json`, never exposed).
+- Seed: `python -m app.modules.checkmate.seed` (15 hand-designed puzzles,
+  5 checkmate / 5 check / 5 not_check incl. stalemate, double checks,
+  blockable/capturable/king-escape and decoy cases; every classification
+  independently verified at seed time).

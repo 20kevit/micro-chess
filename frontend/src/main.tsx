@@ -6,6 +6,7 @@ import { AppShell } from "./components/ui/AppShell";
 import { BalanceScalePage } from "./pages/BalanceScalePage";
 import { CapturesPage } from "./pages/CapturesPage";
 import { CastlingRightsPage } from "./pages/CastlingRightsPage";
+import { CheckmatePage } from "./pages/CheckmatePage";
 import { EqualAttackersDefendersPage } from "./pages/EqualAttackersDefendersPage";
 import { ExercisesPage } from "./pages/ExercisesPage";
 import { GetOutOfCheckPage } from "./pages/GetOutOfCheckPage";
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
       { path: "/exercises/hanging-pieces", element: <HangingPiecesPage /> },
       { path: "/exercises/equal-attackers-defenders", element: <EqualAttackersDefendersPage /> },
       { path: "/exercises/castling-rights", element: <CastlingRightsPage /> },
+      { path: "/exercises/is-checkmate", element: <CheckmatePage /> },
       { path: "/exercises/give-check", element: <GiveCheckPage /> },
       { path: "/exercises/get-out-of-check", element: <GetOutOfCheckPage /> },
       { path: "/exercises/heavier-side", element: <MaterialComparisonPage /> },
