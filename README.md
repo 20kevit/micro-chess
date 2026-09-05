@@ -68,7 +68,13 @@ npm run build
   dynamic white-only generator (uniform target piece, deliberate blockers,
   `ignore-enemy-attacks` profile), sky-ring target highlight, identical
   per-square scoring; full spec in `docs/exercises/02-legal-destinations.md`.
-- Tables now: `users`, `exercises`, `puzzles`, `attempts`, `piece_speed_sessions`. Rating tables postponed.
+- Exercise 3 (Captures): same practice+speed architecture with a dynamic
+  hunter-vs-black generator (one white hunter, 3–8 black pieces, deliberate
+  capturable/shielded/decoy patterns, defense explicitly irrelevant via the
+  `ignore-enemy-attacks` profile), hunter highlight, identical per-square
+  scoring; full spec in `docs/exercises/03-captures.md`.
+- Tables now: `users`, `exercises`, `puzzles`, `attempts`, `piece_speed_sessions`,
+  `legal_speed_sessions`, `capture_speed_sessions`. Rating tables postponed.
 - Puzzle answers immutable once published; archive instead of delete.
 - Attempts distinguish correct/partial/wrong/timeout/skipped/abandoned + rated/practice.
 - Audio is a `AudioPort` boundary only; no TTS vendor yet.

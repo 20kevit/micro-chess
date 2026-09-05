@@ -26,6 +26,7 @@ docs/      product + architecture + api + exercises
 | `progress` | `Attempt` model + submit flow |
 | `piece_recognition` | exercise 1: validator + generator + speed sessions + router (registers `piece-recognition`) |
 | `legal_destinations` | exercise 2: validator + scorer + white-only generator + speed sessions + router (registers `legal-destinations`) |
+| `captures` | exercise 3: validator + scorer + hunter-vs-black generator + speed sessions + router (registers `captures`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
@@ -91,6 +92,9 @@ Piece Recognition additions (same tables, new columns only):
   `attempts` (mode=practice), and the final report rebuilds from them.
 - `legal_speed_sessions` — same shape for Exercise 2 Speed Mode
   (`legal_destinations/sessions.py` mirrors the Exercise 1 lifecycle).
+- `capture_speed_sessions` — same shape for Exercise 3 Speed Mode
+  (`captures/sessions.py` mirrors the same lifecycle; hunter-vs-black
+  puzzles from `captures/generator.py`).
 
 Notes:
 

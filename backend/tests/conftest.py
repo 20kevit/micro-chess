@@ -12,6 +12,7 @@ from app.db.base import Base
 
 @pytest.fixture()
 def db_session():
+    from app.modules.captures import models as _cap  # noqa: F401
     from app.modules.exercises import models as _ex  # noqa: F401
     from app.modules.legal_destinations import models as _ld  # noqa: F401
     from app.modules.piece_recognition import models as _pr1  # noqa: F401

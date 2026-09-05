@@ -195,7 +195,8 @@ def test_api_list_and_submit(client, db_session):
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
-    assert ok.json()["score"] == 1.0
+    # Per-square scorer (registered for the slug): 2 targets x +5.
+    assert ok.json()["score"] == 10.0
 
     bad = client.post(
         "/api/v1/attempts",

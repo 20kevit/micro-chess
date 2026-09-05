@@ -102,17 +102,42 @@ Planned types (examples, not specs):
 
 ## Third slice
 
-**Captures** — IMPLEMENTED (`captures`).
+**Captures** — IMPLEMENTED (`captures`). Full spec:
+`docs/exercises/03-captures.md`.
 
-- Route: `/exercises/captures` (shared `ExercisePlay` loop; hunter square
-  highlighted, capturable squares server-authoritative).
-- Validator: `backend/app/modules/captures/validator.py` (legal captures via
-  `is_capture` on `legal_moves`: sliding rays stop at first occupation, pawn
-  pushes never count, king safety enforced; empty answer accepts only an
-  empty submission).
-- Seed: `python -m app.modules.captures.seed` (15 puzzles covering all six
-  hunter kinds, friendly/enemy blockers, pawn diagonals, legal/illegal king
-  captures, no-capture positions).
+- Route: `/exercises/captures` with `?mode=practice` (untimed) and
+  `?mode=speed` (60s session); card renders both entry buttons directly
+  (no intermediate mode screen), same pattern as Exercises 1–2.
+- Play loop: `frontend/src/components/exercise/CapturesPlay.tsx`
+  (practice + speed reusing `PieceGameLayout` shell, timer, hints, feedback;
+  hunter highlighted via the shared `target` board state, capturable
+  squares server-authoritative); correctness, scoring, and the speed clock
+  stay backend-authoritative.
+- Position source: dynamic hunter-vs-black generator
+  (`captures/generator.py` — uniform hunter type, exactly one white
+  hunter, 3–8 black pieces with deliberate capturable/shielded/decoy
+  patterns, no kings, zero-capture throttled, answers server-side only).
+- Defense is explicitly irrelevant: answers use the
+  `ignore-enemy-attacks` profile (pseudo-legal captures), so defended
+  black pieces — including king neighbours — stay correct.
+- Validator: `backend/app/modules/captures/validator.py` (exact set
+  match incl. empty==empty; duplicates/order-insensitive; malformed
+  squares count as wrong). Rule profiles are data (`RULE_PROFILES`:
+  `standard` via `legal_moves`, `ignore-enemy-attacks` via
+  `pseudo_legal_moves`); generated positions use `ignore-enemy-attacks`,
+  legacy seed rows keep `standard`.
+- Practice: `POST /api/v1/captures/next` issues fresh random published
+  puzzles (identical rows reused; `exclude_ids` steers variety); the
+  client keeps a current+next prefetch buffer. Answers go through
+  standard `POST /api/v1/attempts`.
+- Speed: `captures/sessions.py` + `router.py` (open → prepare ≥20 →
+  start 60s clock → submit loop with ~450ms auto-advance, no manual next
+  → server-rebuilt per-puzzle report; per-answer rows reuse `attempts`).
+- Scoring: registered per-square scorer (+5 correct / −1 missed / −2 wrong,
+  +5 bonus for correctly answered zero-target, negatives kept, independent
+  of the CORRECT/PARTIAL/WRONG label).
+- Seed: `python -m app.modules.captures.seed` (15 legacy demo puzzles,
+  still served read-only; covered by tests).
 
 ## Fourth slice
 

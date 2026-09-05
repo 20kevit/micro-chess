@@ -1,17 +1,14 @@
-import { ExercisePlay } from "../components/exercise/ExercisePlay";
+import { useSearchParams } from "react-router-dom";
+import { CapturesPlay, type CaptureMode } from "../components/exercise/CapturesPlay";
 
-// Captures gameplay page. The hunter square comes from the puzzle's
-// position_json (part of the task); capturable squares stay server-authoritative.
+// Captures gameplay page. The home card's Practice/Speed buttons link here
+// with ?mode= and enter their loop directly (no intermediate screen);
+// correctness, scoring, and the speed clock stay backend-authoritative.
+// The hunter (white attacker) square comes from the puzzle's position_json
+// (part of the task); capturable black-piece squares stay
+// server-authoritative.
 export function CapturesPage() {
-  return (
-    <ExercisePlay
-      config={{
-        slug: "captures",
-        titleKey: "exercises.captures.title",
-        introKey: "captures.intro",
-        targetOf: (puzzle) =>
-          typeof puzzle.position_json.from === "string" ? puzzle.position_json.from : null,
-      }}
-    />
-  );
+  const [params] = useSearchParams();
+  const mode: CaptureMode = params.get("mode") === "speed" ? "speed" : "practice";
+  return <CapturesPlay key={mode} mode={mode} />;
 }

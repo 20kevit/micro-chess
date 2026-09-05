@@ -192,4 +192,51 @@ export const api = {
     request<SpeedSummary>(`/api/v1/legal-destinations/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Captures: one white hunter vs black pieces + speed sessions.
+  // Same contract as above (public puzzle data only, grading
+  // always server-side). Prefetch buffers never carry answers.
+  nextCapturePracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/captures/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startCaptureSpeedSession: () =>
+    request<SpeedSession>("/api/v1/captures/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  prepareCaptureSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/captures/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startCaptureSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/captures/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextCaptureSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/captures/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitCaptureSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/captures/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getCaptureSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/captures/sessions/${sessionId}`),
+  getCaptureSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/captures/sessions/${sessionId}/report`),
+  finishCaptureSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/captures/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
 };
