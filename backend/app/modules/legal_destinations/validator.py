@@ -67,6 +67,8 @@ def legal_destinations(fen: str, from_square: str, profile: str = STANDARD) -> l
 
 
 def validate(puzzle_answer: dict[str, Any], attempt: dict[str, Any]) -> ValidationResult:
+    # Exact set match (same contract as Piece Recognition): empty==empty is
+    # CORRECT so zero-target questions terminate correctly in practice.
     expected, _ = split_squares(puzzle_answer.get("squares", []))
     selected, malformed = split_squares(attempt.get("selected_squares", []))
 
@@ -75,8 +77,8 @@ def validate(puzzle_answer: dict[str, Any], attempt: dict[str, Any]) -> Validati
     wrong = sorted((selected - expected)) + sorted(malformed)
 
     detail = {"correct": correct, "missed": missed, "wrong": wrong}
-    if not correct:
-        return ValidationResult(result=AttemptResult.WRONG, message_key="feedback.wrong", detail=detail)
     if not missed and not wrong:
         return ValidationResult(result=AttemptResult.CORRECT, message_key="feedback.correct", detail=detail)
+    if not correct:
+        return ValidationResult(result=AttemptResult.WRONG, message_key="feedback.wrong", detail=detail)
     return ValidationResult(result=AttemptResult.PARTIAL, message_key="feedback.partial", detail=detail)

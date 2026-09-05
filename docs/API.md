@@ -50,8 +50,9 @@ Example:
   - Response: `{id, puzzle_id, exercise_slug, mode, result, score, feedback_key, rating_delta, detail, hints_used, started_at, duration_ms, created_at}`
   - `detail` is `{correct: [], missed: [], wrong: []}` for piece-recognition.
   - `score` is authoritative and backend-computed (per-square 5/−1/−2 for
-    piece-recognition via its registered scorer, else correct=1.0/partial=0.5/0);
-    never trusted from the client; may be negative.
+    piece-recognition and legal-destinations via their registered scorers,
+    else correct=1.0/partial=0.5/0); never trusted from the client; may be
+    negative.
   - `result` in correct/partial/wrong/timeout/skipped/abandoned.
   - `rating_delta` is `null` until Glicko-2 lands; practice attempts never set it.
   - Errors: `puzzle_not_available` (404 for missing/unpublished/archived).
@@ -86,3 +87,22 @@ Lifecycle: open (`preparing`, no clock) → prepare ≥20 → start (60s clock)
 - Errors: `session_not_found` (404), `session_not_started` (409),
   `session_expired` (410), `buffer_not_ready` (409),
   `puzzle_not_in_session`/`puzzle_not_available` (404).
+
+## Legal Destinations (Exercise 2)
+
+Same lifecycle and contract as Exercise 1 (open → prepare ≥20 → start
+60s clock → submit loop → finish/report), under `/api/v1/legal-destinations`:
+
+- `POST /api/v1/legal-destinations/next` `{exclude_ids?: []}` → fresh
+  random white-only practice `PuzzleOut` (no `answer_json`; the target
+  square in `position_json.from` is public task data, destinations are not).
+- `POST /api/v1/legal-destinations/sessions` → `preparing` session (60s default).
+- `POST /api/v1/legal-destinations/sessions/{id}/puzzles` `{count}` →
+  buffer/refill puzzles (cap 60); `POST .../start` requires ≥20.
+- `POST /api/v1/legal-destinations/sessions/{id}/submit` →
+  `{attempt, feedback_key, detail, session}`; per-square 5/−1/−2 scoring
+  with the +5 zero-target bonus; only session-issued puzzles accepted.
+- `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
+  per-puzzle report rebuilt from stored attempts;
+  `POST .../finish` → final summary. Same error codes as Exercise 1.
+- Full spec: `docs/exercises/02-legal-destinations.md`.

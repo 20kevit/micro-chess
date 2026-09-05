@@ -25,6 +25,7 @@ docs/      product + architecture + api + exercises
 | `learning` | placeholder (educational content later) |
 | `progress` | `Attempt` model + submit flow |
 | `piece_recognition` | exercise 1: validator + generator + speed sessions + router (registers `piece-recognition`) |
+| `legal_destinations` | exercise 2: validator + scorer + white-only generator + speed sessions + router (registers `legal-destinations`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
@@ -88,6 +89,8 @@ Piece Recognition additions (same tables, new columns only):
   attempted/correct/partial/wrong_count, score)` — prepare-then-clock 60s
   sessions for Exercise 1 Speed Mode; per-answer rows still live in
   `attempts` (mode=practice), and the final report rebuilds from them.
+- `legal_speed_sessions` — same shape for Exercise 2 Speed Mode
+  (`legal_destinations/sessions.py` mirrors the Exercise 1 lifecycle).
 
 Notes:
 

@@ -185,7 +185,8 @@ def test_api_list_and_submit(client, db_session):
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
-    assert ok.json()["score"] == 1.0
+    # Per-square scoring: +5 per correct destination (Exercise 1 philosophy).
+    assert ok.json()["score"] == 5.0 * len(puzzle.answer_json["squares"])
 
     bad = client.post(
         "/api/v1/attempts",

@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db.session import init_db
 from app.modules.auth.router import router as auth_router
 from app.modules.exercises.router import router as exercises_router
+from app.modules.legal_destinations.router import router as legal_destinations_router
 from app.modules.pathfinding.router import router as pathfinding_router
 from app.modules.piece_recognition.router import router as piece_recognition_router
 from app.modules.progress.router import router as attempts_router
@@ -65,6 +66,7 @@ app.include_router(users_router, prefix="/api/v1")
 app.include_router(exercises_router, prefix="/api/v1")
 app.include_router(pathfinding_router, prefix="/api/v1")
 app.include_router(piece_recognition_router, prefix="/api/v1")
+app.include_router(legal_destinations_router, prefix="/api/v1")
 app.include_router(reconstruction_router, prefix="/api/v1")
 app.include_router(puzzles_router, prefix="/api/v1")
 app.include_router(attempts_router, prefix="/api/v1")

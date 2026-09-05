@@ -145,4 +145,51 @@ export const api = {
     request<SpeedSummary>(`/api/v1/piece-recognition/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Legal Destinations: server-generated white-only puzzles + speed sessions.
+  // Same contract as Piece Recognition (public puzzle data only, grading
+  // always server-side). Prefetch buffers never carry answers.
+  nextLegalPracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/legal-destinations/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startLegalSpeedSession: () =>
+    request<SpeedSession>("/api/v1/legal-destinations/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  prepareLegalSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/legal-destinations/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startLegalSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/legal-destinations/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextLegalSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/legal-destinations/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitLegalSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/legal-destinations/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getLegalSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/legal-destinations/sessions/${sessionId}`),
+  getLegalSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/legal-destinations/sessions/${sessionId}/report`),
+  finishLegalSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/legal-destinations/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
 };

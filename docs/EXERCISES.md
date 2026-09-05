@@ -66,16 +66,39 @@ Planned types (examples, not specs):
 
 ## Second slice
 
-**Legal Destinations** — IMPLEMENTED (`legal-destinations`).
+**Legal Destinations** — IMPLEMENTED (`legal-destinations`). Full spec:
+`docs/exercises/02-legal-destinations.md`.
 
-- Route: `/exercises/legal-destinations` (shared `ExercisePlay` loop; target
-  square highlighted, destinations server-authoritative).
-- Validator: `backend/app/modules/legal_destinations/validator.py`.
-- Rule profiles are data (`RULE_PROFILES`: `standard` via `legal_moves`,
-  `ignore-enemy-attacks` via `pseudo_legal_moves`); new profiles plug in
-  without touching the attempt flow.
-- Seed: `python -m app.modules.legal_destinations.seed` (15 puzzles covering
-  all six piece kinds, blockers, pawn/king edge cases, both profiles).
+- Route: `/exercises/legal-destinations` with `?mode=practice` (untimed) and
+  `?mode=speed` (60s session); card renders both entry buttons directly
+  (no intermediate mode screen), same pattern as Exercise 1.
+- Play loop: `frontend/src/components/exercise/LegalDestinationsPlay.tsx`
+  (practice + speed reusing `PieceGameLayout` shell, timer, hints, feedback;
+  target piece highlighted via the shared `target` board state, destinations
+  server-authoritative); correctness, scoring, and the speed clock stay
+  backend-authoritative.
+- Position source: dynamic white-only generator
+  (`legal_destinations/generator.py` — uniform target type, exactly one
+  white king, 2–6 deliberately placed blockers, no black pieces/king,
+  zero-target possible but throttled, answers server-side only).
+- Validator: `backend/app/modules/legal_destinations/validator.py` (exact
+  set match incl. empty==empty; duplicates/order-insensitive; malformed
+  squares count as wrong). Rule profiles are data (`RULE_PROFILES`:
+  `standard` via `legal_moves`, `ignore-enemy-attacks` via
+  `pseudo_legal_moves`); generated positions use `ignore-enemy-attacks`.
+- Practice: `POST /api/v1/legal-destinations/next` issues fresh random
+  published puzzles (identical rows reused; `exclude_ids` steers variety);
+  the client keeps a current+next prefetch buffer. Answers go through
+  standard `POST /api/v1/attempts`.
+- Speed: `legal_destinations/sessions.py` + `router.py` (open → prepare ≥20
+  → start 60s clock → submit loop with ~450ms auto-advance, no manual next
+  → server-rebuilt per-puzzle report; per-answer rows reuse `attempts`).
+- Scoring: registered per-square scorer (+5 correct / −1 missed / −2 wrong,
+  +5 bonus for correctly answered zero-target, negatives kept, independent
+  of the CORRECT/PARTIAL/WRONG label).
+- Seed: `python -m app.modules.legal_destinations.seed` (15 legacy demo
+  puzzles incl. captures/black pieces/both profiles, still served
+  read-only; covered by tests).
 
 ## Third slice
 

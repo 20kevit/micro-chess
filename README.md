@@ -64,6 +64,10 @@ npm run build
   server-rebuilt report); zero-target questions valid; per-square scoring
   (+5/−1/−2 with +5 zero-target bonus, negatives kept); self-hosted
   Vazirmatn font; answers never leave the server.
+- Exercise 2 (Legal Destinations): same practice+speed architecture with a
+  dynamic white-only generator (uniform target piece, deliberate blockers,
+  `ignore-enemy-attacks` profile), sky-ring target highlight, identical
+  per-square scoring; full spec in `docs/exercises/02-legal-destinations.md`.
 - Tables now: `users`, `exercises`, `puzzles`, `attempts`, `piece_speed_sessions`. Rating tables postponed.
 - Puzzle answers immutable once published; archive instead of delete.
 - Attempts distinguish correct/partial/wrong/timeout/skipped/abandoned + rated/practice.

@@ -302,6 +302,9 @@ export function BoardZone({
   disabled,
   onToggle,
   overlay,
+  /** Task square to highlight (e.g. the target piece). Never implies a
+   * correct destination; feedback states overwrite it when they collide. */
+  targetSquare,
 }: {
   areaRef: DivRef;
   size: number;
@@ -311,9 +314,13 @@ export function BoardZone({
   disabled: boolean;
   onToggle: (square: string) => void;
   overlay?: ReactNode;
+  targetSquare?: string | null;
 }) {
   const pieces = fenToPieces(puzzle.fen);
-  const squareStates: Partial<Record<string, "selected" | "correct" | "missed" | "wrong">> = {};
+  const squareStates: Partial<
+    Record<string, "selected" | "correct" | "missed" | "wrong" | "target">
+  > = {};
+  if (targetSquare) squareStates[targetSquare] = "target";
   if (result) {
     for (const s of result.detail.correct) squareStates[s] = "correct";
     for (const s of result.detail.missed) squareStates[s] = "missed";
