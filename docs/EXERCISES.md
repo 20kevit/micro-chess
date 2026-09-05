@@ -51,10 +51,15 @@ Planned types (examples, not specs):
   targets, zero-target questions valid, answers server-side only).
 - Validator: `backend/app/modules/piece_recognition/validator.py` (exact
   set match incl. empty==empty; malformed squares count as wrong).
-- Practice: `POST /api/v1/piece-recognition/next` issues a fresh random
-  published puzzle; answers go through standard `POST /api/v1/attempts`.
-- Speed: `piece_recognition/sessions.py` + `router.py` (60s authoritative
-  sessions in `piece_speed_sessions`; per-answer rows reuse `attempts`).
+- Practice: `POST /api/v1/piece-recognition/next` issues fresh random
+  published puzzles (identical rows reused; `exclude_ids` steers variety);
+  the client keeps a current+next prefetch buffer. Answers go through
+  standard `POST /api/v1/attempts`.
+- Speed: `piece_recognition/sessions.py` + `router.py` (open → prepare ≥20
+  → start 60s clock → submit loop → server-rebuilt per-puzzle report;
+  per-answer rows reuse `attempts`).
+- Scoring: registered per-square scorer (+5 correct / −1 missed / −2 wrong,
+  negatives kept, independent of the CORRECT/PARTIAL/WRONG label).
 - Seed: `python -m app.modules.piece_recognition.seed` (15 legacy demo
   puzzles, still served read-only; covered by tests).
 

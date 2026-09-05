@@ -128,3 +128,34 @@ def test_create_puzzle_persists_published_row(db_session):
     assert stored.answer_json["squares"] == generator.question_for_fen(
         stored.fen, stored.position_json["target"]
     )["squares"]
+
+
+def test_identical_rows_reused_not_duplicated(db_session, monkeypatch):
+    first = generator.create_puzzle(db_session, random.Random(11))
+    before = db_session.query(Puzzle).count()
+    match, identical = generator._match_existing(
+        db_session, first.fen, first.position_json["target"], set()
+    )
+    assert identical and match is not None and match.id == first.id
+    # Pin the generator to the identical combo: no new row is created.
+    full = generator.question_for_fen(first.fen, first.position_json["target"])
+    monkeypatch.setattr(generator, "generate_question_data", lambda *a, **k: dict(full))
+    again = generator.create_puzzle(db_session)
+    assert again.id == first.id
+    assert db_session.query(Puzzle).count() == before
+    # ...unless that row is excluded, in which case a fresh row appears.
+    fresh = generator.create_puzzle(db_session, exclude_ids={first.id})
+    assert fresh.id != first.id
+    assert db_session.query(Puzzle).count() == before + 1
+
+
+def test_exclude_ids_steer_away_from_shown(db_session):
+    first = generator.create_puzzle(db_session, random.Random(3))
+    other = generator.create_puzzle(db_session, random.Random(3), exclude_ids={first.id})
+    # Best-effort: either a different row or (tiny pool exhausted) the same.
+    assert other.id is not None
+    if other.id == first.id:
+        match, _ = generator._match_existing(
+            db_session, first.fen, first.position_json["target"], {first.id}
+        )
+        assert match is None  # only identical row is the excluded one

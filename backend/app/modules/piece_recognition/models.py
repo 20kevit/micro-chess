@@ -24,11 +24,13 @@ class PieceSpeedSession(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     exercise_slug: Mapped[str] = mapped_column(String(100), default="piece-recognition", index=True)
     user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)
-    # "active" | "finished" | "expired".
+    # "preparing" | "active" | "finished" | "expired".
     status: Mapped[str] = mapped_column(String(20), default="active", index=True)
     duration_s: Mapped[int] = mapped_column(Integer, default=60)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
-    ends_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    # Clock starts on begin (not on open), so preparation time is excluded.
+    # None while "preparing".
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     # Puzzle ids issued to this session, in order (answer rows live in attempts).
     puzzle_ids: Mapped[list] = mapped_column(JSON, default=list)
     # Attempt ids submitted in this session, in order.

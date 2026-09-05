@@ -49,26 +49,40 @@ Example:
   - `client_result` short-circuits validation for terminal states; otherwise the exercise validator runs.
   - Response: `{id, puzzle_id, exercise_slug, mode, result, score, feedback_key, rating_delta, detail, hints_used, started_at, duration_ms, created_at}`
   - `detail` is `{correct: [], missed: [], wrong: []}` for piece-recognition.
+  - `score` is authoritative and backend-computed (per-square 5/−1/−2 for
+    piece-recognition via its registered scorer, else correct=1.0/partial=0.5/0);
+    never trusted from the client; may be negative.
   - `result` in correct/partial/wrong/timeout/skipped/abandoned.
   - `rating_delta` is `null` until Glicko-2 lands; practice attempts never set it.
   - Errors: `puzzle_not_available` (404 for missing/unpublished/archived).
 
 ## Piece Recognition (Exercise 1)
 
-- `POST /api/v1/piece-recognition/next` → fresh random practice `PuzzleOut`
-  (published row, no `answer_json`).
+Lifecycle: open (`preparing`, no clock) → prepare ≥20 → start (60s clock)
+→ submit loop → finish/report.
+
+- `POST /api/v1/piece-recognition/next` `{exclude_ids?: []}` → fresh random
+  practice `PuzzleOut` (published row, no `answer_json`; identical rows reused).
 - `POST /api/v1/piece-recognition/sessions` `{duration_s?}` (default 60) →
-  `{session_id, exercise_slug, status, duration_s, started_at, expires_at, remaining_ms}`.
-- `POST /api/v1/piece-recognition/sessions/{id}/next` → session `PuzzleOut`;
-  `410 session_expired` after the server clock passes `expires_at`.
+  `{session_id, exercise_slug, status: "preparing", duration_s, started_at,
+  expires_at: null, remaining_ms, buffered}`.
+- `POST /api/v1/piece-recognition/sessions/{id}/puzzles` `{count}` (default 20,
+  cap 60) → `PuzzleOut[]` for the buffer/refill; `410 session_expired` after expiry.
+- `POST /api/v1/piece-recognition/sessions/{id}/start` → active session with
+  running clock; `409 buffer_not_ready` below 20 buffered puzzles.
+- `POST /api/v1/piece-recognition/sessions/{id}/next` → single session `PuzzleOut`.
 - `POST /api/v1/piece-recognition/sessions/{id}/submit`
   `{puzzle_id, answer: {selected_squares: []}, hints_used?: [], started_at?}` →
   `{attempt: AttemptOut, feedback_key, detail, session: summary}`.
   Only puzzles issued to the session are accepted (404 otherwise);
-  client-supplied FEN/target/solution fields are ignored.
+  client-supplied FEN/target/solution/score fields are ignored;
+  `409 session_not_started` before the clock starts.
 - `GET /api/v1/piece-recognition/sessions/{id}` → summary
   `{session_id, status, duration_s, started_at, expires_at, remaining_ms,
-  attempted, correct, partial, wrong, score}` (auto-expires).
+  buffered, attempted, correct, partial, wrong, score}` (auto-expires).
+- `GET /api/v1/piece-recognition/sessions/{id}/report` → `{session, entries[]}`
+  rebuilt from stored attempts: per-puzzle prompt/result/score/correct/missed/wrong.
 - `POST /api/v1/piece-recognition/sessions/{id}/finish` → final summary.
-- Errors: `session_not_found` (404), `session_expired` (410),
+- Errors: `session_not_found` (404), `session_not_started` (409),
+  `session_expired` (410), `buffer_not_ready` (409),
   `puzzle_not_in_session`/`puzzle_not_available` (404).

@@ -39,7 +39,7 @@ POST /api/v1/attempts
 → progress/service.submit_attempt
   → puzzles lookup (published + not archived only)
   → exercises/registry.validate_answer (exercise validator or WRONG fallback)
-  → scoring_engine.score_for
+  → exercises/registry.score_for_answer (exercise scorer or shared default)
   → rating_engine.preview_rating_delta (only rated + logged in; None for now)
   → feedback_engine.feedback_key_for
   → persist Attempt with raw answer_json
@@ -48,18 +48,23 @@ POST /api/v1/attempts
 Exercise 1 extras (same pattern, no core-flow changes):
 
 ```text
-puzzles.db (shared, read-only, FEN only)
-→ positions/repository (data access; skips invalid rows; fallback FENs)
+puzzles.db (shared, read-only, FEN only; indexed rowid sampling)
+→ positions/repository (data access; skips invalid rows; fallback FENs;
+  pinned paths are authoritative)
 → piece_recognition/generator (random FEN + random canonical question
-  → prompt/explanation/hint → persisted published Puzzle)
-→ POST /api/v1/piece-recognition/next (practice) — returns PuzzleOut, no answer
-→ POST /api/v1/attempts (standard submit)
+  → prompt/explanation/hint → persisted published Puzzle; identical
+  (position, question) rows reused, exclude_ids steer variety)
+→ POST /api/v1/piece-recognition/next (practice, current+next prefetch
+  buffer client-side) — returns PuzzleOut, no answer
+→ POST /api/v1/attempts (standard submit; per-square 5/-1/-2 scorer)
 
-Speed sessions (60s, backend-authoritative clock in piece_speed_sessions):
-→ POST .../sessions → issue → POST .../sessions/{id}/next
+Speed sessions (prepare-then-clock in piece_speed_sessions):
+→ POST .../sessions (preparing, no clock)
+→ POST .../sessions/{id}/puzzles {"count": 20} (initial buffer; refill later)
+→ POST .../sessions/{id}/start (requires ≥20; sets ends_at; 60s run)
 → POST .../sessions/{id}/submit (reuses submit_attempt, mode=practice)
 → 410 session_expired when server time passes ends_at
-→ GET/POST .../sessions/{id}[/finish] → summary
+→ GET .../sessions/{id}/report (per-puzzle entries rebuilt from attempts)
 ```
 
 No `if/elif` per exercise in core flow. New exercise = new validator function + `register_validator(slug, fn)`.
@@ -79,9 +84,10 @@ Piece Recognition additions (same tables, new columns only):
 - `attempts.started_at?`, `attempts.duration_ms?` (server-computed), `attempts.hints_used` (JSON list).
 - `ValidationResult.detail` carries `{"correct", "missed", "wrong"}` back to the client.
 - `piece_speed_sessions(id, exercise_slug, user_id?, status, duration_s=60,
-  started_at, ends_at, puzzle_ids[], attempt_ids[], attempted/correct/partial/wrong_count,
-  score)` — authoritative 60s clock + aggregates for Exercise 1 Speed Mode;
-  per-answer rows still live in `attempts` (mode=practice).
+  started_at, ends_at? (null while preparing), puzzle_ids[], attempt_ids[],
+  attempted/correct/partial/wrong_count, score)` — prepare-then-clock 60s
+  sessions for Exercise 1 Speed Mode; per-answer rows still live in
+  `attempts` (mode=practice), and the final report rebuilds from them.
 
 Notes:
 
@@ -104,7 +110,11 @@ Notes:
 
 1. JWT bearer auth (simplest for mobile + future apps) over sessions.
 2. Registry dict over plugin framework — explicit, searchable, testable.
-3. `score_for`: correct=1.0, partial=0.5, else 0. Practice still scores; only rating is gated.
+3. `score_for`: correct=1.0, partial=0.5, else 0 — the SHARED default.
+   Exercises needing different math register a scorer
+   (`register_scorer(slug, fn)`); Piece Recognition scores per square
+   (+5 correct / −1 missed / −2 wrong, negatives allowed, never clamped).
+   Practice still scores; only rating is gated.
 4. `rating_delta` nullable now; `preview_rating_delta` returns None until Glicko-2.
 5. Tailwind v4 (`@import "tailwindcss"`) to avoid config boilerplate.
 6. No Alembic yet — `init_db()` + `create_all` is enough for the foundation stage.
@@ -113,10 +123,12 @@ Notes:
    canonical 12 color×kind for generation plus legacy `queen-any`/minor targets.
 8. No target-piece highlighting on the board — avoids leaking the answer.
 9. Hints recorded per attempt (`hints_used` + `rating_cost` in data); rating math still stubbed.
-10. `puzzles.db` is a shared read-only position source (FEN only); exercise
-    question/answer generation happens server-side per exercise; zero-target
-    questions are valid; Practice is untimed; Speed is a 60s
-    backend-authoritative session (`piece_speed_sessions`); the frontend
-    never receives the answer before submission; the board never exceeds the
-    viewport; the MicroChess Design System (`docs/DESIGN_SYSTEM.md`) is
-    shared by future exercises.
+10. `puzzles.db` is a shared read-only position source (FEN only, indexed
+    rowid sampling, pinned paths authoritative); exercise
+    question/answer/score generation happens server-side per exercise;
+    zero-target questions are valid; Practice is untimed with a
+    current+next prefetch buffer; Speed prepares ≥20 before its
+    backend-authoritative 60s clock starts and reports from stored
+    attempts; the frontend never receives the answer before submission;
+    the board never exceeds the viewport; the MicroChess Design System
+    (`docs/DESIGN_SYSTEM.md`) is shared by future exercises.

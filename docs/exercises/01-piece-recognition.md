@@ -1,8 +1,8 @@
 # Exercise 1 — Piece Recognition (تشخیص مهره)
 
-MVP status: production-quality. The exercise asks the user to identify all
-pieces of a specific type and color on a chess position (e.g. «تمام اسب‌های
-سفید را پیدا کن»). Identifier: `piece-recognition`.
+Production v1 status. The exercise asks the user to identify all pieces of
+a specific type and color on a chess position (e.g. «تمام اسب‌های سفید را
+پیدا کن»). Identifier: `piece-recognition`.
 
 ## Purpose
 
@@ -17,46 +17,67 @@ Main Page (/)
    ↓  تشخیص مهره card
    ├── تمرینی (?mode=practice)      └── سرعتی (?mode=speed)
    ↓                                     ↓
-POST .../next → random puzzle      POST .../sessions → 60s session
+first puzzle loads immediately     prepare ≥20 puzzles (no clock)
    ↓                                     ↓
-select squares (0..n) → بررسی جواب  loop: next → select → submit
-   ↓                                     ↓
-server validation → feedback → بعدی   410 on expiry → final summary
+select → بررسی جواب → instant      clock starts → 60s session
+feedback → prefetched next               ↓
+                                   per-puzzle feedback → queued next
+                                              ↓
+                                   authoritative final report
 ```
 
 - The Practice and Speed buttons on the home page directly enter their
-  corresponding exercise modes (`?mode=practice` / `?mode=speed`). There is
-  no intermediate mode-selection screen; the buttons themselves are the
-  mode selection.
+  corresponding exercise modes. There is no intermediate mode-selection
+  screen; the buttons themselves are the mode selection.
 - Board: tap to select, tap again to deselect, any count incl. zero.
   Submission happens ONLY via «بررسی جواب» — never on square click.
+- While submitting, the button locks and duplicate submits are refused.
 - Board locks while submitting / after submission; feedback shows states.
 
 ## Practice Mode
 
-- Untimed. Each «معمای بعدی» calls `POST /api/v1/piece-recognition/next`
-  which generates and persists a fresh random puzzle.
+- Untimed. Entering the mode immediately loads the first puzzle.
+- Client prefetch buffer (current + next): while the user solves the
+  current puzzle, the next one is prepared in the background. Pressing
+  «معمای بعدی» swaps to the already-ready puzzle and refills the buffer.
+  Normal transitions show no loading state.
+- Fresh puzzles come from `POST /api/v1/piece-recognition/next` (accepts
+  `exclude_ids` to avoid just-shown repeats).
 - Answers submit through the standard `POST /api/v1/attempts`
   (mode=practice, anonymous allowed, `rating_delta` always None).
+- Stale-request protection: a generation counter + mounted guard means a
+  slow/old response can never overwrite the current puzzle; prefetch
+  failures never destroy the active puzzle (on-demand fallback).
 - Anonymous attempts also append to browser localStorage
   (`lib/localProgress.ts`); the server is source of truth for accounts.
+- Every answered puzzle persists as an `attempts` row, so nothing is lost
+  when the user exits (no separate practice summary feature).
 - Practice never terminates on zero-target questions (validator returns
   CORRECT for empty==empty).
 
 ## Speed Mode
 
-- 60-second session (`SPEED_DURATION_S = 60` in `sessions.py`).
-- `POST /api/v1/piece-recognition/sessions` → `{session_id, expires_at, ...}`.
-- Loop: `POST .../sessions/{id}/next` → select → `POST .../sessions/{id}/submit`.
+Lifecycle: `preparing` → `active` → `finished`/`expired`.
+
+1. Enter → a session opens in `preparing` (NO clock runs).
+2. The client prepares **at least 20 puzzles** (`POST .../sessions/{id}/puzzles`
+   `{"count": 20}`) with a visible progress state.
+3. `POST .../sessions/{id}/start` starts the authoritative 60-second clock
+   (refused with `409 buffer_not_ready` below 20 buffered). Preparation
+   time is never billed to the session.
+4. Loop over the client queue: select → submit → instant feedback → next
+   (already queued). Background refill (`count: 10` when the queue drops
+   below 8) keeps fast solvers supplied past 20 puzzles.
+5. Expiry/finish → `GET .../sessions/{id}/report`: the complete
+   authoritative report (see below).
+
 - The frontend shows a countdown + progress bar for UX, but the backend is
-  authoritative: `submit`/`next` compare server time to stored `ends_at`
-  and answer `410 session_expired` when the clock has run out.
-- `POST .../sessions/{id}/finish` (or expiry) → summary:
-  `attempted / correct / partial / wrong / score`.
+  authoritative: `submit`/`next`/`puzzles` compare server time to stored
+  `ends_at` and answer `410 session_expired` when the clock has run out.
 - Each answer also persists as a normal `attempts` row (mode=practice),
   so history/analytics keep working; the session row only aggregates.
-- Scoring reuses `scoring_engine.score_for` (correct=1.0, partial=0.5,
-  else 0); no separate scoring system.
+- Scoring uses the registered per-square scorer (below), summed into the
+  session total. No separate scoring system.
 
 ## Puzzle source
 
@@ -65,8 +86,8 @@ server validation → feedback → بعدی   410 on expiry → final summary
   `Moves`/`Rating`/`Themes` are ignored for correctness.
 - The file is optional local data (see `PUZZLES_DB_PATH`, never committed).
   When absent/unreadable, a curated fallback FEN list is used.
-- One row per call (`ORDER BY RANDOM() LIMIT 1`); the table is never fully
-  loaded. Invalid/unparseable FENs are skipped (up to 25 tries).
+- One row per call via indexed rowid probing; the table is never fully
+  loaded. Invalid/unparseable FENs are skipped (bounded retries).
 - No Exercise-1-specific copy of the database exists; future exercises reuse
   the same repository (`puzzles.db → repository → generator → exercise`).
 
@@ -113,6 +134,24 @@ Backend-authoritative exact set match:
 - Legacy seed targets (`queen-any`, `minor-white/black`) still validate;
   the generator only emits the 12 canonical ones.
 
+## Result states
+
+Preserved validator semantics (score is always computed independently):
+
+- CORRECT: selected set exactly equals the target set (empty==empty included).
+- PARTIAL: ≥1 correct selection with missed and/or wrong ones.
+- WRONG: no correct selections.
+
+## Final report (Speed)
+
+`GET /api/v1/piece-recognition/sessions/{id}/report` rebuilds the report
+from stored attempts (refresh-safe; the UI can never fabricate results):
+
+- Summary: attempted / correct / partial / wrong / total score, plus
+  average per puzzle and accuracy rendered client-side (hidden when 0 answered).
+- Per-puzzle entries in answer order: prompt, result badge (درست/ناقص/اشتباه),
+  score, missed/wrong counts, and the correct squares (revealed post-answer).
+
 ## Feedback
 
 After submit: colored banner (green/amber/red) + backend `feedback_key`
@@ -126,62 +165,125 @@ Board rings mirror the same three states; the correct-answer squares and
 the Persian explanation are shown. Symbols are text markers, never chess
 glyphs (pieces are always SVG).
 
-## Scoring
+## Scoring (authoritative, per-square)
 
-`scoring_engine.score_for`: correct=1.0, partial=0.5, else 0. Speed summary
-sums per-attempt scores. Practice attempts never set `rating_delta`
-(rating engine still a stub; speed submits use mode=practice too).
+Exact formula, computed backend-side from the validation detail:
+
+```text
+score = (correct_selected × 5) − (missed_targets × 1) − (wrong_selected × 2)
+```
+
+Example from the spec (`target=[e4,g7,b2]`, `selected=[e4,g7,d5]`):
+`2×5 − 1×1 − 1×2 = 7`.
+
+- Registered via `register_scorer("piece-recognition", score_squares)`;
+  other exercises keep the shared correct=1.0/partial=0.5/else-0 default.
+- Never trusted from the client; may be negative (e.g. −4); never clamped.
+- Computed independently of the result label (CORRECT/PARTIAL/WRONG).
+- Zero-target correct answer scores 0 (no +5 for matching the empty set);
+  each wrong square on a zero-target question costs −2.
+- Malformed selections count as wrong squares (−2 each).
+
+## Zero-target scoring
+
+```text
+target = {} , selected = {}  → CORRECT, score 0
+target = {} , selected = {e4} → WRONG, score −2
+```
 
 ## Hints
 
 Shared mechanism: puzzle `hint_json.hints`, per-attempt `hints_used`
 persisted on the attempt row. Hints never reveal full squares.
 
+## Practice reporting
+
+No fixed length and no separate summary screen: every answered puzzle is a
+persisted `attempts` row, and the UI keeps a running solved/correct/score
+tally. Exiting loses nothing.
+
 ## API
 
 | Method & path | Purpose |
 |---|---|
-| `POST /api/v1/piece-recognition/next` | fresh random practice puzzle (`PuzzleOut`, no answer) |
-| `POST /api/v1/piece-recognition/sessions` | start 60s session |
-| `POST /api/v1/piece-recognition/sessions/{id}/next` | session puzzle (`410` when expired) |
-| `POST /api/v1/piece-recognition/sessions/{id}/submit` | graded answer + updated summary (`410` when expired) |
+| `POST /api/v1/piece-recognition/next` `{exclude_ids?}` | fresh random practice puzzle (`PuzzleOut`, no answer) |
+| `POST /api/v1/piece-recognition/sessions` | open session (`preparing`, clock NOT running) |
+| `POST /api/v1/piece-recognition/sessions/{id}/puzzles` `{count}` | prepare N buffer puzzles (`410` when expired; capped at 60) |
+| `POST /api/v1/piece-recognition/sessions/{id}/start` | start the 60s clock (`409 buffer_not_ready` below 20) |
+| `POST /api/v1/piece-recognition/sessions/{id}/next` | single session puzzle |
+| `POST /api/v1/piece-recognition/sessions/{id}/submit` | graded answer + updated summary (`409` before start, `410` when expired) |
 | `GET /api/v1/piece-recognition/sessions/{id}` | summary (auto-expires) |
+| `GET /api/v1/piece-recognition/sessions/{id}/report` | authoritative per-puzzle report |
 | `POST /api/v1/piece-recognition/sessions/{id}/finish` | end early + summary |
 | `POST /api/v1/attempts` | standard attempt submit (practice) |
 | `GET /api/v1/puzzles?exercise=piece-recognition` | legacy seed rows (read-only) |
 
+Submit responses carry the per-puzzle `score` plus `detail`
+(`correct`/`missed`/`wrong`); `score` is authoritative and may be negative.
+Errors: `session_not_found` (404), `session_not_started` (409),
+`session_expired` (410), `buffer_not_ready` (409),
+`puzzle_not_in_session`/`puzzle_not_available` (404).
+
 ## Security
 
 - `answer_json`/target squares/solution metadata never leave the server
-  before submission (covered by API tests).
-- Grading uses the stored answer only; client `fen`/`squares`/`target`
-  fields in the answer payload are ignored (covered by tests).
+  before submission — including inside prefetch buffers (covered by API tests).
+- Grading and scoring use the stored answer only; client `fen`/`squares`/
+  `target`/`score` fields are ignored (covered by tests).
 - Only puzzles issued to a session can be submitted to it (404 otherwise).
+
+## Puzzle source & sampling
+
+- Shared read-only `puzzles.db`, FEN column only; invalid rows skipped.
+- Indexed rowid probing (no full-table scans): measured milliseconds per
+  fetch even at 5.3M rows, which makes 20-puzzle buffers and background
+  refill cheap.
+- Missing/unreadable source → curated fallback FENs (documented, tested).
+
+## Generated puzzle persistence
+
+- Identical (position, question) rows are reused, not duplicated; buffers
+  additionally exclude already-issued ids, so one session buffer stays
+  duplicate-free (best-effort, bounded re-rolls).
+- Each answered puzzle keeps its row (referenced by attempts and the
+  server-rebuilt report). Growth is ~1 small row per answered puzzle —
+  the same order as the attempt rows themselves. A future retention policy
+  may prune rows whose reports are no longer needed; reports rebuild from
+  attempts, so pruning never corrupts finished summaries.
 
 ## Edge cases
 
-- Zero-target question + empty submit → CORRECT; practice continues.
+- Zero-target question + empty submit → CORRECT, score 0; practice continues.
 - Invalid FEN rows in puzzles.db → skipped, never break the flow.
 - Missing puzzles.db → fallback FENs (documented, tested).
-- Late speed submit → 410, attempt NOT recorded, summary returned.
+- Prefetch failure → silent; current puzzle unaffected, on-demand fallback.
+- Stale prefetch response → discarded by generation guard, never applied.
+- Submit before speed start → 409; late speed submit → 410, attempt NOT recorded.
+- Start with <20 buffered → 409 `buffer_not_ready`.
 - Unknown session → 404. Finishing twice → idempotent.
+- Zero answered in report → explicit empty state, no misleading stats.
 
 ## Tests
 
 - `tests/test_piece_recognition.py` — validator incl. zero-target/king cases.
-- `tests/test_positions_repository.py` — read-only source, invalid skip, fallback.
-- `tests/test_piece_generator.py` — all 12 targets, 0/1/n targets, randomness, persistence.
-- `tests/test_piece_speed_api.py` — no-leak, 60s config, expiry authority,
-  summary accumulation, hints, override resistance.
-- `tests/test_piece_attempts_api.py` — legacy seed + attempt flow (unchanged).
+- `tests/test_piece_scoring.py` — 5/−1/−2 formula, spec example (=7),
+  zero-target, negatives, label-independence, registry default intact.
+- `tests/test_positions_repository.py` — read-only source, fast sampling,
+  invalid skip, fallback, pinned-path semantics, real-DB integration (skipped
+  when absent).
+- `tests/test_piece_generator.py` — all 12 targets, 0/1/n targets,
+  randomness, persistence, dedup-reuse, exclude steering.
+- `tests/test_piece_speed_api.py` — no-leak, prepare≥20/start lifecycle,
+  60s config, expiry authority, report-vs-attempts equality, summary
+  accumulation, hints, override resistance.
+- `tests/test_piece_attempts_api.py` — legacy seed + per-square attempt flow.
+- Frontend (`npm test`, vitest): catalog mode URLs, direct mode entry,
+  select/deselect/submit, empty submit, 20-buffer-before-clock, expiry
+  report rendering.
 
 ## Known limitations
 
-- Generated puzzles accumulate as rows in `puzzles` (acceptable for MVP;
-  a future cleanup/retention policy can prune anonymous session puzzles).
-- `ORDER BY RANDOM()` on a very large puzzles.db is O(table): measured
-  ~1.4s per fetch at 5.3M rows — acceptable for one fetch per puzzle in MVP,
-  replace with indexed sampling if it ever shows up in profiling.
 - Speed sessions are per-exercise (`piece_speed_sessions`); a generic
   session table can replace it when a second timed exercise lands.
 - Rating stays a stub: `rating_delta` is always None.
+- Practice has attempt history but no summary screen (by design; §18).

@@ -21,7 +21,7 @@ The file is optional local data and is never committed (see .gitignore):
 - When the file is missing/unreadable, or a row is invalid, callers get a
   curated fallback FEN instead of an exception. Invalid rows are skipped
   (up to ``max_attempts`` tries) and never break the exercise.
-- Only one row is fetched per call (``ORDER BY RANDOM() LIMIT 1``); the
+- Only one row is fetched per call (indexed rowid probing); the
   whole table is never loaded into memory.
 """
 
@@ -102,26 +102,47 @@ def is_valid_fen(fen: str) -> bool:
     return True
 
 
-def fetch_random_fen(source: str | os.PathLike[str]) -> str | None:
+def fetch_random_fen(
+    source: str | os.PathLike[str],
+    rng: random.Random | None = None,
+    probes: int = 50,
+) -> str | None:
     """Fetch one random FEN from puzzles.db (read-only, single row).
 
-    Returns None when the file/table is unusable or the row is invalid;
-    the caller decides whether to retry or fall back. Never raises for
-    data problems (missing file/table/column returns None as well).
+    Uses indexed rowid probing (``MAX(rowid)`` + ``WHERE rowid >= ?``), so
+    even multi-million-row dumps answer in milliseconds without loading the
+    table. Returns None when the file/table is unusable or no valid row is
+    found within ``probes`` tries; the caller decides whether to retry or
+    fall back. Never raises for data problems.
     """
+    rng = rng if rng is not None else random
     try:
         conn = sqlite3.connect(f"file:{source}?mode=ro", uri=True)
     except sqlite3.Error:
         return None
     try:
         try:
-            row = conn.execute("SELECT FEN FROM puzzles ORDER BY RANDOM() LIMIT 1").fetchone()
+            row = conn.execute("SELECT MAX(rowid) FROM puzzles").fetchone()
         except sqlite3.Error:
             return None
-        if not row or not row[0]:
+        top = int(row[0]) if row and row[0] else 0
+        if top <= 0:
             return None
-        fen = str(row[0]).strip()
-        return fen if is_valid_fen(fen) else None
+        for _ in range(max(1, probes)):
+            hit = (
+                conn.execute(
+                    "SELECT FEN FROM puzzles WHERE rowid >= ? ORDER BY rowid LIMIT 1",
+                    (rng.randint(1, top),),
+                ).fetchone()
+            )
+            if not hit or not hit[0]:
+                continue
+            fen = str(hit[0]).strip()
+            if is_valid_fen(fen):
+                return fen
+        return None
+    except sqlite3.Error:
+        return None
     finally:
         conn.close()
 

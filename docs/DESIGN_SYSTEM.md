@@ -60,7 +60,12 @@ Board squares: light amber-100 / dark emerald-600 (unchanged legacy).
   + correct-answer line + explanation. Never color alone.
 - Timer — bordered panel with label, Persian seconds, correct-count badge,
   and progress bar (`role="timer"`, `aria-live="polite"`).
-- Session summary — 2×2 stat tiles (attempted/score/correct/wrong) + retry.
+- Preparing progress — same panel pattern: label + Persian `n / 20` counter
+  + progress bar; shown while the speed buffer fills (clock not running).
+- Session summary — stat tiles (attempted/correct/partial/wrong/score/
+  average) + accuracy line; empty state when nothing was answered.
+- Report entries — tone-coded list rows (green/amber/red by result) with
+  prompt, result label, score, missed/wrong counts, and correct squares.
 - Empty states — `Badge(comingSoon)` + `exercises.empty` text.
 - Loading states — `common.loading` text; error card with `common.retry`.
 

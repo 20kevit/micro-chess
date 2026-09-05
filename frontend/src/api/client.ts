@@ -6,6 +6,7 @@ import type {
   PathStepResponse,
   Puzzle,
   ReconstructionStepResponse,
+  SpeedReport,
   SpeedSession,
   SpeedSubmitResponse,
   SpeedSummary,
@@ -65,12 +66,26 @@ export const api = {
     }),
   // Piece Recognition: server-generated random puzzles + speed sessions.
   // Answers stay server-side; these endpoints never return answer_json.
-  nextPracticePuzzle: () =>
-    request<Puzzle>("/api/v1/piece-recognition/next", { method: "POST" }),
+  // Prefetch-friendly: buffers of public puzzle data are cheap; grading
+  // always revalidates server-side per submission.
+  nextPracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/piece-recognition/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
   startSpeedSession: () =>
     request<SpeedSession>("/api/v1/piece-recognition/sessions", {
       method: "POST",
       body: JSON.stringify({}),
+    }),
+  prepareSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/piece-recognition/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/piece-recognition/sessions/${sessionId}/start`, {
+      method: "POST",
     }),
   nextSpeedPuzzle: (sessionId: string) =>
     request<Puzzle>(`/api/v1/piece-recognition/sessions/${sessionId}/next`, {
@@ -91,6 +106,8 @@ export const api = {
     }),
   getSpeedSession: (sessionId: string) =>
     request<SpeedSummary>(`/api/v1/piece-recognition/sessions/${sessionId}`),
+  getSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/piece-recognition/sessions/${sessionId}/report`),
   finishSpeedSession: (sessionId: string) =>
     request<SpeedSummary>(`/api/v1/piece-recognition/sessions/${sessionId}/finish`, {
       method: "POST",

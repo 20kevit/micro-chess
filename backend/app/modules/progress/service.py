@@ -13,8 +13,7 @@ from app.modules.feedback_engine.service import feedback_key_for
 from app.modules.progress.models import Attempt
 from app.modules.puzzles.models import Puzzle
 from app.modules.rating_engine.service import preview_rating_delta
-from app.modules.rule_engine.base import AttemptMode, AttemptResult
-from app.modules.scoring_engine.service import score_for
+from app.modules.rule_engine.base import AttemptMode, AttemptResult, ValidationResult
 
 CLIENT_TERMINAL_RESULTS = {
     "timeout": AttemptResult.TIMEOUT,
@@ -66,13 +65,17 @@ def submit_attempt(
             "missed": _answer_squares(puzzle.answer_json),
             "wrong": sorted(selected_set),
         }
+        validation = ValidationResult(result=result, message_key=feedback_key, detail=detail)
     else:
         validation = registry.validate_answer(puzzle.exercise_slug, puzzle.answer_json, answer)
         result = validation.result
         feedback_key = validation.message_key or feedback_key_for(result)
         detail = dict(validation.detail)
 
-    score = score_for(result)
+    # Authoritative score: exercise-specific scorer when registered
+    # (e.g. per-square scoring), else the shared result -> score default.
+    # Never trusted from the client. May be negative; never clamped here.
+    score = registry.score_for_answer(puzzle.exercise_slug, validation)
     rating_delta: float | None = None
     if mode == AttemptMode.RATED and user_id is not None and result in (
         AttemptResult.CORRECT,

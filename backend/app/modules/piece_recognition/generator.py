@@ -123,18 +123,62 @@ def ensure_exercise(db: Session) -> None:
         db.commit()
 
 
+def _match_existing(
+    db: Session, fen: str, target: str, exclude_ids: set[int]
+) -> tuple[Puzzle | None, bool]:
+    """Return (usable_row_or_None, identical_exists)."""
+    candidates = (
+        db.query(Puzzle)
+        .filter(
+            Puzzle.exercise_slug == SLUG,
+            Puzzle.is_published == True,  # noqa: E712
+            Puzzle.is_archived == False,  # noqa: E712
+            Puzzle.fen == fen,
+        )
+        .order_by(Puzzle.id)
+        .all()
+    )
+    usable: Puzzle | None = None
+    identical = False
+    for puzzle in candidates:
+        position = puzzle.position_json if isinstance(puzzle.position_json, dict) else {}
+        if position.get("target") != target:
+            continue
+        identical = True
+        if usable is None and puzzle.id not in exclude_ids:
+            usable = puzzle
+    return usable, identical
+
+
 def create_puzzle(
     db: Session,
     rng: random.Random | None = None,
     explicit_path: str | None = None,
+    exclude_ids: set[int] | None = None,
 ) -> Puzzle:
     """Generate one random question and persist it as a published puzzle.
 
     The persisted row plugs into the standard attempt flow unchanged
     (``POST /api/v1/attempts`` validates against the stored ``answer_json``).
+    Identical (position, question) rows are reused, not duplicated;
+    ``exclude_ids`` steers away from just-shown puzzles: a novel combo is
+    created immediately, an excluded duplicate triggers a re-roll
+    (bounded; best-effort).
     """
     ensure_exercise(db)
+    excluded = set(exclude_ids or [])
     data = generate_question_data(rng, explicit_path)
+    usable, identical = _match_existing(db, data["fen"], data["target"], excluded)
+    if usable is not None:
+        return usable
+    if identical:
+        for _ in range(10):
+            data = generate_question_data(rng, explicit_path)
+            usable, identical = _match_existing(db, data["fen"], data["target"], excluded)
+            if usable is not None:
+                return usable
+            if not identical:
+                break
     puzzle = Puzzle(
         exercise_slug=SLUG,
         fen=data["fen"],

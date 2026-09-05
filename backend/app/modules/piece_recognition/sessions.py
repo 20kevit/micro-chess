@@ -1,13 +1,18 @@
-"""Piece Recognition speed sessions: authoritative 60-second clock.
+"""Piece Recognition speed sessions: prepared buffer + authoritative clock.
 
-The frontend runs a visible countdown for UX, but ONLY this service decides
-whether a submission counts: ``submit`` compares server time against the
-stored ``ends_at`` and rejects late answers. Scoring reuses the standard
-``progress.service.submit_attempt`` (mode=practice) plus
-``scoring_engine.score_for`` — no separate scoring system.
+Lifecycle: ``preparing`` -> ``active`` -> ``finished``/``expired``.
 
-Session lifecycle: active -> finished (client ends early / time runs out and
-the summary is read) or active -> expired (a call arrives after the clock).
+- ``preparing``: the client preloads at least ``MIN_START_BUFFER`` (20)
+  puzzles via ``prepare_puzzles``. No clock runs; submissions are refused.
+- ``begin_session`` starts the 60s clock (requires the minimum buffer) and
+  flips the session to ``active``. Only then do ``next``/``submit`` work.
+- The frontend runs a visible countdown for UX, but ONLY this service
+  decides whether a submission counts: ``submit`` compares server time
+  against the stored ``ends_at`` and rejects late answers.
+- Scoring reuses the standard ``progress.service.submit_attempt``
+  (mode=practice) plus the registered exercise scorer — no separate
+  scoring system. Per-answer rows live in ``attempts``; this table only
+  aggregates, so the final report is rebuilt from stored attempts.
 """
 
 from __future__ import annotations
@@ -27,6 +32,11 @@ from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptMode
 
 SPEED_DURATION_S = 60
+# Minimum preloaded puzzles before the clock may start. The client keeps
+# refilling in the background, so fast solvers never wait mid-session.
+MIN_START_BUFFER = 20
+# Per-call cap for buffer preparation (keeps one request bounded).
+MAX_PREPARE_COUNT = 60
 
 
 class SessionNotFoundError(ValueError):
@@ -34,6 +44,14 @@ class SessionNotFoundError(ValueError):
 
 
 class SessionExpiredError(ValueError):
+    pass
+
+
+class SessionNotActiveError(ValueError):
+    pass
+
+
+class BufferNotReadyError(ValueError):
     pass
 
 
@@ -50,7 +68,11 @@ def _now() -> datetime:
 
 
 def _expire_if_needed(db: Session, session: PieceSpeedSession) -> PieceSpeedSession:
-    if session.status == "active" and _now() >= session.ends_at:
+    if (
+        session.status == "active"
+        and session.ends_at is not None
+        and _now() >= session.ends_at
+    ):
         session.status = "expired"
         db.commit()
         db.refresh(session)
@@ -70,10 +92,10 @@ def start_session(
         id=uuid.uuid4().hex,
         exercise_slug=SLUG,
         user_id=user_id,
-        status="active",
+        status="preparing",
         duration_s=duration,
         started_at=started,
-        ends_at=started + timedelta(seconds=duration),
+        ends_at=None,
         puzzle_ids=[],
         attempt_ids=[],
     )
@@ -92,9 +114,71 @@ def get_session(db: Session, session_id: str) -> PieceSpeedSession:
 
 def _require_active(db: Session, session_id: str) -> PieceSpeedSession:
     session = get_session(db, session_id)
+    if session.status == "preparing":
+        raise SessionNotActiveError("session_not_started")
     if session.status != "active":
         raise SessionExpiredError("session_expired")
     return session
+
+
+def _require_preparable(db: Session, session_id: str) -> PieceSpeedSession:
+    session = get_session(db, session_id)
+    if session.status not in ("preparing", "active"):
+        raise SessionExpiredError("session_expired")
+    return session
+
+
+def begin_session(db: Session, session_id: str) -> PieceSpeedSession:
+    """Start the clock. Requires the minimum preloaded buffer; the 60s
+    never include preparation time."""
+    session = get_session(db, session_id)
+    if session.status == "active":
+        return session
+    if session.status != "preparing":
+        raise SessionExpiredError("session_expired")
+    if len(session.puzzle_ids or []) < MIN_START_BUFFER:
+        raise BufferNotReadyError("buffer_not_ready")
+    started = _now()
+    session.started_at = started
+    session.ends_at = started + timedelta(seconds=session.duration_s or SPEED_DURATION_S)
+    session.status = "active"
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def _attach_puzzles(
+    db: Session,
+    session: PieceSpeedSession,
+    count: int,
+    rng: random.Random | None = None,
+) -> list[Puzzle]:
+    made: list[Puzzle] = []
+    # Exclude already-buffered ids so one buffer stays duplicate-free
+    # (best-effort; the generator re-rolls bounded times).
+    excluded = set(session.puzzle_ids or [])
+    for _ in range(max(0, count)):
+        puzzle = generator.create_puzzle(db, rng, exclude_ids=excluded)
+        excluded.add(puzzle.id)
+        made.append(puzzle)
+    ids = list(session.puzzle_ids or []) + [p.id for p in made]
+    session.puzzle_ids = ids
+    db.commit()
+    db.refresh(session)
+    return made
+
+
+def prepare_puzzles(
+    db: Session,
+    session_id: str,
+    count: int = MIN_START_BUFFER,
+    rng: random.Random | None = None,
+) -> list[Puzzle]:
+    """Generate ``count`` puzzles into the session buffer. Allowed while
+    ``preparing`` (initial buffer) and while ``active`` (background refill).
+    Returns the created puzzles (public fields only leave the API)."""
+    session = _require_preparable(db, session_id)
+    return _attach_puzzles(db, session, max(1, min(MAX_PREPARE_COUNT, int(count or 0))), rng)
 
 
 def issue_puzzle(
@@ -102,7 +186,7 @@ def issue_puzzle(
     session_id: str,
     rng: random.Random | None = None,
 ) -> Puzzle:
-    session = _require_active(db, session_id)
+    session = _require_preparable(db, session_id)
     puzzle = generator.create_puzzle(db, rng)
     ids = list(session.puzzle_ids or [])
     ids.append(puzzle.id)
@@ -162,7 +246,7 @@ def submit(
 
 def finish(db: Session, session_id: str) -> PieceSpeedSession:
     session = get_session(db, session_id)
-    if session.status == "active":
+    if session.status in ("preparing", "active"):
         session.status = "finished"
         db.commit()
         db.refresh(session)
@@ -170,18 +254,79 @@ def finish(db: Session, session_id: str) -> PieceSpeedSession:
 
 
 def summary(session: PieceSpeedSession) -> dict[str, Any]:
-    remaining_ms = max(0, int((session.ends_at - _now()).total_seconds() * 1000))
+    if session.ends_at is None:
+        remaining_ms = (session.duration_s or SPEED_DURATION_S) * 1000
+        expires_at = None
+    else:
+        remaining_ms = max(0, int((session.ends_at - _now()).total_seconds() * 1000))
+        expires_at = session.ends_at
     return {
         "session_id": session.id,
         "exercise_slug": session.exercise_slug,
         "status": session.status,
         "duration_s": session.duration_s,
         "started_at": session.started_at,
-        "expires_at": session.ends_at,
+        "expires_at": expires_at,
         "remaining_ms": remaining_ms,
+        "buffered": len(session.puzzle_ids or []),
         "attempted": session.attempted_count or 0,
         "correct": session.correct_count or 0,
         "partial": session.partial_count or 0,
         "wrong": session.wrong_count or 0,
         "score": session.score or 0.0,
     }
+
+
+def report(db: Session, session_id: str) -> dict[str, Any]:
+    """Authoritative per-puzzle report rebuilt from stored attempts, so a
+    refresh or UI glitch can never fabricate or lose results.
+
+    Per-square detail is re-derived server-side by re-running the exercise
+    validator over the stored puzzle answer + stored user answer (never
+    trusted from any client payload).
+    """
+    from app.modules.exercises import registry
+    from app.modules.progress.models import Attempt
+
+    session = get_session(db, session_id)
+    data = summary(session)
+    attempt_ids = list(session.attempt_ids or [])
+    entries: list[dict[str, Any]] = []
+    if attempt_ids:
+        attempts = (
+            db.query(Attempt).filter(Attempt.id.in_(attempt_ids)).order_by(Attempt.id).all()
+        )
+        puzzles = {
+            p.id: p
+            for p in db.query(Puzzle).filter(
+                Puzzle.id.in_([a.puzzle_id for a in attempts])
+            )
+        }
+        for attempt in attempts:
+            puzzle = puzzles.get(attempt.puzzle_id)
+            if puzzle is not None:
+                detail = dict(
+                    registry.validate_answer(
+                        attempt.exercise_slug,
+                        puzzle.answer_json if isinstance(puzzle.answer_json, dict) else {},
+                        attempt.answer_json if isinstance(attempt.answer_json, dict) else {},
+                    ).detail
+                )
+            else:  # pragma: no cover - defensive; puzzles are never deleted
+                detail = {"correct": [], "missed": [], "wrong": []}
+            entries.append(
+                {
+                    "attempt_id": attempt.id,
+                    "puzzle_id": attempt.puzzle_id,
+                    "prompt_fa": puzzle.prompt_fa if puzzle else "",
+                    "fen": puzzle.fen if puzzle else None,
+                    "result": attempt.result,
+                    "score": attempt.score,
+                    "correct": list(detail.get("correct", [])),
+                    "missed": list(detail.get("missed", [])),
+                    "wrong": list(detail.get("wrong", [])),
+                    "created_at": attempt.created_at,
+                }
+            )
+    data["entries"] = entries
+    return data

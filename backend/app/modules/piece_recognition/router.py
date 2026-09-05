@@ -11,9 +11,11 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user_optional, get_db
 from app.modules.piece_recognition import schemas, sessions
 from app.modules.piece_recognition.sessions import (
+    BufferNotReadyError,
     PuzzleAlreadyAnsweredError,
     PuzzleNotInSessionError,
     SessionExpiredError,
+    SessionNotActiveError,
     SessionNotFoundError,
 )
 from app.modules.progress.schemas import AttemptOut
@@ -32,9 +34,14 @@ def _to_summary(session: sessions.PieceSpeedSession) -> schemas.SessionSummary:
 
 
 @router.post("/next", response_model=PuzzleOut)
-def next_practice_puzzle(db: Session = Depends(get_db)):
+def next_practice_puzzle(
+    body: schemas.NextPracticeIn | None = None, db: Session = Depends(get_db)
+):
     """Issue one fresh random puzzle for untimed Practice Mode."""
-    return sessions.issue_practice_puzzle(db)
+    from app.modules.piece_recognition import generator
+
+    exclude = set(body.exclude_ids) if body else set()
+    return generator.create_puzzle(db, exclude_ids=exclude)
 
 
 @router.post("/sessions", response_model=schemas.SessionOut)
@@ -65,8 +72,54 @@ def next_speed_puzzle(session_id: str, db: Session = Depends(get_db)):
         return sessions.issue_puzzle(db, session_id)
     except SessionNotFoundError:
         raise HTTPException(status_code=404, detail="session_not_found")
+    except (SessionExpiredError, SessionNotActiveError) as exc:
+        raise HTTPException(
+            status_code=410 if isinstance(exc, SessionExpiredError) else 409,
+            detail=str(exc),
+        )
+
+
+@router.post("/sessions/{session_id}/puzzles", response_model=list[PuzzleOut])
+def prepare_speed_puzzles(
+    session_id: str, body: schemas.PrepareIn | None = None, db: Session = Depends(get_db)
+):
+    """Prepare ``count`` puzzles into the session buffer (initial >=20
+    before start, background refill while active). Never leaks answers."""
+    try:
+        return sessions.prepare_puzzles(
+            db, session_id, count=body.count if body else sessions.MIN_START_BUFFER
+        )
+    except SessionNotFoundError:
+        raise HTTPException(status_code=404, detail="session_not_found")
     except SessionExpiredError:
         raise HTTPException(status_code=410, detail="session_expired")
+
+
+@router.post("/sessions/{session_id}/start", response_model=schemas.SessionOut)
+def start_speed_session_clock(session_id: str, db: Session = Depends(get_db)):
+    """Start the authoritative clock. Requires the minimum buffer, so
+    preparation time is never billed to the 60 seconds."""
+    try:
+        return _to_out(sessions.begin_session(db, session_id))
+    except SessionNotFoundError:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    except SessionExpiredError:
+        raise HTTPException(status_code=410, detail="session_expired")
+    except BufferNotReadyError:
+        raise HTTPException(status_code=409, detail="buffer_not_ready")
+
+
+@router.get("/sessions/{session_id}/report", response_model=schemas.SessionReport)
+def get_speed_report(session_id: str, db: Session = Depends(get_db)):
+    """Authoritative per-puzzle report rebuilt from stored attempts."""
+    try:
+        data = sessions.report(db, session_id)
+    except SessionNotFoundError:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    return schemas.SessionReport(
+        session=schemas.SessionSummary(**{k: v for k, v in data.items() if k != "entries"}),
+        entries=[schemas.ReportEntry(**e) for e in data["entries"]],
+    )
 
 
 @router.post("/sessions/{session_id}/submit", response_model=schemas.SessionSubmitOut)
@@ -90,6 +143,8 @@ def submit_speed_answer(
         raise HTTPException(status_code=404, detail="session_not_found")
     except SessionExpiredError:
         raise HTTPException(status_code=410, detail="session_expired")
+    except SessionNotActiveError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except PuzzleNotInSessionError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except PuzzleAlreadyAnsweredError:

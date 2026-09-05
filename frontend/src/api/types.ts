@@ -87,7 +87,7 @@ export interface AttemptResponse {
   duration_ms: number | null;
 }
 
-export type SpeedStatus = "active" | "finished" | "expired";
+export type SpeedStatus = "preparing" | "active" | "finished" | "expired";
 
 export interface SpeedSession {
   session_id: string;
@@ -95,8 +95,9 @@ export interface SpeedSession {
   status: SpeedStatus;
   duration_s: number;
   started_at: string;
-  expires_at: string;
+  expires_at: string | null;
   remaining_ms: number;
+  buffered: number;
 }
 
 export interface SpeedSummary extends SpeedSession {
@@ -112,4 +113,22 @@ export interface SpeedSubmitResponse {
   feedback_key: string;
   detail: AttemptResponse["detail"];
   session: SpeedSummary;
+}
+
+export interface ReportEntry {
+  attempt_id: number;
+  puzzle_id: number;
+  prompt_fa: string;
+  fen: string | null;
+  result: AttemptResult;
+  score: number;
+  correct: string[];
+  missed: string[];
+  wrong: string[];
+  created_at: string;
+}
+
+export interface SpeedReport {
+  session: SpeedSummary;
+  entries: ReportEntry[];
 }

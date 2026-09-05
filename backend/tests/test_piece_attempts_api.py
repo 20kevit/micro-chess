@@ -67,7 +67,8 @@ def test_practice_submit_correct_records_attempt(client, db_session):
     assert res.status_code == 200
     body = res.json()
     assert body["result"] == "correct"
-    assert body["score"] == 1.0
+    # Per-square scoring: +5 per correct target, no misses/wrongs here.
+    assert body["score"] == 5.0 * len(puzzle.answer_json["squares"])
     assert body["rating_delta"] is None
     assert body["detail"]["missed"] == [] and body["detail"]["wrong"] == []
 
@@ -77,7 +78,7 @@ def test_practice_submit_correct_records_attempt(client, db_session):
     assert attempt.mode == "practice"
 
 
-def test_partial_scores_half(client, db_session):
+def test_partial_per_square_scoring(client, db_session):
     puzzle = _seeded_puzzle(db_session)
     squares = puzzle.answer_json["squares"]
     assert len(squares) >= 2
@@ -86,7 +87,8 @@ def test_partial_scores_half(client, db_session):
         json={"puzzle_id": puzzle.id, "answer": {"selected_squares": squares[:1]}, "mode": "practice"},
     )
     assert res.json()["result"] == "partial"
-    assert res.json()["score"] == 0.5
+    # 1 correct (+5), rest missed (-1 each), nothing wrong.
+    assert res.json()["score"] == 5.0 - (len(squares) - 1)
 
 
 def test_rated_requires_auth(client, db_session):
