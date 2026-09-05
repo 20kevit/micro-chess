@@ -245,3 +245,76 @@ Planned types (examples, not specs):
 - Seed: `python -m app.modules.blindfold_square_vision.seed` (15
   hand-designed puzzles, K3/Q2/R2/B2/N4/P2 with 1/2/3/6-move knight cases;
   every distance independently verified at seed time).
+
+## Sixteenth slice
+
+**Trapped Pieces** — IMPLEMENTED (`trapped-pieces`).
+
+- Route: `/exercises/trapped-pieces` (shared `ExercisePlay` loop with no
+  pre-highlight; only the user's selections are shown).
+- Validator: `backend/app/modules/trapped_pieces/validator.py` (trapped =
+  non-king piece with zero pseudo-legal moves via `generate_pseudo_legal_moves`;
+  pinned pieces have pseudo moves so they are NOT trapped; kings excluded).
+- Seed: `python -m app.modules.trapped_pieces.seed` (15 hand-designed puzzles
+  covering all five trappable kinds, pawn mutual blocks, pinned-not-trapped,
+  king-excluded and empty cases; every answer independently verified).
+
+## Seventeenth slice
+
+**Blindfold Calculation** — IMPLEMENTED (`blindfold-calculation`).
+
+- MVP supports only Mate in 1. No Mate in 2, combinations, or engine
+  evaluation (mate detection is `legal moves` + `board.is_checkmate()`,
+  never Stockfish).
+- Route: `/exercises/blindfold-calculation` (dedicated
+  `BlindfoldCalculationPlay` loop: NO chessboard, NO piece images, NO FEN
+  at any point; Persian position description + SAN text input).
+- Validator: `backend/app/modules/blindfold_calculation/validator.py`
+  (submitted SAN parsed with `board.parse_san` against the stored FEN;
+  CORRECT only when the move is legal AND produces checkmate; any legal
+  mating move counts; `#`/`+` suffixes optional; malformed input is WRONG).
+- Description: `backend/app/modules/blindfold_calculation/description.py`
+  (deterministic Persian text: side to move, then White/Black pieces in
+  King/Queen/Rook/Bishop/Knight/Pawn order, squares sorted; square names
+  stay algebraic; TTS-ready via the existing `audio/ports.py` boundary,
+  no provider added).
+- Security: `Puzzle.fen` stays NULL and `position_json` carries only the
+  description/side/mode; the FEN lives in server-only `answer_json`, so
+  the puzzle endpoints never leak the position or the expected SAN.
+- Seed: `python -m app.modules.blindfold_calculation.seed` (15
+  hand-designed puzzles, each independently verified to have exactly one
+  mate-in-1: back-rank, queen, rook, bishop, knight incl. smothered,
+  pawn capture, Scholar's, black-to-move and corner patterns).
+
+## Eighteenth slice
+
+**Opening Traps Blindfold** — IMPLEMENTED (`opening-traps`).
+
+- MVP is one tactical move from a genuine opening-trap position.
+  Checkmate is NOT required; correctness is membership of the parsed move
+  (normalized to UCI, never raw SAN comparison) in the puzzle's explicit
+  solution set, so several different winning moves can be accepted.
+- Route: `/exercises/opening-traps` (dedicated `OpeningTrapsPlay` loop:
+  NO chessboard, NO piece images, NO FEN and NO solution data at any
+  point; opening/trap/theme context plus Persian description, SAN input).
+- Validator: `backend/app/modules/opening_traps/validator.py`
+  (submitted SAN parsed with `board.parse_san`; malformed, illegal and
+  ambiguous input is WRONG; legal-but-not-tactical is WRONG; CORRECT or
+  WRONG only; client-supplied FEN/solutions/theme ignored).
+- Description: `backend/app/modules/opening_traps/description.py`
+  (deterministic Persian text: trap, opening, side to move, then pieces
+  in King/Queen/Rook/Bishop/Knight/Pawn order; generic wording that never
+  hints the winning move; TTS-ready via `audio/ports.py`, no provider).
+- Security: `Puzzle.fen` stays NULL and `position_json` carries only
+  description/side/mode/opening/trap/theme; FEN + solution UCIs live in
+  server-only `answer_json`, so puzzle endpoints never leak them.
+- Seed: `python -m app.modules.opening_traps.seed` (15 hand-designed
+  puzzles from real lines — Legal, Blackburne Shilling, Scholar's,
+  Fool's, Siberian, Noah's Ark, Mortimer, Elephant, Damiano, Fried Liver,
+  Stafford, Rubinstein, Kieninger, Evans, Caro-Kann mate — each solution
+  independently verified legal with its declared capture/check/mate
+  property; Noah's Ark and Evans accept two tactics each; 11 white +
+  4 black to move).
+- Known limitation: unlisted objectively-strong alternatives count as
+  WRONG, because the exercise grades the documented trap tactic, not
+  general engine evaluation (no Stockfish by design).

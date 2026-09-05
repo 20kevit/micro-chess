@@ -63,6 +63,8 @@ export interface AttemptResponse {
     right_value?: number;
     moves?: number;
     path?: string[];
+    correct_move?: string;
+    theme?: string;
   };
   hints_used: string[];
   started_at: string | null;

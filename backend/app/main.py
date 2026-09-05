@@ -15,6 +15,7 @@ from app.modules.users.router import router as users_router
 
 # Register exercise validators (no core-flow changes needed per exercise).
 import app.modules.blindfold_square_vision as _blindfold_square_vision  # noqa: F401
+import app.modules.blindfold_calculation as _blindfold_calculation  # noqa: F401
 import app.modules.captures as _captures  # noqa: F401
 import app.modules.balance_scale as _balance_scale  # noqa: F401
 import app.modules.castling_rights as _castling_rights  # noqa: F401
@@ -26,9 +27,11 @@ import app.modules.hanging_pieces as _hanging_pieces  # noqa: F401
 import app.modules.legal_destinations as _legal_destinations  # noqa: F401
 import app.modules.material_comparison as _material_comparison  # noqa: F401
 import app.modules.memory_board as _memory_board  # noqa: F401
+import app.modules.opening_traps as _opening_traps  # noqa: F401
 import app.modules.pathfinding as _pathfinding  # noqa: F401
 import app.modules.piece_recognition as _piece_recognition  # noqa: F401
 import app.modules.pin as _pin  # noqa: F401
+import app.modules.trapped_pieces as _trapped_pieces  # noqa: F401
 
 
 @asynccontextmanager

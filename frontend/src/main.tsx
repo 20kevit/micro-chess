@@ -4,6 +4,7 @@ import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AppShell } from "./components/ui/AppShell";
 import { BalanceScalePage } from "./pages/BalanceScalePage";
+import { BlindfoldCalculationPage } from "./pages/BlindfoldCalculationPage";
 import { BlindfoldSquareVisionPage } from "./pages/BlindfoldSquareVisionPage";
 import { CapturesPage } from "./pages/CapturesPage";
 import { CastlingRightsPage } from "./pages/CastlingRightsPage";
@@ -16,10 +17,12 @@ import { HangingPiecesPage } from "./pages/HangingPiecesPage";
 import { LegalDestinationsPage } from "./pages/LegalDestinationsPage";
 import { MaterialComparisonPage } from "./pages/MaterialComparisonPage";
 import { MemoryBoardPage } from "./pages/MemoryBoardPage";
+import { OpeningTrapsPage } from "./pages/OpeningTrapsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PathfindingPage } from "./pages/PathfindingPage";
 import { PieceRecognitionPage } from "./pages/PieceRecognitionPage";
 import { PinPage } from "./pages/PinPage";
+import { TrappedPiecesPage } from "./pages/TrappedPiecesPage";
 import "./index.css";
 
 // Routes only. Keep data fetching inside pages via api client.
@@ -42,9 +45,12 @@ const router = createBrowserRouter([
       { path: "/exercises/get-out-of-check", element: <GetOutOfCheckPage /> },
       { path: "/exercises/heavier-side", element: <MaterialComparisonPage /> },
       { path: "/exercises/memory-board", element: <MemoryBoardPage /> },
+      { path: "/exercises/opening-traps", element: <OpeningTrapsPage /> },
       { path: "/exercises/blindfold-square-vision", element: <BlindfoldSquareVisionPage /> },
+      { path: "/exercises/blindfold-calculation", element: <BlindfoldCalculationPage /> },
       { path: "/exercises/pathfinding", element: <PathfindingPage /> },
       { path: "/exercises/pin", element: <PinPage /> },
+      { path: "/exercises/trapped-pieces", element: <TrappedPiecesPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

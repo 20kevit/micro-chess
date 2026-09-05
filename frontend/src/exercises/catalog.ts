@@ -32,10 +32,10 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
   { slug: "is-checkmate", titleKey: "exercises.is-checkmate.title", descKey: "exercises.is-checkmate.desc", status: "active", route: "/exercises/is-checkmate" },
   { slug: "memory-board", titleKey: "exercises.memory-board.title", descKey: "exercises.memory-board.desc", status: "active", route: "/exercises/memory-board" },
   { slug: "blindfold-square-vision", titleKey: "exercises.blindfold-square-vision.title", descKey: "exercises.blindfold-square-vision.desc", status: "active", route: "/exercises/blindfold-square-vision" },
-  { slug: "blindfold-calculation", titleKey: "exercises.blindfold-calculation.title", descKey: "exercises.blindfold-calculation.desc", status: "coming_soon", route: null },
-  { slug: "opening-traps-blindfold", titleKey: "exercises.opening-traps-blindfold.title", descKey: "exercises.opening-traps-blindfold.desc", status: "coming_soon", route: null },
+  { slug: "blindfold-calculation", titleKey: "exercises.blindfold-calculation.title", descKey: "exercises.blindfold-calculation.desc", status: "active", route: "/exercises/blindfold-calculation" },
+  { slug: "opening-traps", titleKey: "exercises.opening-traps.title", descKey: "exercises.opening-traps.desc", status: "active", route: "/exercises/opening-traps" },
   { slug: "reverse-opening", titleKey: "exercises.reverse-opening.title", descKey: "exercises.reverse-opening.desc", status: "coming_soon", route: null },
-  { slug: "trapped-pieces", titleKey: "exercises.trapped-pieces.title", descKey: "exercises.trapped-pieces.desc", status: "coming_soon", route: null },
+  { slug: "trapped-pieces", titleKey: "exercises.trapped-pieces.title", descKey: "exercises.trapped-pieces.desc", status: "active", route: "/exercises/trapped-pieces" },
   { slug: "avoid-stalemate", titleKey: "exercises.avoid-stalemate.title", descKey: "exercises.avoid-stalemate.desc", status: "coming_soon", route: null },
   { slug: "square-rule", titleKey: "exercises.square-rule.title", descKey: "exercises.square-rule.desc", status: "coming_soon", route: null },
 ];
