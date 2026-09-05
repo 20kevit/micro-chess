@@ -27,7 +27,9 @@ import app.modules.hanging_pieces as _hanging_pieces  # noqa: F401
 import app.modules.legal_destinations as _legal_destinations  # noqa: F401
 import app.modules.material_comparison as _material_comparison  # noqa: F401
 import app.modules.memory_board as _memory_board  # noqa: F401
+import app.modules.opening_move_reconstruction as _opening_move_reconstruction  # noqa: F401
 import app.modules.opening_traps as _opening_traps  # noqa: F401
+from app.modules.opening_move_reconstruction.router import router as reconstruction_router
 import app.modules.pathfinding as _pathfinding  # noqa: F401
 import app.modules.piece_recognition as _piece_recognition  # noqa: F401
 import app.modules.pin as _pin  # noqa: F401
@@ -60,5 +62,6 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(exercises_router, prefix="/api/v1")
 app.include_router(pathfinding_router, prefix="/api/v1")
+app.include_router(reconstruction_router, prefix="/api/v1")
 app.include_router(puzzles_router, prefix="/api/v1")
 app.include_router(attempts_router, prefix="/api/v1")

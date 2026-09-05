@@ -1,5 +1,12 @@
 // Thin HTTP client. Backend is authoritative; this only transports data.
-import type { AttemptMode, AttemptResponse, Exercise, PathStepResponse, Puzzle } from "./types";
+import type {
+  AttemptMode,
+  AttemptResponse,
+  Exercise,
+  PathStepResponse,
+  Puzzle,
+  ReconstructionStepResponse,
+} from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -40,5 +47,17 @@ export const api = {
     request<AttemptResponse>("/api/v1/attempts", {
       method: "POST",
       body: JSON.stringify(body),
+    }),
+  validateReconstructionStep: (body: {
+    puzzle_id: number;
+    fen: string;
+    moves: string[];
+    from: string;
+    to: string;
+    promotion?: string | null;
+  }) =>
+    request<ReconstructionStepResponse>("/api/v1/reconstruction/step", {
+      method: "POST",
+      body: JSON.stringify({ promotion: "q", ...body }),
     }),
 };

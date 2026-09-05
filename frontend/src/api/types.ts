@@ -44,6 +44,16 @@ export interface PathStepResponse {
   message_key: string;
 }
 
+export interface ReconstructionStepResponse {
+  ok: boolean;
+  fen: string;
+  moves: string[];
+  san: string;
+  captured: string | null;
+  on_track: boolean;
+  message_key: string;
+}
+
 export interface AttemptResponse {
   id: number;
   puzzle_id: number;
@@ -65,6 +75,10 @@ export interface AttemptResponse {
     path?: string[];
     correct_move?: string;
     theme?: string;
+    correct_sequence?: string[];
+    submitted_sequence?: string[];
+    matched_plies?: number;
+    expected_plies?: number;
   };
   hints_used: string[];
   started_at: string | null;

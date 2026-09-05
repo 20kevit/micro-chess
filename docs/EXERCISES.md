@@ -318,3 +318,36 @@ Planned types (examples, not specs):
 - Known limitation: unlisted objectively-strong alternatives count as
   WRONG, because the exercise grades the documented trap tactic, not
   general engine evaluation (no Stockfish by design).
+
+## Nineteenth slice
+
+**Opening Move Reconstruction** — IMPLEMENTED (`opening-move-reconstruction`).
+
+- Route: `/exercises/opening-move-reconstruction` (dedicated
+  `OpeningReconstructionPlay` loop with two boards: the read-only TARGET
+  board on top, the user-driven reconstruction board below starting from
+  the standard initial position; tap or drag to move, server-generated
+  SAN move list, undo/reset, promotion picker).
+- Validator: `backend/app/modules/opening_move_reconstruction/validator.py`
+  (submitted UCIs replayed with python-chess from the stored start;
+  CORRECT only when placement + side to move + castling rights +
+  en-passant square equal the stored target; clocks ignored; any line
+  reaching the target counts, so transpositions are accepted; CORRECT or
+  WRONG only; detail carries both sequences plus matched/expected plies
+  as move-by-move feedback).
+- Step oracle: `POST /api/v1/reconstruction/step` (legality-only move
+  assistance following the pathfinding-step precedent: replays the
+  claimed history from the stored start, applies one legal move, returns
+  the new FEN plus server-generated SAN and an on-track flag; reveals no
+  solution data; final grading still revalidates the whole sequence).
+- Security: `answer_json` (start/target/solutions) is server-only;
+  `position_json` exposes start/target FENs for rendering plus opening
+  context, never the sequence; client FENs/solutions are ignored.
+- Seed: `python -m app.modules.opening_move_reconstruction.seed` (15
+  real opening lines of 5-10 plies from the standard start — Italian,
+  Ruy Lopez, Sicilian Najdorf, French Winawer, Caro-Kann, QGD, KID,
+  Scotch, Four Knights, London, Petrov, Vienna, Alapin, Caro Advance,
+  Evans — targets generated from the lines, all independently verified,
+  no duplicate targets, mixed sides to move).
+- Known limitation: single canonical line per puzzle in the seed, though
+  the position-based grader already accepts any equivalent line.
