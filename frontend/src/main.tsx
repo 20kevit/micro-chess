@@ -19,6 +19,7 @@ import { MaterialComparisonPage } from "./pages/MaterialComparisonPage";
 import { MemoryBoardPage } from "./pages/MemoryBoardPage";
 import { OpeningMoveReconstructionPage } from "./pages/OpeningMoveReconstructionPage";
 import { OpeningTrapsPage } from "./pages/OpeningTrapsPage";
+import { RuleOfTheSquarePage } from "./pages/RuleOfTheSquarePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PathfindingPage } from "./pages/PathfindingPage";
 import { PieceRecognitionPage } from "./pages/PieceRecognitionPage";
@@ -48,6 +49,7 @@ const router = createBrowserRouter([
       { path: "/exercises/memory-board", element: <MemoryBoardPage /> },
       { path: "/exercises/opening-traps", element: <OpeningTrapsPage /> },
       { path: "/exercises/opening-move-reconstruction", element: <OpeningMoveReconstructionPage /> },
+      { path: "/exercises/rule-of-the-square", element: <RuleOfTheSquarePage /> },
       { path: "/exercises/blindfold-square-vision", element: <BlindfoldSquareVisionPage /> },
       { path: "/exercises/blindfold-calculation", element: <BlindfoldCalculationPage /> },
       { path: "/exercises/pathfinding", element: <PathfindingPage /> },

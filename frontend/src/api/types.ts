@@ -79,6 +79,8 @@ export interface AttemptResponse {
     submitted_sequence?: string[];
     matched_plies?: number;
     expected_plies?: number;
+    expected?: string;
+    corners?: string[];
   };
   hints_used: string[];
   started_at: string | null;

@@ -119,6 +119,11 @@ export const fa = {
   "reconstruction.matched": "حرکت‌های درست ابتدای مسیر",
   "reconstruction.correctSequence": "دنباله درست",
   "reconstruction.yourSequence": "دنباله تو",
+  "square.intro": "با قانون مربع حدس بزن شاه به پیاده می‌رسد یا نه.",
+  "square.can": "شاه می‌رسد",
+  "square.cannot": "شاه نمی‌رسد",
+  "square.correct": "آفرین! درست حدس زدی.",
+  "square.wrong": "اشتباه شد؛ مربع را دوباره بررسی کن.",
   "pieces.king": "شاه",
   "pieces.queen": "وزیر",
   "pieces.rook": "رخ",
@@ -186,8 +191,8 @@ export const fa = {
   "exercises.trapped-pieces.desc": "مهره‌ای که راه فرار ندارد.",
   "exercises.avoid-stalemate.title": "فرار از پات",
   "exercises.avoid-stalemate.desc": "ببر، ولی پات نکن!",
-  "exercises.square-rule.title": "قانون مربع",
-  "exercises.square-rule.desc": "آیا شاه به پیاده می‌رسد؟",
+  "exercises.rule-of-the-square.title": "قانون مربع",
+  "exercises.rule-of-the-square.desc": "ببین شاه به پیاده می‌رسد یا نه.",
 } as const;
 
 export type FaKey = keyof typeof fa;

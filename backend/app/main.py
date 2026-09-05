@@ -33,6 +33,7 @@ from app.modules.opening_move_reconstruction.router import router as reconstruct
 import app.modules.pathfinding as _pathfinding  # noqa: F401
 import app.modules.piece_recognition as _piece_recognition  # noqa: F401
 import app.modules.pin as _pin  # noqa: F401
+import app.modules.rule_of_the_square as _rule_of_the_square  # noqa: F401
 import app.modules.trapped_pieces as _trapped_pieces  # noqa: F401
 
 

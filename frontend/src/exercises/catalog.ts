@@ -38,7 +38,7 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
   { slug: "reverse-opening", titleKey: "exercises.reverse-opening.title", descKey: "exercises.reverse-opening.desc", status: "coming_soon", route: null },
   { slug: "trapped-pieces", titleKey: "exercises.trapped-pieces.title", descKey: "exercises.trapped-pieces.desc", status: "active", route: "/exercises/trapped-pieces" },
   { slug: "avoid-stalemate", titleKey: "exercises.avoid-stalemate.title", descKey: "exercises.avoid-stalemate.desc", status: "coming_soon", route: null },
-  { slug: "square-rule", titleKey: "exercises.square-rule.title", descKey: "exercises.square-rule.desc", status: "coming_soon", route: null },
+  { slug: "rule-of-the-square", titleKey: "exercises.rule-of-the-square.title", descKey: "exercises.rule-of-the-square.desc", status: "active", route: "/exercises/rule-of-the-square" },
 ];
 
 export function getExerciseMeta(slug: string): ExerciseMeta | undefined {

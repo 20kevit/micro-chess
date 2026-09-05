@@ -351,3 +351,33 @@ Planned types (examples, not specs):
   no duplicate targets, mixed sides to move).
 - Known limitation: single canonical line per puzzle in the seed, though
   the position-based grader already accepts any equivalent line.
+
+## Twenty-first slice
+
+**Rule of the Square** — IMPLEMENTED (`rule-of-the-square`).
+
+- Exercise 20 stays intentionally absent; the catalog moves from 19 to 21.
+- Route: `/exercises/rule-of-the-square` (dedicated `RuleOfTheSquarePlay`
+  loop: visible board, two large touch choices شاه می‌رسد / شاه نمی‌رسد,
+  no piece movement; the square corners are marked only after submission).
+- Validator: `backend/app/modules/rule_of_the_square/validator.py`.
+  The verdict is exact optimal race play for the lone king-versus-pawn
+  race (exhaustive solving, no engine/tablebase/heuristics), which
+  coincides with the classical square on every teachable position and
+  additionally adjudicates tempo corners exactly (attacker-to-move edge
+  cases where the naive drawing misleads). The classical square geometry
+  is still computed per puzzle and drives the post-submit visualization
+  and the generated Persian explanations.
+- Seed: `python -m app.modules.rule_of_the_square.seed` (15 generated
+  minimum-material positions, 8 CAN_CATCH / 7 CANNOT_CATCH, White and
+  Black pawns, edge/central files, starting-rank double-steps, inside /
+  just-outside boundaries, both sides to move; every FEN generated from
+  structured data and independently verified legal; the drawn square is
+  tested to agree with the verdict on all seeds).
+- Security: `answer_json` holds only the FEN; the visible board renders
+  from the `Puzzle.fen` column, `position_json` carries just the mode;
+  the verdict is recomputed from the stored FEN on every submission and
+  client-supplied FENs are ignored.
+- Known limitation: MVP is the simplified single-pawn race only; no
+  opposition, zugzwang subtleties beyond the race, or multi-pawn
+  endgames.
