@@ -1,15 +1,37 @@
 """Exercise 1 generator: random position/question/answer server-side."""
 
 import random
+import sqlite3
 
 import chess
 import pytest
 
 from app.modules.piece_recognition import generator
 from app.modules.piece_recognition.validator import CANONICAL_TARGETS, squares_for_target
+from app.modules.positions import repository as positions_repo
 from app.modules.puzzles.models import Puzzle
 
 STARTPOS = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+
+@pytest.fixture(autouse=True)
+def small_source_db(tmp_path, monkeypatch):
+    """Pin a tiny puzzles.db so tests exercise the real read path fast
+    instead of scanning a multi-GB Lichess dump if one is present."""
+    path = tmp_path / "puzzles.db"
+    conn = sqlite3.connect(str(path))
+    conn.execute(
+        'CREATE TABLE "puzzles" ("PuzzleId" TEXT, "FEN" TEXT, "Rating" INTEGER, "Themes" TEXT, "Moves" TEXT)'
+    )
+    for i, fen in enumerate(positions_repo.FALLBACK_FENS):
+        conn.execute(
+            "INSERT INTO puzzles (PuzzleId, FEN, Rating, Themes, Moves) VALUES (?, ?, ?, ?, ?)",
+            (f"p{i}", fen, 1500, "t", "e2e4"),
+        )
+    conn.commit()
+    conn.close()
+    monkeypatch.setenv(positions_repo.SOURCE_ENV_VAR, str(path))
+    return path
 
 
 def test_canonical_space_is_twelve_color_kind_pairs():

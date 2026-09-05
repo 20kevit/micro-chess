@@ -24,8 +24,10 @@ select squares (0..n) → بررسی جواب  loop: next → select → submit
 server validation → feedback → بعدی   410 on expiry → final summary
 ```
 
-- Entry screen offers both modes explicitly; the card renders two buttons
-  (`practice` / `speed`), never one ambiguous action.
+- The Practice and Speed buttons on the home page directly enter their
+  corresponding exercise modes (`?mode=practice` / `?mode=speed`). There is
+  no intermediate mode-selection screen; the buttons themselves are the
+  mode selection.
 - Board: tap to select, tap again to deselect, any count incl. zero.
   Submission happens ONLY via «بررسی جواب» — never on square click.
 - Board locks while submitting / after submission; feedback shows states.
@@ -177,7 +179,8 @@ persisted on the attempt row. Hints never reveal full squares.
 
 - Generated puzzles accumulate as rows in `puzzles` (acceptable for MVP;
   a future cleanup/retention policy can prune anonymous session puzzles).
-- `ORDER BY RANDOM()` on a very large puzzles.db is O(table); fine for MVP,
+- `ORDER BY RANDOM()` on a very large puzzles.db is O(table): measured
+  ~1.4s per fetch at 5.3M rows — acceptable for one fetch per puzzle in MVP,
   replace with indexed sampling if it ever shows up in profiling.
 - Speed sessions are per-exercise (`piece_speed_sessions`); a generic
   session table can replace it when a second timed exercise lands.

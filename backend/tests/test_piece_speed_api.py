@@ -6,9 +6,34 @@ resistance, practice persistence, 60s session config/expiry/summary.
 
 from datetime import timedelta
 
+import pytest
+
 from app.modules.piece_recognition import sessions as session_service
 from app.modules.piece_recognition.models import PieceSpeedSession
+from app.modules.positions import repository as positions_repo
 from app.modules.progress.models import Attempt
+
+
+@pytest.fixture(autouse=True)
+def small_source_db(tmp_path, monkeypatch):
+    """Pin a tiny puzzles.db so API tests exercise the real read path fast
+    instead of scanning a multi-GB Lichess dump if one is present."""
+    import sqlite3
+
+    path = tmp_path / "puzzles.db"
+    conn = sqlite3.connect(str(path))
+    conn.execute(
+        'CREATE TABLE "puzzles" ("PuzzleId" TEXT, "FEN" TEXT, "Rating" INTEGER, "Themes" TEXT, "Moves" TEXT)'
+    )
+    for i, fen in enumerate(positions_repo.FALLBACK_FENS):
+        conn.execute(
+            "INSERT INTO puzzles (PuzzleId, FEN, Rating, Themes, Moves) VALUES (?, ?, ?, ?, ?)",
+            (f"p{i}", fen, 1500, "t", "e2e4"),
+        )
+    conn.commit()
+    conn.close()
+    monkeypatch.setenv(positions_repo.SOURCE_ENV_VAR, str(path))
+    return path
 
 
 def test_next_practice_puzzle_hides_answer(client, db_session):

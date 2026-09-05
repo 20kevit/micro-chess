@@ -18,48 +18,10 @@ export type PieceMode = "practice" | "speed";
 // transports answers only; validation, scoring, and the speed clock stay
 // backend-authoritative. Random puzzles come from POST .../next (practice)
 // or the speed-session endpoints — never from a fixed demo list.
-export function PieceRecognitionPlay({ initialMode }: { initialMode: PieceMode }) {
-  const [started, setStarted] = useState(false);
-  const [mode, setMode] = useState<PieceMode>(initialMode);
-
-  useEffect(() => {
-    setMode(initialMode);
-    setStarted(false);
-  }, [initialMode]);
-
-  if (!started) {
-    return (
-      <div>
-        <PageHeader title={t("piece.title")} subtitle={t("piece.intro")} />
-        <Card>
-          <p className="mb-1 text-sm text-stone-500">{t("play.mode")}</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant={mode === "practice" ? "secondary" : "ghost"}
-              className="w-full"
-              onClick={() => setMode("practice")}
-            >
-              {t("play.practice")}
-            </Button>
-            <Button
-              variant={mode === "speed" ? "primary" : "ghost"}
-              className="w-full"
-              onClick={() => setMode("speed")}
-            >
-              {t("play.speed")}
-            </Button>
-          </div>
-          <p className="mt-2 text-center text-xs text-stone-500">
-            {mode === "practice" ? t("practice.howto") : t("speed.howto")}
-          </p>
-          <Button className="mt-4 w-full" onClick={() => setStarted(true)}>
-            {t("play.start")}
-          </Button>
-        </Card>
-      </div>
-    );
-  }
-
+// The ?mode= URL param (set by the home card's Practice/Speed buttons —
+// the buttons ARE the mode selection) picks the loop directly; there is no
+// intermediate mode-selection screen.
+export function PieceRecognitionPlay({ mode }: { mode: PieceMode }) {
   return mode === "practice" ? <PracticeLoop /> : <SpeedLoop />;
 }
 

@@ -57,16 +57,31 @@ FALLBACK_FENS: tuple[str, ...] = (
 
 
 def resolve_source_path(explicit: str | os.PathLike[str] | None = None) -> Path | None:
-    """Locate puzzles.db. Returns None when no usable file exists."""
-    candidates: list[Path] = []
+    """Locate puzzles.db. Returns None when no usable file exists.
+
+    A pinned path (explicit argument or ``PUZZLES_DB_PATH``) is
+    authoritative: when it does not point at a file, None is returned and
+    no further discovery happens, so callers deterministically fall back.
+    Without a pinned path, the working-directory candidates are searched.
+    """
     if explicit is not None:
-        candidates.append(Path(explicit))
+        candidate = Path(explicit)
+        try:
+            return candidate if candidate.is_file() else None
+        except OSError:
+            return None
     env_path = os.environ.get(SOURCE_ENV_VAR)
     if env_path:
-        candidates.append(Path(env_path))
-    candidates.append(Path.cwd() / SOURCE_FILENAME)
-    candidates.append(Path.cwd() / "backend" / SOURCE_FILENAME)
-    candidates.append(Path(__file__).resolve().parent.parent.parent.parent / SOURCE_FILENAME)
+        candidate = Path(env_path)
+        try:
+            return candidate if candidate.is_file() else None
+        except OSError:
+            return None
+    candidates = [
+        Path.cwd() / SOURCE_FILENAME,
+        Path.cwd() / "backend" / SOURCE_FILENAME,
+        Path(__file__).resolve().parent.parent.parent.parent / SOURCE_FILENAME,
+    ]
     for candidate in candidates:
         try:
             if candidate.is_file():
