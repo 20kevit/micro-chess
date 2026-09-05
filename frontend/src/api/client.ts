@@ -14,13 +14,46 @@ import type {
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
+// Structured transport error. `message` keeps the legacy `api_error:{status}`
+// shape (callers match on it); `status`/`detail` carry the authoritative
+// backend reason (e.g. session_not_found vs puzzle_not_in_session) so the
+// UI can recover precisely instead of showing one generic error.
+export interface ApiError extends Error {
+  status: number;
+  detail: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
-  if (!res.ok) throw new Error(`api_error:${res.status}`);
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const data = (await res.json()) as { detail?: unknown };
+      if (typeof data?.detail === "string") detail = data.detail;
+    } catch {
+      // Non-JSON error body (proxy/gateway HTML): status is all we have.
+    }
+    const err = new Error(`api_error:${res.status}${detail ? `:${detail}` : ""}`) as ApiError;
+    err.status = res.status;
+    err.detail = detail;
+    throw err;
+  }
   return res.json() as Promise<T>;
+}
+
+export function apiStatus(e: unknown): number | null {
+  return e instanceof Error && typeof (e as ApiError).status === "number"
+    ? (e as ApiError).status
+    : null;
+}
+
+export function apiDetail(e: unknown): string {
+  return e instanceof Error && typeof (e as ApiError).detail === "string"
+    ? (e as ApiError).detail
+    : "";
 }
 
 export const api = {

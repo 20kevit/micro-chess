@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PieceRecognitionPage } from "../../pages/PieceRecognitionPage";
 import type { AttemptResponse, Puzzle, SpeedReport } from "../../api/types";
 
-vi.mock("../../api/client", () => ({ api: {} }));
+vi.mock("../../api/client", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("../../api/client")>();
+  return { ...orig, api: {} };
+});
 import { api } from "../../api/client";
 
 const mockedApi = vi.mocked(api, true);
@@ -163,6 +166,110 @@ describe("practice selection and submit", () => {
     );
     expect(await screen.findByText("آفرین! درست بود.")).toBeTruthy();
     expect(screen.getByText("۵ امتیاز")).toBeTruthy();
+  });
+});
+
+describe("speed session recovery", () => {
+  function apiError(status: number, detail: string) {
+    return Object.assign(new Error(`api_error:${status}:${detail}`), { status, detail });
+  }
+
+  function mockBoot(batch: Puzzle[], sessionId = "sx") {
+    mockedApi.startSpeedSession = vi.fn().mockResolvedValue({
+      session_id: sessionId,
+      exercise_slug: "piece-recognition",
+      status: "preparing",
+      duration_s: 60,
+      started_at: new Date().toISOString(),
+      expires_at: null,
+      remaining_ms: 60000,
+      buffered: 0,
+    });
+    mockedApi.prepareSpeedPuzzles = vi.fn().mockResolvedValue(batch);
+    mockedApi.startSpeedClock = vi.fn().mockResolvedValue({
+      session_id: sessionId,
+      exercise_slug: "piece-recognition",
+      status: "active",
+      duration_s: 60,
+      started_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 60000).toISOString(),
+      remaining_ms: 60000,
+      buffered: batch.length,
+    });
+  }
+
+  async function bootComplete(firstPrompt: string) {
+    for (let i = 0; i < 6; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(50);
+      });
+    }
+    expect(screen.getByText(firstPrompt)).toBeTruthy();
+  }
+
+  it("lost session lands on a dead screen with retry instead of a 404 loop", async () => {
+    vi.useFakeTimers();
+    try {
+      mockBoot(Array.from({ length: 20 }, (_, i) => puzzle(i + 1, `گم ${i + 1}؟`)), "lost1");
+      mockedApi.submitSpeedAnswer = vi.fn().mockRejectedValue(apiError(404, "session_not_found"));
+      mockedApi.getSpeedReport = vi.fn().mockRejectedValue(apiError(404, "session_not_found"));
+
+      renderPage("speed");
+      await bootComplete("گم 1؟");
+
+      fireEvent.click(screen.getByRole("button", { name: "بررسی جواب" }));
+      await act(async () => {});
+      expect(mockedApi.submitSpeedAnswer).toHaveBeenCalledTimes(1);
+      // Dead screen: dedicated message + fresh-start retry, no stuck puzzle.
+      expect(screen.getByText("ارتباط با جلسه سرعتی قطع شد. یک دور جدید شروع کن.")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "تلاش دوباره" }));
+      await act(async () => {});
+      expect(mockedApi.startSpeedSession).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ungradeable puzzle is skipped automatically", async () => {
+    vi.useFakeTimers();
+    try {
+      mockBoot(Array.from({ length: 20 }, (_, i) => puzzle(i + 1, `رد ${i + 1}؟`)), "skip1");
+      mockedApi.submitSpeedAnswer = vi
+        .fn()
+        .mockRejectedValueOnce(apiError(404, "puzzle_not_in_session"));
+
+      renderPage("speed");
+      await bootComplete("رد 1؟");
+
+      fireEvent.click(screen.getByRole("button", { name: "بررسی جواب" }));
+      await act(async () => {});
+      // Skipped forward to the queued puzzle with no error screen.
+      expect(screen.getByText("رد 2؟")).toBeTruthy();
+      expect(screen.queryByText("ارتباط با جلسه سرعتی قطع شد. یک دور جدید شروع کن.")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("repeated ungradeable puzzles give up to the dead screen", async () => {
+    vi.useFakeTimers();
+    try {
+      mockBoot(Array.from({ length: 20 }, (_, i) => puzzle(i + 1, `پایان ${i + 1}؟`)), "dead1");
+      mockedApi.submitSpeedAnswer = vi.fn().mockRejectedValue(apiError(404, "puzzle_not_available"));
+      mockedApi.getSpeedReport = vi.fn().mockRejectedValue(apiError(404, "session_not_found"));
+
+      renderPage("speed");
+      await bootComplete("پایان 1؟");
+
+      for (let i = 0; i < 3; i++) {
+        fireEvent.click(screen.getByRole("button", { name: "بررسی جواب" }));
+        await act(async () => {});
+      }
+      expect(mockedApi.submitSpeedAnswer).toHaveBeenCalledTimes(3);
+      expect(screen.getByText("ارتباط با جلسه سرعتی قطع شد. یک دور جدید شروع کن.")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

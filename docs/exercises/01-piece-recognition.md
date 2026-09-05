@@ -74,6 +74,25 @@ Lifecycle: `preparing` → `active` → `finished`/`expired`.
 5. Expiry/finish → `GET .../sessions/{id}/report`: the complete
    authoritative report (see below).
 
+## Session-loss recovery (Speed)
+
+The backend never deletes sessions, but the client still defends against a
+session (or its puzzles) becoming unknown mid-run — e.g. the server data
+was replaced while the page was open, which surfaces as 404s:
+
+- API errors carry `{status, detail}` (message keeps the legacy
+  `api_error:{status}` shape). The backend already distinguishes
+  `session_not_found` / `session_expired` from
+  `puzzle_not_in_session` / `puzzle_not_available`.
+- Submit → `session_not_found`/`session_expired`: try the authoritative
+  report once; then land on a dead screen («ارتباط با جلسه سرعتی قطع شد…»)
+  with a fresh-start retry. Never loops the same 404.
+- Submit → unknown puzzle but live session: skip it and auto-advance to
+  the queued next; after 3 consecutive skips, declare the session lost
+  (dead screen as above).
+- Unmount skips the best-effort finish call once the session is known dead
+  (it would only 404 again).
+
 - The frontend shows a countdown + progress bar for UX, but the backend is
   authoritative: `submit`/`next`/`puzzles` compare server time to stored
   `ends_at` and answer `410 session_expired` when the clock has run out.

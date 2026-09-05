@@ -166,6 +166,7 @@ export const fa = {
   "speed.accuracy": "دقت",
   "speed.finished": "وقت تمام شد!",
   "speed.expired": "زمان جلسه تمام شد؛ نتیجه نهایی ثبت شد.",
+  "speed.sessionLost": "ارتباط با جلسه سرعتی قطع شد. یک دور جدید شروع کن.",
   "speed.retry": "یک دور دیگر",
   "speed.toPractice": "رفتن به تمرینی",
   "report.puzzle": "پازل",

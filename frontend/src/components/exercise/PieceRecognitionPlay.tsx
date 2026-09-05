@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../../api/client";
+import { api, apiDetail, apiStatus } from "../../api/client";
 import type { AttemptResponse, Puzzle, SpeedReport, SpeedSummary } from "../../api/types";
 import { t } from "../../i18n";
 import { fenToPieces } from "../../lib/fen";
@@ -20,6 +20,8 @@ export type PieceMode = "practice" | "speed";
 const MIN_BUFFER = 20;
 const REFILL_AT = 8;
 const REFILL_COUNT = 10;
+// Consecutive backend-unknown puzzles before the session is declared lost.
+const MAX_SKIPS = 3;
 // How long speed feedback stays visible before auto-advancing: long enough
 // to perceive green/red/orange, short enough to feel instant. No animation
 // may extend this; the timer keeps running throughout.
@@ -415,6 +417,13 @@ function SpeedLoop() {
   // Pending auto-advance after speed feedback. Cancelled on expiry, boot,
   // or unmount so a stale timer can never change the puzzle or double-advance.
   const transitionRef = useRef<number | null>(null);
+  // Consecutive ungradeable puzzles (unknown to the backend, e.g. after a
+  // server data reset). After MAX_SKIPS the session is declared lost instead
+  // of draining the whole queue one 404 at a time.
+  const consecutiveSkipRef = useRef(0);
+  // False once the backend confirms the session is gone: skips the
+  // best-effort finish call on unmount (it would 404 too).
+  const sessionAliveRef = useRef(true);
   const genRef = useRef(0);
   const mountedRef = useRef(true);
   const sessionIdRef = useRef<string | null>(null);
@@ -432,8 +441,9 @@ function SpeedLoop() {
       }
       // Best-effort: close an open session when navigating away so its
       // summary/report stays available instead of lingering half-open.
+      // Skipped when the backend already confirmed the session is gone.
       const sid = sessionIdRef.current;
-      if (sid) api.finishSpeedSession(sid).catch(() => null);
+      if (sid && sessionAliveRef.current) api.finishSpeedSession(sid).catch(() => null);
     };
   }, []);
 
@@ -454,7 +464,43 @@ function SpeedLoop() {
   }
 
   function isGone(e: unknown) {
-    return e instanceof Error && e.message.includes(":410");
+    return apiStatus(e) === 410;
+  }
+
+  function isSessionLost(e: unknown) {
+    return apiStatus(e) === 404 && (apiDetail(e) === "session_not_found" || apiDetail(e) === "session_expired");
+  }
+
+  function isUnknownPuzzle(e: unknown) {
+    return (
+      apiStatus(e) === 404 &&
+      (apiDetail(e) === "puzzle_not_in_session" || apiDetail(e) === "puzzle_not_available")
+    );
+  }
+
+  // Unrecoverable session loss (e.g. backend data was reset mid-run):
+  // recover the authoritative report when possible, otherwise land on the
+  // dead screen (error + retry → fresh boot). Never leaves the user stuck
+  // on a puzzle that can never be graded.
+  async function dieToReport(sessionId: string, gen: number) {
+    sessionAliveRef.current = false;
+    busyRef.current = false;
+    if (alive(gen)) setBusy(false);
+    try {
+      const data = await api.getSpeedReport(sessionId);
+      if (!alive(gen) || sessionIdRef.current !== sessionId) return;
+      setReport(data);
+      setSession(data.session);
+      anchorDeadline(0);
+      setError(null);
+      setPhase("report");
+    } catch {
+      if (!alive(gen)) return;
+      setReport(null);
+      setSession(null);
+      setError(t("speed.sessionLost"));
+      setPhase("report");
+    }
   }
 
   function resetFor(puzzle: Puzzle) {
@@ -494,6 +540,8 @@ function SpeedLoop() {
     busyRef.current = false;
     refillingRef.current = false;
     finishingRef.current = false;
+    consecutiveSkipRef.current = 0;
+    sessionAliveRef.current = true;
     cancelTransition();
     const prev = sessionIdRef.current;
     sessionIdRef.current = null;
@@ -631,6 +679,7 @@ function SpeedLoop() {
       }
       setResult(res.attempt);
       setSession(res.session);
+      consecutiveSkipRef.current = 0;
       anchorDeadline(res.session.remaining_ms);
       // Briefly show green/red/orange on the board, then advance with NO
       // manual button. The timer keeps running; expiry cancels this.
@@ -652,6 +701,22 @@ function SpeedLoop() {
         if (alive(gen)) setBusy(false);
         await finishToReport(sid, gen);
         setError(t("speed.expired"));
+      } else if (isSessionLost(e)) {
+        // Backend no longer knows this session (e.g. server data was reset
+        // mid-run): recover the report when possible, else the dead screen
+        // with a fresh-start retry. Never loop the same 404.
+        await dieToReport(sid, gen);
+      } else if (isUnknownPuzzle(e)) {
+        // Current puzzle can't be graded, but the session may be fine:
+        // drop it and move on; give up after repeated failures.
+        consecutiveSkipRef.current += 1;
+        if (consecutiveSkipRef.current >= MAX_SKIPS) {
+          await dieToReport(sid, gen);
+        } else {
+          busyRef.current = false;
+          if (alive(gen)) setBusy(false);
+          advance();
+        }
       } else {
         busyRef.current = false;
         setError(t("common.error"));
@@ -697,7 +762,12 @@ function SpeedLoop() {
       const gen = genRef.current;
       if (!alive(gen)) return;
       if (isGone(e)) await finishToReport(sid, gen);
-      else setError(t("common.error"));
+      else if (isSessionLost(e)) await dieToReport(sid, gen);
+      else if (isUnknownPuzzle(e)) {
+        consecutiveSkipRef.current += 1;
+        if (consecutiveSkipRef.current >= MAX_SKIPS) await dieToReport(sid, gen);
+        else setError(t("common.error"));
+      } else setError(t("common.error"));
     } finally {
       busyRef.current = false;
       if (alive(genRef.current)) setBusy(false);
