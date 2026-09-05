@@ -1,8 +1,12 @@
 """Exercise 3 question generator: one white hunter vs 3-8 black pieces.
 
+No king hunters: a king cannot capture a defended piece, which would
+conflict with this exercise's explicit rule that defense never matters.
+Hunter kinds are pawn/knight/bishop/rook/queen only.
+
 Flow per new puzzle::
 
-    1. Pick a hunter piece type uniformly (pawn/knight/bishop/rook/queen/king).
+    1. Pick a hunter piece type uniformly (pawn/knight/bishop/rook/queen).
     2. Place the single WHITE hunter on a random square (pawns never on
        rank 1/8). No other white pieces: no kings, no friendlies — the
        spec forbids them unless the rules require them, and nothing here
@@ -15,8 +19,7 @@ Flow per new puzzle::
        - knight: 1-2 pieces on valid L-destinations plus nearby-but-invalid
          decoys (blocks never matter for knight jumps);
        - pawn: 1-2 diagonal enemies, often a piece directly ahead (which is
-         NOT a capture), plus elsewhere decoys;
-       - king: 1-2 adjacent enemies plus pieces two squares away (too far).
+         NOT a capture), plus elsewhere decoys.
     4. Compute the authoritative captures server-side via
        ``capturable_squares`` with the IGNORE_ENEMY_ATTACKS profile: movement
        and blocking apply, but enemy attack maps are never consulted, so a
@@ -51,7 +54,7 @@ from app.modules.puzzles.models import Puzzle
 
 PROFILE = IGNORE_ENEMY_ATTACKS
 
-PIECE_TYPES = ["p", "n", "b", "r", "q", "k"]
+PIECE_TYPES = ["p", "n", "b", "r", "q"]
 
 PIECE_NAMES_FA = {
     "p": "سرباز",
@@ -59,7 +62,6 @@ PIECE_NAMES_FA = {
     "b": "فیل",
     "r": "رخ",
     "q": "وزیر",
-    "k": "شاه",
 }
 
 PIECE_HINTS_FA = {
@@ -68,7 +70,6 @@ PIECE_HINTS_FA = {
     "b": "فیل فقط روی قطر می‌زند و از روی مهره رد نمی‌شود؛ پشت اولین مهره چیزی زده نمی‌شود.",
     "r": "رخ فقط صاف می‌زند و از روی مهره رد نمی‌شود؛ پشت اولین مهره چیزی زده نمی‌شود.",
     "q": "وزیر هم مثل رخ و هم مثل فیل می‌زند.",
-    "k": "شاه فقط مهره‌های خانه‌های کنار خودش را می‌زند؛ دفاع شدن مهره دشمن مهم نیست.",
 }
 
 # Black decoy/target kinds. No black king: capturing a king is outside the
@@ -106,19 +107,6 @@ def _knight_targets(sq: str) -> list[str]:
         name = _sq_name(f + df, r + dr)
         if name:
             out.append(name)
-    return out
-
-
-def _king_targets(sq: str) -> list[str]:
-    f, r = _sq_parts(sq)
-    out = []
-    for df in (-1, 0, 1):
-        for dr in (-1, 0, 1):
-            if df == 0 and dr == 0:
-                continue
-            name = _sq_name(f + df, r + dr)
-            if name:
-                out.append(name)
     return out
 
 
@@ -323,34 +311,6 @@ def _skeleton_pawn(
         _place(black, occupied, sq, rng)
 
 
-def _skeleton_king(
-    rng: random.Random,
-    hunter_sq: str,
-    black: dict[str, str],
-    occupied: set[str],
-    *,
-    zero_target: bool,
-) -> None:
-    adjacent = [s for s in _king_targets(hunter_sq) if s not in occupied]
-    f0, r0 = _sq_parts(hunter_sq)
-    # Two squares away: visibly near, but out of the king's reach.
-    distance_two = []
-    for df in range(-2, 3):
-        for dr in range(-2, 3):
-            if max(abs(df), abs(dr)) != 2:
-                continue
-            name = _sq_name(f0 + df, r0 + dr)
-            if name and name not in occupied:
-                distance_two.append(name)
-    rng.shuffle(adjacent)
-    rng.shuffle(distance_two)
-    if not zero_target:
-        for sq in adjacent[: rng.randint(1, min(2, len(adjacent) or 1))]:
-            _place(black, occupied, sq, rng)
-    for sq in distance_two[: rng.randint(1, 2)]:
-        _place(black, occupied, sq, rng)
-
-
 def _pad_decoys(
     rng: random.Random,
     hunter_type: str,
@@ -362,7 +322,7 @@ def _pad_decoys(
 
     Decoys are drawn from squares the hunter provably cannot capture:
     off-ray squares for sliders, non-L squares for knights, non-diagonal
-    squares for pawns, non-adjacent squares for kings.
+    squares for pawns.
     """
     if len(black) >= MIN_BLACK:
         return
@@ -372,13 +332,11 @@ def _pad_decoys(
             forbidden.update(_ray_from(hunter_sq, df, dr))
     elif hunter_type == "n":
         forbidden = {hunter_sq} | set(occupied) | set(_knight_targets(hunter_sq))
-    elif hunter_type == "p":
+    else:  # pawn
         forbidden = {hunter_sq} | set(occupied) | set(_pawn_capture_targets(hunter_sq))
         f, r = _sq_parts(hunter_sq)
         if (ahead := _sq_name(f, r + 1)):
             forbidden.add(ahead)
-    else:  # king
-        forbidden = {hunter_sq} | set(occupied) | set(_king_targets(hunter_sq))
     candidates = [
         chess.square_name(s) for s in chess.SQUARES if chess.square_name(s) not in forbidden
     ]
@@ -423,10 +381,8 @@ def generate_position_data(
             _skeleton_slider(rng, hunter_sq, ptype, black, occupied, zero_target=zero)
         elif ptype == "n":
             _skeleton_knight(rng, hunter_sq, black, occupied, zero_target=zero)
-        elif ptype == "p":
+        else:  # pawn
             _skeleton_pawn(rng, hunter_sq, black, occupied, zero_target=zero)
-        else:
-            _skeleton_king(rng, hunter_sq, black, occupied, zero_target=zero)
         _pad_decoys(rng, ptype, hunter_sq, black, occupied)
         if not (MIN_BLACK <= len(black) <= MAX_BLACK):
             continue

@@ -16,12 +16,14 @@ to Exercise 4 and are never consulted here.
 
 ## Purpose
 
-Teach capture mechanics per piece kind: how each of the six kinds
-(pawn/knight/bishop/rook/queen/king) takes, how blockers shield pieces
+Teach capture mechanics per piece kind: how each of the five kinds
+(pawn/knight/bishop/rook/queen) takes, how blockers shield pieces
 behind them, and — explicitly — that a capture stays a capture even when
-the target is defended. Third vertical slice; it reuses the Exercise 1/2
-patterns (generator, scorer, sessions, play loop, design tokens) instead
-of inventing parallel infrastructure.
+the target is defended. There is deliberately NO king hunter: a king
+cannot capture a defended piece, which would conflict with the
+defense-is-irrelevant rule. Third vertical slice; it reuses the
+Exercise 1/2 patterns (generator, scorer, sessions, play loop, design
+tokens) instead of inventing parallel infrastructure.
 
 ## User flow
 
@@ -138,8 +140,6 @@ profile (python-chess pseudo-legal moves filtered to captures):
   block jumps; adjacent non-L squares are not captures.
 - Pawn (white): diagonal-forward black pieces only; a piece directly
   ahead is NOT a capture; never backwards.
-- King: adjacent black pieces (even defended ones — the simplified
-  movement model ignores enemy attacks); pieces two squares away are not.
 - Castling, en passant, and promotion choices are NOT part of this
   exercise (promotion captures still count as captures of their square).
 
@@ -153,10 +153,11 @@ This exercise deliberately does NOT evaluate whether a capture is safe:
 
 - A black piece defended by any number of black pieces is still a
   CORRECT answer when the hunter can capture it.
-- A king may capture a defended neighbour (simplified movement model).
-- Regression-tested at both levels: profile computation (defended king
-  capture counted under `ignore-enemy-attacks`) and validation (stored
-  answer accepted regardless of board defense).
+- There are no king hunters precisely because a king cannot capture a
+  defended piece — allowing one would contradict this rule.
+- Regression-tested at both levels: profile computation (defended
+  slider capture counted under `ignore-enemy-attacks`) and validation
+  (stored answer accepted regardless of board defense).
 - This is what distinguishes Exercise 3 from Exercise 4 (Hanging
   Pieces), which is entirely about defense.
 
@@ -164,15 +165,15 @@ This exercise deliberately does NOT evaluate whether a capture is safe:
 
 Dynamic — never a fixed FEN list:
 
-- Hunter type drawn uniformly from pawn/knight/bishop/rook/queen/king
-  (data-driven `PIECE_TYPES`, no special-case chains).
+- Hunter type drawn uniformly from pawn/knight/bishop/rook/queen
+  (data-driven `PIECE_TYPES`, no special-case chains; no king hunters).
 - Exactly one WHITE hunter, 3–8 BLACK pieces (kinds p/n/b/r/q, never on
   illegal pawn ranks; no black king). No other white pieces at all.
 - Deliberate (not purely random) skeletons per kind: 1–2 capturable
-  targets on rays/L-shapes/diagonals/adjacent squares, ~60% with a
-  shielded piece behind a slider capture, 1–3 close-but-wrong decoys
-  (off-ray, non-L, ahead-of-pawn, two-away-from-king), padded to ≥3
-  black pieces with provably non-capturable decoys.
+  targets on rays/L-shapes/diagonals, ~60% with a shielded piece behind
+  a slider capture, 1–3 close-but-wrong decoys (off-ray, non-L,
+  ahead-of-pawn), padded to ≥3 black pieces with provably
+  non-capturable decoys.
 - Every puzzle is VERIFIED by recomputation: non-zero mode requires a
   non-empty capture set, zero mode requires an empty one.
 - Zero-capture positions are valid but throttled (~12%) so they occur
@@ -314,13 +315,13 @@ Errors: `session_not_found` (404), `session_not_started` (409),
 - `tests/test_captures_ex3.py` — spec coverage: rook
   (reachable/blocked/multiple), bishop (diagonal/blocked), queen
   (rank+diagonal/blocker), knight (valid/nearby-invalid/jump-ignores-
-  blockers), pawn (diagonal/forward-not/backward-invalid), king
-  (adjacent/two-away), defense-irrelevance regression (slider + king +
-  validation level), set semantics (order/duplicates/malformed),
+  blockers), pawn (diagonal/forward-not/backward-invalid),
+  defense-irrelevance regression (defended slider capture + validation
+  level), set semantics (order/duplicates/malformed),
   hunter/empty/shielded selections are wrong, client fields ignored,
   exact scoring formula + spec examples, zero-target +5, generator
   validity (one hunter, 3–8 black, independent python-chess
-  recomputation, all six kinds, zero + multi occurrence, blocker
+  recomputation, all five kinds, zero + multi occurrence, blocker
   contrast, forced zero mode, bounded failure, persist/dedup), practice
   next + full speed lifecycle (20-buffer, 60s, no-leak, report-vs-
   attempts equality, foreign-puzzle rejection, expiry authority,
@@ -339,5 +340,7 @@ Errors: `session_not_found` (404), `session_not_started` (409),
   `piece_speed_sessions` / `legal_speed_sessions`); a generic session
   table can replace all three when the pattern stabilises.
 - Rating stays a stub: `rating_delta` is always None.
-- Generated boards intentionally contain no kings (simplified movement
-  model); king captures of defended neighbours count by design.
+- Generated boards intentionally contain no kings and no king hunters:
+  a king cannot capture a defended piece, which would conflict with
+  the defense-is-irrelevant rule (hunter kinds: pawn/knight/bishop/
+  rook/queen).

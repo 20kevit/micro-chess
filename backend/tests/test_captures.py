@@ -159,7 +159,7 @@ def test_seed_count_and_answer_match(db_session):
             empty_count += 1
         kinds.add(chess.Board(puzzle.fen).piece_at(chess.parse_square(hunter)).symbol().lower())
         assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
-    assert kinds == {"p", "n", "b", "r", "q", "k"}
+    assert kinds == {"p", "n", "b", "r", "q"}
     assert empty_count >= 1  # "no captures" cases are covered
     assert len({p.initial_rating for p in puzzles}) >= 5
 

@@ -119,7 +119,9 @@ Planned types (examples, not specs):
   patterns, no kings, zero-capture throttled, answers server-side only).
 - Defense is explicitly irrelevant: answers use the
   `ignore-enemy-attacks` profile (pseudo-legal captures), so defended
-  black pieces — including king neighbours — stay correct.
+  black pieces stay correct. There are no king hunters (a king cannot
+  capture a defended piece); hunter kinds are pawn/knight/bishop/
+  rook/queen.
 - Validator: `backend/app/modules/captures/validator.py` (exact set
   match incl. empty==empty; duplicates/order-insensitive; malformed
   squares count as wrong). Rule profiles are data (`RULE_PROFILES`:

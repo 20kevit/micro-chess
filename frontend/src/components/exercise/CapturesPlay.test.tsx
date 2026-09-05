@@ -15,7 +15,7 @@ import { api } from "../../api/client";
 const mockedApi = vi.mocked(api, true);
 
 // Hunter-vs-black position: white rook hunter on d4, black pawns on d5/h4.
-const FEN = "8/8/8/3p4/3R3p/8/8/4K3 w - - 0 1";
+const FEN = "8/8/8/3p4/3R3p/8/8/8 w - - 0 1";
 
 function puzzle(id: number, prompt: string, withHint = false, from = "d4"): Puzzle {
   return {

@@ -1,8 +1,8 @@
 """Exercise 3 (Captures) production coverage: generator + speed + scoring.
 
 Targeted spec tests beyond the legacy seed tests in test_captures.py:
-- per-piece capture rules (sliders blocked, knight jumps, pawn diagonals,
-  king adjacency) under the generator's IGNORE_ENEMY_ATTACKS profile
+- per-piece capture rules (sliders blocked, knight jumps, pawn diagonals)
+  under the generator's IGNORE_ENEMY_ATTACKS profile
 - defense irrelevance: a defended black piece stays a correct capture
 - set semantics, malformed payloads, exact scoring incl. zero-target +5
 - dynamic generator validity (one white hunter, 3-8 black, variety,
@@ -23,7 +23,6 @@ from app.modules.captures.scoring import score_squares
 from app.modules.captures.validator import (
     IGNORE_ENEMY_ATTACKS,
     SLUG,
-    STANDARD,
     capturable_squares,
     validate,
 )
@@ -119,17 +118,6 @@ def test_pawn_backward_capture_invalid():
     assert caps("8/8/8/8/4P3/3p4/8/8 w - - 0 1", "e4") == set()
 
 
-# --- King ---
-
-
-def test_king_adjacent_capture():
-    assert caps("8/8/8/3p4/4K3/8/8/8 w - - 0 1", "e4") == {"d5"}
-
-
-def test_king_two_squares_away_invalid():
-    assert caps("8/8/3p4/8/4K3/8/8/8 w - - 0 1", "e4") == set()
-
-
 # --- Defense irrelevance (explicit regression protection) ---
 
 
@@ -137,15 +125,6 @@ def test_defended_piece_stays_capturable_for_sliders():
     # d5 is defended by both c6 and e6 pawns: still a correct capture.
     got = caps("8/8/2p1p3/3p4/3R4/8/8/8 w - - 0 1", "d4")
     assert got == {"d5"}
-
-
-def test_defended_piece_stays_capturable_for_king():
-    # d5 is defended by the c6 pawn. The simplified movement model ignores
-    # enemy attacks, so the king CAN capture there.
-    fen = "8/8/2p5/3p4/4K3/8/8/8 w - - 0 1"
-    assert caps(fen, "e4", IGNORE_ENEMY_ATTACKS) == {"d5"}
-    # The legacy STANDARD profile keeps king safety (seed compatibility).
-    assert caps(fen, "e4", STANDARD) == set()
 
 
 def test_defense_irrelevant_in_validation():
@@ -278,7 +257,7 @@ def test_generator_valid_positions_and_variety():
         if len(expected) >= 2:
             seen_multi = True
         assert data["prompt_fa"].startswith("کدام مهره‌های سیاه")
-    assert seen_types == {"p", "n", "b", "r", "q", "k"}
+    assert seen_types == {"p", "n", "b", "r", "q"}
     assert seen_zero  # zero-capture puzzles occur occasionally
     assert seen_multi  # multiple simultaneous captures occur
 
@@ -304,7 +283,7 @@ def test_generator_blockers_create_contrast():
 
 def test_generator_all_piece_types_placeable():
     rng = random.Random(7)
-    for ptype in ("p", "n", "b", "r", "q", "k"):
+    for ptype in ("p", "n", "b", "r", "q"):
         pos = gen.generate_position_data(rng, piece_type=ptype)
         board = chess.Board(pos["fen"])
         assert board.piece_at(chess.parse_square(pos["from"])).symbol().lower() == ptype
