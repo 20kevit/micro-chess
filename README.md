@@ -60,9 +60,10 @@ npm run build
 - Standard chess lives in `chess_engine/` (python-chess). Custom rules live in each exercise validator.
 - Shared `puzzles.db` (optional, read-only, FEN only) feeds `positions/repository.py`; per-exercise generators build questions server-side.
 - Exercise 1: practice (untimed, `POST .../next`, client prefetch buffer) +
-  speed (prepare ≥20, then authoritative 60s clock, server-rebuilt report);
-  zero-target questions valid; per-square scoring (+5/−1/−2, negatives kept);
-  answers never leave the server.
+  speed (prepare ≥20, then authoritative 60s clock, ~450ms auto-advance,
+  server-rebuilt report); zero-target questions valid; per-square scoring
+  (+5/−1/−2 with +5 zero-target bonus, negatives kept); self-hosted
+  Vazirmatn font; answers never leave the server.
 - Tables now: `users`, `exercises`, `puzzles`, `attempts`, `piece_speed_sessions`. Rating tables postponed.
 - Puzzle answers immutable once published; archive instead of delete.
 - Attempts distinguish correct/partial/wrong/timeout/skipped/abandoned + rated/practice.

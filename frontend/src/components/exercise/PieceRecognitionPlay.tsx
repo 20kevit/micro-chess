@@ -20,6 +20,10 @@ export type PieceMode = "practice" | "speed";
 const MIN_BUFFER = 20;
 const REFILL_AT = 8;
 const REFILL_COUNT = 10;
+// How long speed feedback stays visible before auto-advancing: long enough
+// to perceive green/red/orange, short enough to feel instant. No animation
+// may extend this; the timer keeps running throughout.
+const FEEDBACK_MS = 450;
 
 // Dedicated Practice + Speed loop for Piece Recognition. Renders and
 // transports answers only; validation, scoring, and the speed clock stay
@@ -408,6 +412,9 @@ function SpeedLoop() {
   const finishingRef = useRef(false);
   const refillingRef = useRef(false);
   const busyRef = useRef(false);
+  // Pending auto-advance after speed feedback. Cancelled on expiry, boot,
+  // or unmount so a stale timer can never change the puzzle or double-advance.
+  const transitionRef = useRef<number | null>(null);
   const genRef = useRef(0);
   const mountedRef = useRef(true);
   const sessionIdRef = useRef<string | null>(null);
@@ -419,6 +426,10 @@ function SpeedLoop() {
     return () => {
       mountedRef.current = false;
       genRef.current += 1;
+      if (transitionRef.current !== null) {
+        clearTimeout(transitionRef.current);
+        transitionRef.current = null;
+      }
       // Best-effort: close an open session when navigating away so its
       // summary/report stays available instead of lingering half-open.
       const sid = sessionIdRef.current;
@@ -428,6 +439,13 @@ function SpeedLoop() {
 
   function alive(gen: number) {
     return mountedRef.current && genRef.current === gen;
+  }
+
+  function cancelTransition() {
+    if (transitionRef.current !== null) {
+      clearTimeout(transitionRef.current);
+      transitionRef.current = null;
+    }
   }
 
   function anchorDeadline(remainingMs: number) {
@@ -452,6 +470,7 @@ function SpeedLoop() {
   async function finishToReport(sessionId: string, gen: number) {
     if (finishingRef.current) return;
     finishingRef.current = true;
+    cancelTransition();
     try {
       await api.finishSpeedSession(sessionId).catch(() => null);
       const data = await api.getSpeedReport(sessionId);
@@ -475,6 +494,7 @@ function SpeedLoop() {
     busyRef.current = false;
     refillingRef.current = false;
     finishingRef.current = false;
+    cancelTransition();
     const prev = sessionIdRef.current;
     sessionIdRef.current = null;
     queueRef.current = [];
@@ -591,6 +611,8 @@ function SpeedLoop() {
   async function submit() {
     const puzzle = currentRef.current;
     const sid = sessionIdRef.current;
+    // Single lock held from submit through the feedback window until the
+    // auto-advance completes: no double-submit, no interaction mid-transition.
     if (phase !== "active" || !puzzle || !sid || busyRef.current) return;
     busyRef.current = true;
     const gen = genRef.current;
@@ -603,28 +625,52 @@ function SpeedLoop() {
         hints_used: usedHints,
         started_at: startedAt,
       });
-      if (!alive(gen) || sessionIdRef.current !== sid) return;
+      if (!alive(gen) || sessionIdRef.current !== sid) {
+        busyRef.current = false;
+        return;
+      }
       setResult(res.attempt);
       setSession(res.session);
       anchorDeadline(res.session.remaining_ms);
+      // Briefly show green/red/orange on the board, then advance with NO
+      // manual button. The timer keeps running; expiry cancels this.
+      transitionRef.current = window.setTimeout(() => {
+        transitionRef.current = null;
+        if (!alive(gen) || sessionIdRef.current !== sid) {
+          busyRef.current = false;
+          return;
+        }
+        advance();
+      }, FEEDBACK_MS);
     } catch (e) {
-      if (!alive(gen)) return;
+      if (!alive(gen)) {
+        busyRef.current = false;
+        return;
+      }
       if (isGone(e)) {
+        busyRef.current = false;
+        if (alive(gen)) setBusy(false);
         await finishToReport(sid, gen);
         setError(t("speed.expired"));
       } else {
+        busyRef.current = false;
         setError(t("common.error"));
+        if (alive(gen)) setBusy(false);
       }
-    } finally {
-      busyRef.current = false;
-      if (alive(gen)) setBusy(false);
     }
   }
 
+  // Auto-advance only (called by the feedback timer). Releases the submit
+  // lock when done; expiry during the window routes to the report instead.
   async function advance() {
     const sid = sessionIdRef.current;
-    if (phase !== "active" || !sid || busyRef.current) return;
+    if (phase !== "active" || !sid) {
+      busyRef.current = false;
+      return;
+    }
     if (Date.now() >= deadlineRef.current) {
+      busyRef.current = false;
+      if (alive(genRef.current)) setBusy(false);
       await finishToReport(sid, genRef.current);
       return;
     }
@@ -759,13 +805,10 @@ function SpeedLoop() {
           {error ? <p className="mt-2 text-sm font-bold text-red-600">{error}</p> : null}
         </div>
       ) : (
+        // Speed feedback is transient: green/red/orange stay on the board
+        // for FEEDBACK_MS, then the loop auto-advances. No manual button.
         <Card className="mt-3">
           <ResultBanner result={result} />
-          <div className="mt-3">
-            <Button className="w-full" onClick={advance} disabled={busy}>
-              {t("play.next")}
-            </Button>
-          </div>
         </Card>
       )}
     </div>

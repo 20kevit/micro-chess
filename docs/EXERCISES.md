@@ -56,10 +56,11 @@ Planned types (examples, not specs):
   the client keeps a current+next prefetch buffer. Answers go through
   standard `POST /api/v1/attempts`.
 - Speed: `piece_recognition/sessions.py` + `router.py` (open → prepare ≥20
-  → start 60s clock → submit loop → server-rebuilt per-puzzle report;
-  per-answer rows reuse `attempts`).
+  → start 60s clock → submit loop with ~450ms auto-advance, no manual next
+  → server-rebuilt per-puzzle report; per-answer rows reuse `attempts`).
 - Scoring: registered per-square scorer (+5 correct / −1 missed / −2 wrong,
-  negatives kept, independent of the CORRECT/PARTIAL/WRONG label).
+  +5 bonus for correctly answered zero-target, negatives kept, independent
+  of the CORRECT/PARTIAL/WRONG label).
 - Seed: `python -m app.modules.piece_recognition.seed` (15 legacy demo
   puzzles, still served read-only; covered by tests).
 

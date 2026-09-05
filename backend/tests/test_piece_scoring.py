@@ -26,6 +26,21 @@ def test_spec_example_scores_seven():
     assert _score(["e4", "g7", "b2"], ["e4", "g7", "d5"]) == 7.0
 
 
+def test_spec_scoring_examples():
+    cases = [
+        ([], [], AttemptResult.CORRECT, 5.0),
+        ([], ["e4"], AttemptResult.WRONG, -2.0),
+        (["e4"], ["e4"], AttemptResult.CORRECT, 5.0),
+        (["e4"], [], AttemptResult.WRONG, -1.0),
+        (["e4", "e5"], ["e4"], AttemptResult.PARTIAL, 4.0),
+        (["e4", "e5"], ["e4", "e6"], AttemptResult.PARTIAL, 2.0),
+    ]
+    for target, selected, expected_result, expected_score in cases:
+        out = validate({"squares": target}, {"selected_squares": selected})
+        assert out.result == expected_result, (target, selected)
+        assert registry.score_for_answer(SLUG, out) == expected_score, (target, selected)
+
+
 def test_combination_negative_three():
     # correct=1, missed=2, wrong=3 -> 5 - 2 - 6 = -3
     out = validate({"squares": ["a1", "b2", "c3"]}, {"selected_squares": ["a1", "e4", "e5", "e6"]})
@@ -37,10 +52,10 @@ def test_combination_negative_three():
     assert registry.score_for_answer(SLUG, out) == -3.0
 
 
-def test_zero_target_correct_scores_zero_not_five():
+def test_zero_target_correct_awards_plus_five():
     out = validate({"squares": []}, {"selected_squares": []})
     assert out.result == AttemptResult.CORRECT
-    assert registry.score_for_answer(SLUG, out) == 0.0
+    assert registry.score_for_answer(SLUG, out) == 5.0
 
 
 def test_zero_target_wrong_costs_two_per_square():

@@ -14,6 +14,14 @@ restyle per page.
 ## Typography
 
 - Font: `Vazirmatn` first, fallback `system-ui, -apple-system, "Segoe UI", sans-serif`.
+- Loading (mandatory, not optional): self-hosted via `@fontsource/vazirmatn`
+  imported in `index.css` — weights 400 (body), 700 (bold UI), 900 (display
+  headings), `font-display: swap`, arabic+latin subsets. Never declare the
+  family without bundling the asset; never add a per-component font
+  workaround — fix the shared mechanism instead.
+- Encoding contract: sources UTF-8, API JSON UTF-8, HTML
+  `<html lang="fa" dir="rtl">` + `<meta charset="UTF-8">`; board islands
+  `dir="ltr"` with Latin square names.
 - Page title (`PageHeader`): `text-2xl font-black`, stone-900.
 - Subtitle/question: `text-sm`, stone-500 (board questions come from `prompt_fa`).
 - Buttons: `text-base font-bold`. Badges/captions: `text-xs font-bold`.

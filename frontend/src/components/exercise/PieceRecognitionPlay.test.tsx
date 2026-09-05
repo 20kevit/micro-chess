@@ -151,10 +151,10 @@ describe("practice selection and submit", () => {
     expect(screen.getByText("سؤال دوم؟")).toBeTruthy();
   });
 
-  it("empty selection submits and zero-target feedback works", async () => {
+  it("empty selection submits and zero-target feedback shows +5", async () => {
     const user = userEvent.setup();
     mockedApi.nextPracticePuzzle = vi.fn().mockResolvedValue(puzzle(9, "سؤال خالی؟"));
-    mockedApi.submitAttempt = vi.fn().mockResolvedValue(attempt(9, "correct", 0));
+    mockedApi.submitAttempt = vi.fn().mockResolvedValue(attempt(9, "correct", 5));
     renderPage("practice");
     expect(await screen.findByText("سؤال خالی؟")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "بررسی جواب" }));
@@ -162,6 +162,74 @@ describe("practice selection and submit", () => {
       expect.objectContaining({ answer: { selected_squares: [] } }),
     );
     expect(await screen.findByText("آفرین! درست بود.")).toBeTruthy();
+    expect(screen.getByText("۵ امتیاز")).toBeTruthy();
+  });
+});
+
+describe("speed transition lock", () => {
+  it("rapid repeated submit clicks send a single request", async () => {
+    vi.useFakeTimers();
+    try {
+      const batch = Array.from({ length: 20 }, (_, i) => puzzle(i + 1, `زود ${i + 1}؟`));
+      mockedApi.startSpeedSession = vi.fn().mockResolvedValue({
+        session_id: "s7",
+        exercise_slug: "piece-recognition",
+        status: "preparing",
+        duration_s: 60,
+        started_at: new Date().toISOString(),
+        expires_at: null,
+        remaining_ms: 60000,
+        buffered: 0,
+      });
+      mockedApi.prepareSpeedPuzzles = vi.fn().mockResolvedValue(batch);
+      mockedApi.startSpeedClock = vi.fn().mockResolvedValue({
+        session_id: "s7",
+        exercise_slug: "piece-recognition",
+        status: "active",
+        duration_s: 60,
+        started_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 60000).toISOString(),
+        remaining_ms: 60000,
+        buffered: 20,
+      });
+      mockedApi.submitSpeedAnswer = vi.fn().mockResolvedValue({
+        attempt: attempt(1, "correct", 5),
+        feedback_key: "feedback.correct",
+        detail: { correct: ["e2"], missed: [], wrong: [] },
+        session: {
+          session_id: "s7",
+          exercise_slug: "piece-recognition",
+          status: "active",
+          duration_s: 60,
+          started_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 59000).toISOString(),
+          remaining_ms: 59000,
+          buffered: 20,
+          attempted: 1,
+          correct: 1,
+          partial: 0,
+          wrong: 0,
+          score: 5,
+        },
+      });
+
+      renderPage("speed");
+      for (let i = 0; i < 6; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(50);
+        });
+      }
+      expect(screen.getByText("زود 1؟")).toBeTruthy();
+
+      const submit = screen.getByRole("button", { name: "بررسی جواب" });
+      fireEvent.click(submit);
+      fireEvent.click(submit);
+      fireEvent.click(submit);
+      await act(async () => {});
+      expect(mockedApi.submitSpeedAnswer).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -261,8 +329,14 @@ describe("speed expiry and report", () => {
       fireEvent.click(screen.getByRole("gridcell", { name: "e2" }));
       fireEvent.click(screen.getByRole("button", { name: "بررسی جواب" }));
       await act(async () => {});
-      expect(mockedApi.submitSpeedAnswer).toHaveBeenCalled();
+      expect(mockedApi.submitSpeedAnswer).toHaveBeenCalledTimes(1);
       expect(screen.getByText("آفرین! درست بود.")).toBeTruthy();
+      // No manual next button in Speed Mode: feedback auto-advances.
+      expect(screen.queryByRole("button", { name: "معمای بعدی" })).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(screen.getByText("تند 2؟")).toBeTruthy();
 
       // Let the authoritative clock run out: report comes from the server.
       await act(async () => {

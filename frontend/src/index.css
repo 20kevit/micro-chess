@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Persian typeface: self-hosted Vazirmatn via Fontsource (bundled, versioned,
+   offline-safe — no runtime CDN). Weights match the scale below: 400 body,
+   700 bold UI, 900 display headings. */
+@import "@fontsource/vazirmatn/400.css";
+@import "@fontsource/vazirmatn/700.css";
+@import "@fontsource/vazirmatn/900.css";
+
 /* MicroChess Design System tokens (documented in docs/DESIGN_SYSTEM.md).
    Friendly, game-like, still professional. Mobile-first; the board stays
    square via aspect-square and must never exceed the viewport width. */

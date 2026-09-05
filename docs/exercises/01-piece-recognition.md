@@ -65,9 +65,12 @@ Lifecycle: `preparing` → `active` → `finished`/`expired`.
 3. `POST .../sessions/{id}/start` starts the authoritative 60-second clock
    (refused with `409 buffer_not_ready` below 20 buffered). Preparation
    time is never billed to the session.
-4. Loop over the client queue: select → submit → instant feedback → next
-   (already queued). Background refill (`count: 10` when the queue drops
-   below 8) keeps fast solvers supplied past 20 puzzles.
+4. Loop over the client queue: select → submit → ~450ms board feedback
+   (green/red/orange) → AUTOMATIC advance to the next queued puzzle. There
+   is deliberately NO manual "next puzzle" button in Speed Mode; a single
+   lock held from submit through the transition refuses double-submits,
+   the 60s timer keeps running, and expiry mid-transition routes to the
+   report.
 5. Expiry/finish → `GET .../sessions/{id}/report`: the complete
    authoritative report (see below).
 
@@ -155,15 +158,37 @@ from stored attempts (refresh-safe; the UI can never fabricate results):
 ## Feedback
 
 After submit: colored banner (green/amber/red) + backend `feedback_key`
-text + counts (درست / جا افتاده / اشتباه) + child-friendly legend:
+text + per-puzzle score + counts (درست / جا افتاده / اشتباه) +
+child-friendly legend:
 
-- `✓` درست انتخاب کردی (correct)
-- `✕` این مهره هدف نبود (wrong)
-- `!` این مهره را جا انداختی (missed)
+- `✓` درست انتخاب کردی (correct → green rings)
+- `✕` این مهره هدف نبود (wrong → red rings)
+- `!` این مهره را جا انداختی (missed → orange/amber rings)
 
 Board rings mirror the same three states; the correct-answer squares and
 the Persian explanation are shown. Symbols are text markers, never chess
-glyphs (pieces are always SVG).
+glyphs (pieces are always SVG). In Speed Mode the banner shows for
+~450ms (`FEEDBACK_MS`) and the loop auto-advances — no manual button;
+Practice keeps its manual «معمای بعدی» step.
+
+## Persian / RTL rendering
+
+Root cause fixed (was: declared-but-never-loaded typeface): the Design
+System specifies `Vazirmatn` first in the font stack, but no font asset
+was bundled, so browsers silently fell back to arbitrary system fonts.
+The fix loads self-hosted Vazirmatn (Fontsource, weights 400/700/900,
+`font-display: swap`, arabic+latin subsets) through the existing
+`index.css` typography mechanism — no per-component special font.
+
+Verified encoding chain (all must hold; re-check if Persian ever breaks):
+
+- Source files (`fa.ts`, backend prompts): UTF-8, Persian block intact —
+  fix sources, never mask in CSS.
+- API: FastAPI JSON `application/json`, UTF-8 decoded; prompts verified
+  byte-level with 24+ Persian chars and no `�`/mojibake markers.
+- DB: SQLite TEXT (UTF-8); prompts round-trip byte-identical.
+- HTML: `<html lang="fa" dir="rtl">`, `<meta charset="UTF-8">`; page stays
+  RTL, chessboard islands stay `dir="ltr"`, square names stay Latin.
 
 ## Scoring (authoritative, per-square)
 
@@ -173,21 +198,28 @@ Exact formula, computed backend-side from the validation detail:
 score = (correct_selected × 5) − (missed_targets × 1) − (wrong_selected × 2)
 ```
 
+with one explicit exception: a correctly answered zero-target question
+(empty target set, empty selection) awards a +5 completion bonus instead
+of 0. The bonus applies ONLY when the result is CORRECT and all three
+detail lists are empty — that signature uniquely means
+empty-target/empty-selection.
+
 Example from the spec (`target=[e4,g7,b2]`, `selected=[e4,g7,d5]`):
-`2×5 − 1×1 − 1×2 = 7`.
+`2×5 − 1×1 − 1×2 = 7`. Further pinned examples: `[]/[]` → CORRECT +5;
+`[]/[e4]` → WRONG −2; `[e4]/[e4]` → +5; `[e4]/[]` → −1;
+`[e4,e5]/[e4]` → +4; `[e4,e5]/[e4,e6]` → +2.
 
 - Registered via `register_scorer("piece-recognition", score_squares)`;
   other exercises keep the shared correct=1.0/partial=0.5/else-0 default.
 - Never trusted from the client; may be negative (e.g. −4); never clamped.
 - Computed independently of the result label (CORRECT/PARTIAL/WRONG).
-- Zero-target correct answer scores 0 (no +5 for matching the empty set);
-  each wrong square on a zero-target question costs −2.
+- Each wrong square on a zero-target question costs −2 with no bonus.
 - Malformed selections count as wrong squares (−2 each).
 
 ## Zero-target scoring
 
 ```text
-target = {} , selected = {}  → CORRECT, score 0
+target = {} , selected = {}  → CORRECT, score +5
 target = {} , selected = {e4} → WRONG, score −2
 ```
 
