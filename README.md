@@ -73,8 +73,16 @@ npm run build
   capturable/shielded/decoy patterns, defense explicitly irrelevant via the
   `ignore-enemy-attacks` profile), hunter highlight, identical per-square
   scoring; full spec in `docs/exercises/03-captures.md`.
+- Exercise 4 (Undefended Pieces «مهره‌های بی‌دفاع»): same practice+speed
+  architecture with a shared-`puzzles.db` position source (FEN only, like
+  Exercise 1, bounded sampling preferring non-empty answers), no
+  pre-highlight, absolute-pin-aware rule (pinned-to-King pieces never
+  count, pin-to-Queen still counts, Kings never answers), identical
+  per-square scoring; full spec in
+  `docs/exercises/04-undefended-pieces.md`.
 - Tables now: `users`, `exercises`, `puzzles`, `attempts`, `piece_speed_sessions`,
-  `legal_speed_sessions`, `capture_speed_sessions`. Rating tables postponed.
+  `legal_speed_sessions`, `capture_speed_sessions`,
+  `undefended_speed_sessions`. Rating tables postponed.
 - Puzzle answers immutable once published; archive instead of delete.
 - Attempts distinguish correct/partial/wrong/timeout/skipped/abandoned + rated/practice.
 - Audio is a `AudioPort` boundary only; no TTS vendor yet.

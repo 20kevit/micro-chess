@@ -61,6 +61,17 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
       { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
     ],
   },
+  {
+    slug: "undefended-pieces",
+    titleKey: "exercises.undefended-pieces.title",
+    descKey: "exercises.undefended-pieces.desc",
+    status: "active",
+    route: "/exercises/undefended-pieces",
+    modes: [
+      { id: "practice", labelKey: "play.practice", descKey: "practice.howto", params: "?mode=practice" },
+      { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
+    ],
+  },
   { slug: "hanging-pieces", titleKey: "exercises.hanging-pieces.title", descKey: "exercises.hanging-pieces.desc", status: "active", route: "/exercises/hanging-pieces" },
   { slug: "equal-attackers-defenders", titleKey: "exercises.equal-attackers-defenders.title", descKey: "exercises.equal-attackers-defenders.desc", status: "active", route: "/exercises/equal-attackers-defenders" },
   { slug: "castling-rights", titleKey: "exercises.castling-rights.title", descKey: "exercises.castling-rights.desc", status: "active", route: "/exercises/castling-rights" },

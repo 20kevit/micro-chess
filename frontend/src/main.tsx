@@ -25,6 +25,7 @@ import { PathfindingPage } from "./pages/PathfindingPage";
 import { PieceRecognitionPage } from "./pages/PieceRecognitionPage";
 import { PinPage } from "./pages/PinPage";
 import { TrappedPiecesPage } from "./pages/TrappedPiecesPage";
+import { UndefendedPiecesPage } from "./pages/UndefendedPiecesPage";
 import "./index.css";
 
 // Routes only. Keep data fetching inside pages via api client.
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
       { path: "/exercises/piece-recognition", element: <PieceRecognitionPage /> },
       { path: "/exercises/legal-destinations", element: <LegalDestinationsPage /> },
       { path: "/exercises/captures", element: <CapturesPage /> },
+      { path: "/exercises/undefended-pieces", element: <UndefendedPiecesPage /> },
       { path: "/exercises/balance-scale", element: <BalanceScalePage /> },
       { path: "/exercises/hanging-pieces", element: <HangingPiecesPage /> },
       { path: "/exercises/equal-attackers-defenders", element: <EqualAttackersDefendersPage /> },

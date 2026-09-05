@@ -448,3 +448,47 @@ Planned types (examples, not specs):
 - Known limitation: MVP is the simplified single-pawn race only; no
   opposition, zugzwang subtleties beyond the race, or multi-pawn
   endgames.
+
+## Exercise 4 (spec-track)
+
+**Undefended Pieces** — IMPLEMENTED (`undefended-pieces`). Full spec:
+`docs/exercises/04-undefended-pieces.md`.
+
+- Route: `/exercises/undefended-pieces` with `?mode=practice` (untimed)
+  and `?mode=speed` (60s session); card renders both entry buttons
+  directly (no intermediate mode screen), same pattern as Exercises 1–3.
+- Play loop: `frontend/src/components/exercise/UndefendedPiecesPlay.tsx`
+  (practice + speed reusing the `PieceGameLayout` shell, timer, hints,
+  feedback; NO pre-highlight — the whole board is the question, only the
+  user's selections are shown); correctness, scoring, and the speed clock
+  stay backend-authoritative.
+- Position source: shared `puzzles.db` via `positions/repository.py`
+  (read-only, FEN only, fallback FENs when absent), exactly like
+  Exercise 1; per-puzzle answers built server-side by
+  `undefended_pieces/generator.py` (bounded 25-candidate sampling that
+  prefers non-empty positions while keeping zero-target valid, answers
+  server-side only).
+- Rule: non-King piece with ≥1 valid enemy attacker AND 0 valid friendly
+  defenders, from python-chess attack geometry; absolutely pinned pieces
+  (`board.is_pinned`, King only) never count as attackers/defenders;
+  pieces shielding a Queen still count; Kings never answers but still
+  attack/defend.
+- Validator: `backend/app/modules/undefended_pieces/validator.py` (exact
+  set match incl. empty==empty; duplicates/order-insensitive; malformed
+  squares count as wrong).
+- Practice: `POST /api/v1/undefended-pieces/next` issues fresh random
+  published puzzles (identical FEN rows reused; `exclude_ids` steers
+  variety); the client keeps a current+next prefetch buffer. Answers go
+  through standard `POST /api/v1/attempts`.
+- Speed: `undefended_pieces/sessions.py` + `router.py` (open → prepare
+  ≥20 → start 60s clock → submit loop with ~450ms auto-advance, no
+  manual next → server-rebuilt per-puzzle report; per-answer rows reuse
+  `attempts`).
+- Scoring: registered per-square scorer (+5 correct / −1 missed / −2
+  wrong, +5 bonus for correctly answered zero-target, negatives kept,
+  independent of the CORRECT/PARTIAL/WRONG label).
+- Seed: `python -m app.modules.undefended_pieces.seed` (15 puzzles
+  covering single/multiple/both-colors/none, all piece types as
+  attackers and defenders, blockers, king attack/defense/exclusion, and
+  the three mandatory pin regressions; every answer independently
+  verified).

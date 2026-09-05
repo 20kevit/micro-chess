@@ -50,9 +50,9 @@ Example:
   - Response: `{id, puzzle_id, exercise_slug, mode, result, score, feedback_key, rating_delta, detail, hints_used, started_at, duration_ms, created_at}`
   - `detail` is `{correct: [], missed: [], wrong: []}` for piece-recognition.
   - `score` is authoritative and backend-computed (per-square 5/−1/−2 for
-    piece-recognition, legal-destinations, and captures via their registered
-    scorers, else correct=1.0/partial=0.5/0); never trusted from the client;
-    may be negative.
+    piece-recognition, legal-destinations, captures, and undefended-pieces
+    via their registered scorers, else correct=1.0/partial=0.5/0); never
+    trusted from the client; may be negative.
   - `result` in correct/partial/wrong/timeout/skipped/abandoned.
   - `rating_delta` is `null` until Glicko-2 lands; practice attempts never set it.
   - Errors: `puzzle_not_available` (404 for missing/unpublished/archived).
@@ -127,3 +127,25 @@ Same lifecycle and contract as Exercises 1–2 (open → prepare ≥20 → start
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
 - Full spec: `docs/exercises/03-captures.md`.
+
+## Undefended Pieces (Exercise 4)
+
+Same lifecycle and contract as Exercises 1–3 (open → prepare ≥20 → start
+60s clock → submit loop → finish/report), under
+`/api/v1/undefended-pieces`:
+
+- `POST /api/v1/undefended-pieces/next` `{exclude_ids?: []}` → fresh
+  random shared-position practice `PuzzleOut` (no `answer_json`; only
+  FEN is used from `puzzles.db`, Moves/Rating/Themes ignored).
+- `POST /api/v1/undefended-pieces/sessions` → `preparing` session (60s default).
+- `POST /api/v1/undefended-pieces/sessions/{id}/puzzles` `{count}` →
+  buffer/refill puzzles (cap 60); `POST .../start` requires ≥20.
+- `POST /api/v1/undefended-pieces/sessions/{id}/submit` →
+  `{attempt, feedback_key, detail, session}`; per-square 5/−1/−2 scoring
+  with the +5 zero-target bonus; only session-issued puzzles accepted.
+  Undefended = attacked by ≥1 valid enemy AND defended by 0 valid
+  friendlies; absolutely pinned pieces never count; kings never answers.
+- `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
+  per-puzzle report rebuilt from stored attempts;
+  `POST .../finish` → final summary. Same error codes as Exercise 1.
+- Full spec: `docs/exercises/04-undefended-pieces.md`.

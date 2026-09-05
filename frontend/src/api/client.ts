@@ -239,4 +239,51 @@ export const api = {
     request<SpeedSummary>(`/api/v1/captures/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Undefended Pieces: random shared positions + speed sessions.
+  // Same contract as above (public puzzle data only, grading
+  // always server-side). Prefetch buffers never carry answers.
+  nextUndefendedPracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/undefended-pieces/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startUndefendedSpeedSession: () =>
+    request<SpeedSession>("/api/v1/undefended-pieces/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  prepareUndefendedSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/undefended-pieces/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startUndefendedSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/undefended-pieces/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextUndefendedSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/undefended-pieces/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitUndefendedSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/undefended-pieces/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getUndefendedSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/undefended-pieces/sessions/${sessionId}`),
+  getUndefendedSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/undefended-pieces/sessions/${sessionId}/report`),
+  finishUndefendedSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/undefended-pieces/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
 };

@@ -14,6 +14,7 @@ from app.modules.pathfinding.router import router as pathfinding_router
 from app.modules.piece_recognition.router import router as piece_recognition_router
 from app.modules.progress.router import router as attempts_router
 from app.modules.puzzles.router import router as puzzles_router
+from app.modules.undefended_pieces.router import router as undefended_pieces_router
 from app.modules.users.router import router as users_router
 
 # Register exercise validators (no core-flow changes needed per exercise).
@@ -38,6 +39,7 @@ import app.modules.piece_recognition as _piece_recognition  # noqa: F401
 import app.modules.pin as _pin  # noqa: F401
 import app.modules.rule_of_the_square as _rule_of_the_square  # noqa: F401
 import app.modules.trapped_pieces as _trapped_pieces  # noqa: F401
+import app.modules.undefended_pieces as _undefended_pieces  # noqa: F401
 
 
 @asynccontextmanager
@@ -72,3 +74,4 @@ app.include_router(legal_destinations_router, prefix="/api/v1")
 app.include_router(reconstruction_router, prefix="/api/v1")
 app.include_router(puzzles_router, prefix="/api/v1")
 app.include_router(attempts_router, prefix="/api/v1")
+app.include_router(undefended_pieces_router, prefix="/api/v1")

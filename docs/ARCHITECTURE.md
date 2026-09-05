@@ -27,6 +27,7 @@ docs/      product + architecture + api + exercises
 | `piece_recognition` | exercise 1: validator + generator + speed sessions + router (registers `piece-recognition`) |
 | `legal_destinations` | exercise 2: validator + scorer + white-only generator + speed sessions + router (registers `legal-destinations`) |
 | `captures` | exercise 3: validator + scorer + hunter-vs-black generator + speed sessions + router (registers `captures`) |
+| `undefended_pieces` | exercise 4: validator + scorer + shared-position generator + speed sessions + router (registers `undefended-pieces`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
@@ -95,6 +96,9 @@ Piece Recognition additions (same tables, new columns only):
 - `capture_speed_sessions` — same shape for Exercise 3 Speed Mode
   (`captures/sessions.py` mirrors the same lifecycle; hunter-vs-black
   puzzles from `captures/generator.py`).
+- `undefended_speed_sessions` — same shape for Exercise 4 Speed Mode
+  (`undefended_pieces/sessions.py` mirrors the same lifecycle; random
+  shared `puzzles.db` positions evaluated by `undefended_squares`).
 
 Notes:
 
