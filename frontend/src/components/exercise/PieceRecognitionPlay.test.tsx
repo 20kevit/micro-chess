@@ -111,7 +111,7 @@ describe("mode navigation", () => {
     });
     renderPage("speed");
     // Preparing state first: clock must not start before the buffer is ready.
-    expect(await screen.findByText("در حال آماده‌سازی معماها…")).toBeTruthy();
+    expect(await screen.findByText("در حال آماده‌سازی...")).toBeTruthy();
     expect(await screen.findByText("سؤال 1؟")).toBeTruthy();
     expect(mockedApi.prepareSpeedPuzzles).toHaveBeenCalledWith("s1", { count: 20 });
     expect(mockedApi.startSpeedClock).toHaveBeenCalledWith("s1");
@@ -273,6 +273,217 @@ describe("speed session recovery", () => {
   });
 });
 
+describe("speed consecutive submissions", () => {
+  function mockActiveBoot(batch: Puzzle[], sessionId: string) {
+    mockedApi.startSpeedSession = vi.fn().mockResolvedValue({
+      session_id: sessionId,
+      exercise_slug: "piece-recognition",
+      status: "preparing",
+      duration_s: 60,
+      started_at: new Date().toISOString(),
+      expires_at: null,
+      remaining_ms: 60000,
+      buffered: 0,
+    });
+    mockedApi.prepareSpeedPuzzles = vi.fn().mockResolvedValue(batch);
+    mockedApi.startSpeedClock = vi.fn().mockResolvedValue({
+      session_id: sessionId,
+      exercise_slug: "piece-recognition",
+      status: "active",
+      duration_s: 60,
+      started_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 60000).toISOString(),
+      remaining_ms: 60000,
+      buffered: batch.length,
+    });
+  }
+
+  function mockSubmitOk(sessionId: string) {
+    let n = 0;
+    mockedApi.submitSpeedAnswer = vi.fn().mockImplementation(async (_sid: string, body: { puzzle_id: number }) => {
+      n += 1;
+      return {
+        attempt: attempt(body.puzzle_id, "correct", 5),
+        feedback_key: "feedback.correct",
+        detail: { correct: ["e2"], missed: [], wrong: [] },
+        session: {
+          session_id: sessionId,
+          exercise_slug: "piece-recognition",
+          status: "active",
+          duration_s: 60,
+          started_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 59000).toISOString(),
+          remaining_ms: 59000,
+          buffered: 20,
+          attempted: n,
+          correct: n,
+          partial: 0,
+          wrong: 0,
+          score: 5 * n,
+        },
+      };
+    });
+  }
+
+  async function flushBoot() {
+    for (let i = 0; i < 6; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(50);
+      });
+    }
+  }
+
+  it("three consecutive puzzles each submit with fresh state", async () => {
+    vi.useFakeTimers();
+    try {
+      const batch = Array.from({ length: 20 }, (_, i) => puzzle(i + 1, `پی ${i + 1}؟`));
+      mockActiveBoot(batch, "chain1");
+      mockSubmitOk("chain1");
+
+      renderPage("speed");
+      await flushBoot();
+      expect(screen.getByText("پی 1؟")).toBeTruthy();
+
+      for (let i = 1; i <= 3; i++) {
+        // Selection works: nothing is locked from the previous transition.
+        // (The board listens to pointerdown; fireEvent.click alone never taps.)
+        const e2 = screen.getByRole("gridcell", { name: "e2" });
+        expect(e2.getAttribute("aria-pressed")).toBe("false");
+        fireEvent.pointerDown(e2);
+        expect(e2.getAttribute("aria-pressed")).toBe("true");
+
+        fireEvent.click(screen.getByRole("button", { name: "بررسی جواب" }));
+        await act(async () => {});
+        // Correct puzzle id, no stale references, exactly one request.
+        expect(mockedApi.submitSpeedAnswer).toHaveBeenCalledTimes(i);
+        expect(mockedApi.submitSpeedAnswer).toHaveBeenLastCalledWith(
+          "chain1",
+          expect.objectContaining({ puzzle_id: i }),
+        );
+        expect(screen.getByText("آفرین! درست بود.")).toBeTruthy();
+        // No manual next button anywhere in Speed Mode.
+        expect(screen.queryByRole("button", { name: "معمای بعدی" })).toBeNull();
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500);
+        });
+        // Auto-advanced with selection reset.
+        expect(screen.getByText(`پی ${i + 1}؟`)).toBeTruthy();
+        expect(screen.getByRole("gridcell", { name: "e2" }).getAttribute("aria-pressed")).toBe(
+          "false",
+        );
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("background refill keeps play continuous without loading states", async () => {
+    vi.useFakeTimers();
+    try {
+      const batch = Array.from({ length: 20 }, (_, i) => puzzle(i + 1, `صف ${i + 1}؟`));
+      mockActiveBoot(batch, "refill1");
+      mockSubmitOk("refill1");
+
+      renderPage("speed");
+      await flushBoot();
+      expect(mockedApi.prepareSpeedPuzzles).toHaveBeenCalledTimes(1);
+
+      // Consume 8 puzzles: queue drops to 11 < 12, triggering background refill.
+      for (let i = 1; i <= 8; i++) {
+        fireEvent.click(screen.getByRole("button", { name: "بررسی جواب" }));
+        await act(async () => {});
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500);
+        });
+        expect(screen.getByText(`صف ${i + 1}؟`)).toBeTruthy();
+      }
+      // Refilled proactively (second prepare call) while play never waited.
+      expect(mockedApi.prepareSpeedPuzzles).toHaveBeenCalledTimes(2);
+      expect(mockedApi.prepareSpeedPuzzles).toHaveBeenLastCalledWith("refill1", { count: 12 });
+      expect(screen.getByText("زمان باقی‌مانده")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("failed background refill does not break the active session", async () => {
+    vi.useFakeTimers();
+    try {
+      const batch = Array.from({ length: 20 }, (_, i) => puzzle(i + 1, `پایدار ${i + 1}؟`));
+      mockActiveBoot(batch, "steady1");
+      mockedApi.prepareSpeedPuzzles = vi
+        .fn()
+        .mockResolvedValueOnce(batch)
+        .mockRejectedValue(new Error("network down"));
+      mockSubmitOk("steady1");
+
+      renderPage("speed");
+      await flushBoot();
+
+      for (let i = 1; i <= 3; i++) {
+        fireEvent.click(screen.getByRole("button", { name: "بررسی جواب" }));
+        await act(async () => {});
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500);
+        });
+        expect(screen.getByText(`پایدار ${i + 1}؟`)).toBeTruthy();
+      }
+      // Current puzzle unaffected; no error screen from the failed refill.
+      expect(screen.queryByText("مشکلی پیش آمد. دوباره تلاش کن.")).toBeNull();
+      expect(screen.getByText("زمان باقی‌مانده")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("preparing UI hides internal buffer counts", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolvePrepare!: (value: Puzzle[]) => void;
+      const gate = new Promise<Puzzle[]>((resolve) => {
+        resolvePrepare = resolve;
+      });
+      mockedApi.startSpeedSession = vi.fn().mockResolvedValue({
+        session_id: "gate1",
+        exercise_slug: "piece-recognition",
+        status: "preparing",
+        duration_s: 60,
+        started_at: new Date().toISOString(),
+        expires_at: null,
+        remaining_ms: 60000,
+        buffered: 0,
+      });
+      mockedApi.prepareSpeedPuzzles = vi.fn().mockReturnValue(gate);
+      mockedApi.startSpeedClock = vi.fn().mockResolvedValue({
+        session_id: "gate1",
+        exercise_slug: "piece-recognition",
+        status: "active",
+        duration_s: 60,
+        started_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 60000).toISOString(),
+        remaining_ms: 60000,
+        buffered: 20,
+      });
+
+      renderPage("speed");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(50);
+      });
+      expect(screen.getByText("در حال آماده‌سازی...")).toBeTruthy();
+      const withCount = (_: string | null, el: Element | null) =>
+        (el?.textContent ?? "").includes("۲۰");
+      expect(screen.queryByText(withCount)).toBeNull();
+
+      resolvePrepare(Array.from({ length: 20 }, (_, i) => puzzle(i + 1, `دروازه ${i + 1}؟`)));
+      await flushBoot();
+      expect(screen.getByText("دروازه 1؟")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("speed transition lock", () => {
   it("rapid repeated submit clicks send a single request", async () => {
     vi.useFakeTimers();
@@ -423,7 +634,7 @@ describe("speed expiry and report", () => {
       mockedApi.getSpeedReport = vi.fn().mockResolvedValue(report);
 
       renderPage("speed");
-      expect(screen.getByText("در حال آماده‌سازی معماها…")).toBeTruthy();
+      expect(screen.getByText("در حال آماده‌سازی...")).toBeTruthy();
       // Fake timers: flush with act() instead of findBy/waitFor (their
       // internal timers never fire otherwise).
       for (let i = 0; i < 6; i++) {

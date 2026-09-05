@@ -61,18 +61,37 @@ Lifecycle: `preparing` → `active` → `finished`/`expired`.
 
 1. Enter → a session opens in `preparing` (NO clock runs).
 2. The client prepares **at least 20 puzzles** (`POST .../sessions/{id}/puzzles`
-   `{"count": 20}`) with a visible progress state.
+   `{"count": 20}`) behind a plain loading state («در حال آماده‌سازی...»).
+   Internal buffer counts are NEVER shown to users.
 3. `POST .../sessions/{id}/start` starts the authoritative 60-second clock
    (refused with `409 buffer_not_ready` below 20 buffered). Preparation
    time is never billed to the session.
 4. Loop over the client queue: select → submit → ~450ms board feedback
    (green/red/orange) → AUTOMATIC advance to the next queued puzzle. There
    is deliberately NO manual "next puzzle" button in Speed Mode; a single
-   lock held from submit through the transition refuses double-submits,
-   the 60s timer keeps running, and expiry mid-transition routes to the
-   report.
+   lock held from submit through the transition refuses double-submits and
+   is released on EVERY advance path (a past bug left it held after the
+   instant queued swap, permanently disabling puzzle #2+ — regression
+   tested), the 60s timer keeps running, and expiry mid-transition routes
+   to the report.
+5. Background refill is proactive: whenever the queue drops below 12, 12
+   more puzzles are prepared without blocking the active puzzle, so the
+   buffer oscillates in a healthy range instead of draining toward empty.
+   Failed refills are silent and retried on the next transition; a
+   genuinely exhausted queue falls back to a single on-demand fetch with
+   an inline retry, never a dead end.
 5. Expiry/finish → `GET .../sessions/{id}/report`: the complete
    authoritative report (see below).
+
+## Speed interaction-state guarantee
+
+Every automatic transition runs a full per-puzzle reset: the new puzzle
+becomes fully active, selection/hints/feedback/startedAt reset, and the
+submit lock is released on EVERY advance path — so puzzles #2, #3, …
+submit exactly like #1 with the correct puzzle/session ids and no stale
+closures. (A past bug held the lock after the instant queued swap,
+permanently disabling puzzle #2+; a frontend regression test solving
+consecutive puzzles now pins this.)
 
 ## Session-loss recovery (Speed)
 

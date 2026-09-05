@@ -157,7 +157,7 @@ export const fa = {
   "piece.legendWrong": "این مهره هدف نبود",
   "piece.legendMissed": "این مهره را جا انداختی",
   "speed.howto": "در ۶۰ ثانیه هر چند معما که می‌توانی حل کن.",
-  "speed.preparing": "در حال آماده‌سازی معماها…",
+  "speed.preparing": "در حال آماده‌سازی...",
   "speed.timeLeft": "زمان باقی‌مانده",
   "speed.result": "نتیجه سرعتی",
   "speed.attempted": "تعداد معما",

@@ -18,8 +18,11 @@ export type PieceMode = "practice" | "speed";
 // Minimum preloaded speed puzzles before the clock may start (mirrors the
 // backend MIN_START_BUFFER). Refill thresholds keep the queue populated.
 const MIN_BUFFER = 20;
-const REFILL_AT = 8;
-const REFILL_COUNT = 10;
+// Refill early (well above zero) with a generous batch, so normal play
+// never waits: the buffer oscillates in a healthy range instead of
+// repeatedly draining toward empty.
+const REFILL_AT = 12;
+const REFILL_COUNT = 12;
 // Consecutive backend-unknown puzzles before the session is declared lost.
 const MAX_SKIPS = 3;
 // How long speed feedback stays visible before auto-advancing: long enough
@@ -400,7 +403,6 @@ function SpeedLoop() {
   const [current, setCurrent] = useState<Puzzle | null>(null);
   const [result, setResult] = useState<AttemptResponse | null>(null);
   const [report, setReport] = useState<SpeedReport | null>(null);
-  const [prepared, setPrepared] = useState(0);
   const [selected, setSelected] = useState<string[]>([]);
   const [usedHints, setUsedHints] = useState<string[]>([]);
   const [startedAt, setStartedAt] = useState<string>("");
@@ -551,7 +553,6 @@ function SpeedLoop() {
     setCurrent(null);
     setResult(null);
     setReport(null);
-    setPrepared(0);
     setError(null);
     setPhase("preparing");
     try {
@@ -576,7 +577,6 @@ function SpeedLoop() {
         for (const p of batch) {
           if (!acc.some((q) => q.id === p.id)) acc.push(p);
         }
-        setPrepared(acc.length);
       }
       if (acc.length < MIN_BUFFER) throw new Error("buffer_not_ready");
       const started = await api.startSpeedClock(created.session_id);
@@ -726,7 +726,9 @@ function SpeedLoop() {
   }
 
   // Auto-advance only (called by the feedback timer). Releases the submit
-  // lock when done; expiry during the window routes to the report instead.
+  // lock on EVERY path — including the instant queued swap — so the next
+  // puzzle is always submittable. Expiry during the window routes to the
+  // report instead.
   async function advance() {
     const sid = sessionIdRef.current;
     if (phase !== "active" || !sid) {
@@ -744,6 +746,8 @@ function SpeedLoop() {
       queueRef.current = rest;
       setQueueTick((n) => n + 1);
       resetFor(next);
+      busyRef.current = false;
+      if (alive(genRef.current)) setBusy(false);
       refillIfNeeded();
       return;
     }
@@ -775,20 +779,12 @@ function SpeedLoop() {
   }
 
   if (phase === "preparing") {
+    // Deliberately simple: internal buffer counts are never shown to users.
     return (
       <div className="min-w-0">
         <PageHeader title={t("piece.title")} subtitle={t("speed.howto")} />
         <Card>
           <p className="text-center text-sm font-bold text-stone-600">{t("speed.preparing")}</p>
-          <p className="mt-2 text-center text-2xl font-black text-violet-700" dir="ltr">
-            {faNum(Math.min(prepared, MIN_BUFFER))} / {faNum(MIN_BUFFER)}
-          </p>
-          <div className="mt-3 h-2 min-w-0 overflow-hidden rounded-full bg-violet-100" aria-hidden="true">
-            <div
-              className="h-full rounded-full bg-violet-600 transition-[width]"
-              style={{ width: `${Math.round((Math.min(prepared, MIN_BUFFER) / MIN_BUFFER) * 100)}%` }}
-            />
-          </div>
           {error ? (
             <div>
               <p className="mt-3 text-center text-sm font-bold text-red-600">{error}</p>
@@ -877,8 +873,18 @@ function SpeedLoop() {
       ) : (
         // Speed feedback is transient: green/red/orange stay on the board
         // for FEEDBACK_MS, then the loop auto-advances. No manual button.
+        // The error + retry below only appears if the on-demand fallback
+        // (genuinely exhausted queue) fails, so the run never dead-ends.
         <Card className="mt-3">
           <ResultBanner result={result} />
+          {error ? (
+            <div>
+              <p className="mt-3 text-center text-sm font-bold text-red-600">{error}</p>
+              <Button className="mt-3 w-full" onClick={advance} disabled={busy}>
+                {t("common.retry")}
+              </Button>
+            </div>
+          ) : null}
         </Card>
       )}
     </div>
