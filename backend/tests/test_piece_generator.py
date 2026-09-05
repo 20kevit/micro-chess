@@ -7,6 +7,11 @@ import chess
 import pytest
 
 from app.modules.piece_recognition import generator
+from app.modules.piece_recognition.categories import (
+    CATEGORIES,
+    CATEGORY_KEYS,
+    GROUP_KEYS,
+)
 from app.modules.piece_recognition.validator import CANONICAL_TARGETS, squares_for_target
 from app.modules.positions import repository as positions_repo
 from app.modules.puzzles.models import Puzzle
@@ -46,6 +51,60 @@ def test_canonical_space_is_twelve_color_kind_pairs():
 def test_all_piece_types_covered_both_colors():
     kinds = {tuple(t["kinds"])[0] for t in CANONICAL_TARGETS.values()}
     assert kinds == {"p", "n", "b", "r", "q", "k"}
+
+
+def test_sixteen_categories_twelve_individual_four_groups():
+    assert len(CATEGORIES) == 16
+    assert len(GROUP_KEYS) == 4
+    for key in GROUP_KEYS:
+        assert CATEGORIES[key].color in ("white", "black")
+        assert len(CATEGORIES[key].kinds) == 2
+    assert CATEGORIES["white-minor"].kinds == ("n", "b")
+    assert CATEGORIES["black-heavy"].kinds == ("r", "q")
+
+
+def test_group_minor_squares_and_prompt():
+    data = generator.question_for_fen(STARTPOS, "white-minor")
+    assert data["squares"] == ["b1", "c1", "f1", "g1"]
+    assert data["prompt_fa"] == "تمام سوارهای سبک سفید را پیدا کن."
+
+
+def test_group_heavy_squares_and_prompt():
+    data = generator.question_for_fen(STARTPOS, "black-heavy")
+    assert data["squares"] == ["a8", "d8", "h8"]
+    assert data["prompt_fa"] == "تمام سوارهای سنگین سیاه را پیدا کن."
+
+
+def test_group_zero_targets_valid():
+    pawns_only = "8/5pk1/5p1p/8/8/5P1P/5PK1/8 w - - 0 1"
+    data = generator.question_for_fen(pawns_only, "black-minor")
+    assert data["squares"] == []
+    assert data["prompt_fa"] == "تمام سوارهای سبک سیاه را پیدا کن."
+    assert data["explanation"]
+
+
+def test_group_answers_match_python_chess():
+    fen = "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4"
+    board = chess.Board(fen)
+    for key in GROUP_KEYS:
+        cat = CATEGORIES[key]
+        expected = sorted(
+            chess.square_name(sq)
+            for sq in chess.SQUARES
+            for piece in [board.piece_at(sq)]
+            if piece is not None
+            and piece.symbol().lower() in cat.kinds
+            and (cat.color == "white") == (piece.color == chess.WHITE)
+        )
+        assert generator.question_for_fen(fen, key)["squares"] == expected
+
+
+def test_groups_appear_regularly_without_dominating():
+    rng = random.Random(20260601)
+    keys = [generator.generate_question_data(rng)["target"] for _ in range(400)]
+    assert set(keys) == set(CATEGORY_KEYS)
+    group_hits = sum(1 for k in keys if k in GROUP_KEYS)
+    assert group_hits >= 40  # uniform would give ~100; generous lower bound
 
 
 def test_question_single_target():
@@ -116,7 +175,9 @@ def test_squares_helper_agrees_with_generator():
     rng = random.Random(99)
     for _ in range(20):
         data = generator.generate_question_data(rng)
-        assert data["squares"] == squares_for_target(data["fen"], CANONICAL_TARGETS[data["target"]])
+        assert data["squares"] == squares_for_target(
+            data["fen"], CATEGORIES[data["target"]].target_spec()
+        )
 
 
 def test_create_puzzle_persists_published_row(db_session):

@@ -4,9 +4,10 @@ Flow per new puzzle::
 
     1. Take a validated FEN from the shared positions repository
        (puzzles.db when present, curated fallback otherwise).
-    2. Pick one of the 12 canonical color x piece-type questions uniformly
-       at random — deliberately NOT biased toward questions with existing
-       pieces, so zero-target questions occur naturally.
+    2. Pick one of the 16 target categories uniformly at random (12
+       individual piece types + light/heavy groups, both colors) —
+       deliberately NOT biased toward questions with existing pieces, so
+       zero-target questions occur naturally.
     3. Compute the authoritative target squares server-side.
     4. Build the Persian prompt/explanation/hint and persist a published
        ``Puzzle`` row. The answer lives only in ``answer_json`` and is never
@@ -22,78 +23,47 @@ import random
 from sqlalchemy.orm import Session
 
 from app.modules.exercises.models import Exercise
-from app.modules.piece_recognition.validator import (
-    CANONICAL_TARGETS,
-    SLUG,
-    squares_for_target,
+from app.modules.piece_recognition.categories import (
+    CATEGORIES,
+    CATEGORY_KEYS,
+    Category,
 )
+from app.modules.piece_recognition.validator import SLUG, squares_for_target
 from app.modules.positions import repository as positions
 from app.modules.puzzles.models import Puzzle
 
-# Persian names per piece kind (python-chess lowercase symbols).
-PIECE_FA: dict[str, tuple[str, str]] = {
-    # kind: (singular, plural)
-    "p": ("سرباز", "سربازهای"),
-    "n": ("اسب", "اسب‌های"),
-    "b": ("فیل", "فیل‌های"),
-    "r": ("رخ", "رخ‌های"),
-    "q": ("وزیر", "وزیرهای"),
-    "k": ("شاه", "شاه"),
-}
 
-COLOR_FA: dict[str, str] = {"white": "سفید", "black": "سیاه"}
-
-HINT_FA: dict[str, str] = {
-    "p": "سربازها قدم‌به‌قدم جلو می‌روند؛ ردیف‌های جلو را نگاه کن.",
-    "n": "اسب به شکل L می‌پرد؛ وسط و گوشه‌های صفحه را نگاه کن.",
-    "b": "فیل فقط روی خانه‌های هم‌رنگ خودش حرکت می‌کند.",
-    "r": "رخ‌ها معمولاً در ستون‌ها و ردیف‌های باز ایستاده‌اند.",
-    "q": "وزیر قوی‌ترین مهره است؛ اطراف شاه و مرکز را نگاه کن.",
-    "k": "شاه معمولاً پشت مهره‌های خودش پنهان شده است.",
-}
+def category_for(target_key: str) -> Category:
+    """Look up a target category (individual or group)."""
+    try:
+        return CATEGORIES[target_key]
+    except KeyError:
+        raise ValueError("unknown_target") from None
 
 
 def prompt_for_target(target_key: str) -> str:
-    """Persian question text for a canonical target key."""
-    target = CANONICAL_TARGETS[target_key]
-    kind = target["kinds"][0]
-    singular, plural = PIECE_FA[kind]
-    color = COLOR_FA[target["color"]]
-    if kind == "k":
-        return f"{singular} {color} را پیدا کن."
-    return f"تمام {plural} {color} را پیدا کن."
+    """Persian question text for a target category key."""
+    return category_for(target_key).prompt_fa()
 
 
 def explanation_for(target_key: str, squares: list[str]) -> str:
     """Persian explanation shown after answering."""
-    target = CANONICAL_TARGETS[target_key]
-    kind = target["kinds"][0]
-    singular, _ = PIECE_FA[kind]
-    color = COLOR_FA[target["color"]]
-    if not squares:
-        return (
-            f"در این وضعیت {singular} {color} وجود ندارد؛ "
-            "پاسخ درست این است که هیچ خانه‌ای انتخاب نکنی."
-        )
-    joined = "، ".join(squares)
-    return f"{singular} {color} در خانه‌های {joined} است."
+    return category_for(target_key).explanation_fa(squares)
 
 
 def question_for_fen(fen: str, target_key: str) -> dict:
-    """Pure question/answer builder for a FEN + target (no DB, no random)."""
-    if target_key not in CANONICAL_TARGETS:
-        raise ValueError("unknown_target")
+    """Pure question/answer builder for a FEN + category key (no DB, no random)."""
+    category = category_for(target_key)
     if not positions.is_valid_fen(fen):
         raise ValueError("invalid_fen")
-    squares = squares_for_target(fen, CANONICAL_TARGETS[target_key])
-    kind = CANONICAL_TARGETS[target_key]["kinds"][0]
+    squares = squares_for_target(fen, category.target_spec())
     return {
         "fen": fen,
         "target": target_key,
         "squares": squares,
-        "prompt_fa": prompt_for_target(target_key),
-        "explanation": explanation_for(target_key, squares),
-        "hint_json": {"hints": [{"id": "h1", "text_fa": HINT_FA[kind], "rating_cost": 5}]},
+        "prompt_fa": category.prompt_fa(),
+        "explanation": category.explanation_fa(squares),
+        "hint_json": {"hints": [{"id": "h1", "text_fa": category.hint_fa, "rating_cost": 5}]},
     }
 
 
@@ -101,10 +71,10 @@ def generate_question_data(
     rng: random.Random | None = None,
     explicit_path: str | None = None,
 ) -> dict:
-    """Pick a random position and a random canonical question for it."""
+    """Pick a random position and a random target category for it."""
     rng = rng if rng is not None else random
     fen, _source = positions.random_position_fen(rng, explicit_path)
-    target_key = rng.choice(sorted(CANONICAL_TARGETS))
+    target_key = rng.choice(CATEGORY_KEYS)
     return question_for_fen(fen, target_key)
 
 

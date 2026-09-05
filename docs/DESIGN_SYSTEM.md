@@ -60,6 +60,11 @@ Board squares: light amber-100 / dark emerald-600 (unchanged legacy).
 - `ChessBoard` — SVG pieces only (never Unicode glyphs); square states:
   `selected` (violet ring), `correct` (green), `missed` (amber dashed),
   `wrong` (red), `target` (sky, task piece only — never answer data).
+- Gameplay shell (`PieceGameLayout`, reusable): fixed overlay + compact top
+  bar (back link, title, mode badge, optional tally); prominent centered
+  question (`text-lg/xl font-black`); compact circular `؟` hint button
+  (44px hit area, overlay popover, aria-label) instead of large hint
+  buttons; compact timer strip (`role="timer"`); submit/clear action bar.
 - Exercise cards (`ExercisesPage`) — number pill, title, description; cards
   with entry `modes` render one button per mode (practice=secondary,
   speed=primary) plus a one-line description each.
@@ -115,10 +120,16 @@ Tailwind scale; convention: `gap-2/mt-2` between related controls,
 `viewport → page padding → max board width → square board`. Enforcement:
 
 1. `ChessBoard` root is `w-full` + `aspect-square` grid (never fixed px).
-2. Play screens wrap it in `mx-auto w-full min-w-0 max-w-[520px]`
-   (centers, caps desktop width, shrinks on mobile).
-3. `body { overflow-x: clip }` guards against accidental overflow.
-4. Squares use `touch-action: manipulation`, min 44px targets.
+2. Time-critical gameplay uses the full-viewport `GameShell` overlay with
+   measured orientation (`orientationOf`: width > height → side-by-side
+   board + 240px control column, else stacked question → board → action).
+3. Board size is measured, not guessed: a ResizeObserver reads the
+   flex-allocated board area and renders the largest fitting square
+   (`fitSquareSize`, capped at 600px). Callback refs must re-measure on
+   attach — measuring only on mount freezes late-mounted boards at zero.
+4. Feedback must not grow the page: transient overlays/pills for timed
+   modes; in-flow details only where the board can flex-shrink.
+5. Squares use `touch-action: manipulation`, min 44px targets.
 
 ## i18n
 

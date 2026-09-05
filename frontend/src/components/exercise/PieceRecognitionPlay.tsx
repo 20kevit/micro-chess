@@ -1,34 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, apiDetail, apiStatus } from "../../api/client";
 import type { AttemptResponse, Puzzle, SpeedReport, SpeedSummary } from "../../api/types";
 import { t } from "../../i18n";
-import { fenToPieces } from "../../lib/fen";
 import { savePracticeAttempt } from "../../lib/localProgress";
-import { ChessBoard } from "../chess/ChessBoard";
-import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
-import { FeedbackText, PageHeader } from "../ui/PageHeader";
-
-const faNum = (n: number) => n.toLocaleString("fa-IR");
-const faFloat = (n: number) => n.toLocaleString("fa-IR", { maximumFractionDigits: 2 });
+import {
+  BoardZone,
+  GameShell,
+  NextBar,
+  PracticeFeedback,
+  QuestionHeader,
+  SpeedPill,
+  SubmitBar,
+  TimerStrip,
+  faNum,
+  useGameFit,
+} from "./PieceGameLayout";
 
 export type PieceMode = "practice" | "speed";
-
-// Minimum preloaded speed puzzles before the clock may start (mirrors the
-// backend MIN_START_BUFFER). Refill thresholds keep the queue populated.
-const MIN_BUFFER = 20;
-// Refill early (well above zero) with a generous batch, so normal play
-// never waits: the buffer oscillates in a healthy range instead of
-// repeatedly draining toward empty.
-const REFILL_AT = 12;
-const REFILL_COUNT = 12;
-// Consecutive backend-unknown puzzles before the session is declared lost.
-const MAX_SKIPS = 3;
-// How long speed feedback stays visible before auto-advancing: long enough
-// to perceive green/red/orange, short enough to feel instant. No animation
-// may extend this; the timer keeps running throughout.
-const FEEDBACK_MS = 450;
 
 // Dedicated Practice + Speed loop for Piece Recognition. Renders and
 // transports answers only; validation, scoring, and the speed clock stay
@@ -37,118 +27,12 @@ const FEEDBACK_MS = 450;
 // The ?mode= URL param (set by the home card's Practice/Speed buttons —
 // the buttons ARE the mode selection) picks the loop directly; there is no
 // intermediate mode-selection screen.
+//
+// Layout: full-viewport game shell (no page scroll). Portrait stacks
+// question → board → action; landscape puts the board beside a control
+// column. The board is exactly fitted to its area via ResizeObserver.
 export function PieceRecognitionPlay({ mode }: { mode: PieceMode }) {
   return mode === "practice" ? <PracticeLoop /> : <SpeedLoop />;
-}
-
-function BoardSection({
-  puzzle,
-  selected,
-  result,
-  disabled,
-  onToggle,
-}: {
-  puzzle: Puzzle;
-  selected: string[];
-  result: AttemptResponse | null;
-  disabled: boolean;
-  onToggle: (square: string) => void;
-}) {
-  const pieces = useMemo(() => fenToPieces(puzzle.fen), [puzzle]);
-  const squareStates: Partial<Record<string, "selected" | "correct" | "missed" | "wrong">> = {};
-  if (result) {
-    for (const s of result.detail.correct) squareStates[s] = "correct";
-    for (const s of result.detail.missed) squareStates[s] = "missed";
-    for (const s of result.detail.wrong) squareStates[s] = "wrong";
-  } else {
-    for (const s of selected) squareStates[s] = "selected";
-  }
-  return (
-    <div className="mx-auto w-full min-w-0 max-w-[520px]">
-      <ChessBoard
-        pieces={pieces}
-        onSquarePress={result ? undefined : onToggle}
-        squareStates={squareStates}
-        disabled={disabled}
-      />
-    </div>
-  );
-}
-
-function HintCard({ puzzle, usedHints, onUse }: { puzzle: Puzzle; usedHints: string[]; onUse: (id: string) => void }) {
-  const hints = puzzle.hint_json.hints ?? [];
-  if (hints.length === 0) return null;
-  return (
-    <Card className="mt-3">
-      <p className="text-sm font-black">{t("play.hints")}</p>
-      {hints.map((h) => {
-        const revealed = usedHints.includes(h.id);
-        return (
-          <div key={h.id} className="mt-2 flex items-center justify-between gap-2">
-            {revealed ? (
-              <p className="text-sm">{h.text_fa}</p>
-            ) : (
-              <Button variant="ghost" className="px-2" onClick={() => onUse(h.id)}>
-                {t("play.useHint")}
-              </Button>
-            )}
-            {revealed ? <Badge>{t("play.hintUsed")}</Badge> : null}
-          </div>
-        );
-      })}
-    </Card>
-  );
-}
-
-function ResultBanner({ result }: { result: AttemptResponse }) {
-  const tone =
-    result.result === "correct"
-      ? "border-green-500 bg-green-50"
-      : result.result === "partial"
-        ? "border-amber-500 bg-amber-50"
-        : "border-red-400 bg-red-50";
-  return (
-    <div className={`rounded-2xl border-2 px-4 py-3 ${tone}`}>
-      <FeedbackText feedbackKey={result.feedback_key} />
-      <div className="mt-2 flex gap-4 text-center">
-        <div className="flex-1">
-          <p className="text-2xl font-black text-green-600">{faNum(result.detail.correct.length)}</p>
-          <p className="text-xs text-stone-500">{t("play.correctCount")}</p>
-        </div>
-        <div className="flex-1">
-          <p className="text-2xl font-black text-amber-600">{faNum(result.detail.missed.length)}</p>
-          <p className="text-xs text-stone-500">{t("play.missedCount")}</p>
-        </div>
-        <div className="flex-1">
-          <p className="text-2xl font-black text-red-600">{faNum(result.detail.wrong.length)}</p>
-          <p className="text-xs text-stone-500">{t("play.wrongCount")}</p>
-        </div>
-      </div>
-      <p className="mt-2 text-center text-lg font-black text-stone-800">
-        {faNum(result.score)} {t("speed.score")}
-      </p>
-    </div>
-  );
-}
-
-function FeedbackLegend() {
-  const rows = [
-    { symbol: "✓", label: t("piece.legendCorrect"), cls: "text-green-700" },
-    { symbol: "✕", label: t("piece.legendWrong"), cls: "text-red-600" },
-    { symbol: "!", label: t("piece.legendMissed"), cls: "text-amber-600" },
-  ];
-  return (
-    <ul className="mt-3 grid gap-1">
-      {rows.map((row) => (
-        <li key={row.label} className="flex items-center gap-2 text-sm font-bold text-stone-700">
-          <span aria-hidden="true" className={`inline-block w-5 text-center text-base ${row.cls}`}>
-            {row.symbol}
-          </span>
-          {row.label}
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 type PracticePhase = "loading" | "ready" | "submitting" | "feedback" | "error";
@@ -171,6 +55,7 @@ function PracticeLoop() {
   const mountedRef = useRef(true);
   const currentIdRef = useRef<number | null>(null);
   const busyRef = useRef(false);
+  const { rootRef, areaRef, orientation, size } = useGameFit();
 
   useEffect(() => {
     mountedRef.current = true;
@@ -312,87 +197,110 @@ function PracticeLoop() {
     setPhase("ready");
   }
 
-  if (phase === "loading" && !current) return <p>{t("common.loading")}</p>;
-  if ((phase === "error" || !current) && !current) {
+  const stat = `${faNum(solved)} · ${faNum(correctTotal)} · ${faNum(scoreTotal)}`;
+  if ((phase === "loading" || phase === "error") && !current) {
     return (
-      <Card>
-        <p>{error ?? t("common.error")}</p>
-        <Button className="mt-3" onClick={loadInitial}>
-          {t("common.retry")}
-        </Button>
-      </Card>
+      <GameShell title={t("piece.title")} modeKey="play.practice">
+        <div className="grid min-h-0 flex-1 place-items-center px-4">
+          <Card>
+            <p className="text-center">{phase === "error" ? (error ?? t("common.error")) : t("common.loading")}</p>
+            {phase === "error" ? (
+              <Button className="mt-3 w-full" onClick={loadInitial}>
+                {t("common.retry")}
+              </Button>
+            ) : null}
+          </Card>
+        </div>
+      </GameShell>
     );
   }
   const puzzle = current;
-  if (!puzzle) return <p>{t("common.loading")}</p>;
+  if (!puzzle) {
+    return (
+      <GameShell title={t("piece.title")} modeKey="play.practice">
+        <div className="grid min-h-0 flex-1 place-items-center px-4">
+          <p>{t("common.loading")}</p>
+        </div>
+      </GameShell>
+    );
+  }
   const answering = phase === "ready" || phase === "submitting";
+  const hints = puzzle.hint_json.hints ?? [];
+  const action =
+    phase === "feedback" ? (
+      <NextBar onNext={advance} onRetry={retryCurrent} />
+    ) : (
+      <SubmitBar
+        selectedCount={selected.length}
+        emptyHint={t("piece.emptyAllowed")}
+        submitting={phase !== "ready"}
+        onSubmit={submit}
+        onClear={() => setSelected([])}
+      />
+    );
+  const feedback = phase === "feedback" && result ? <PracticeFeedback puzzle={puzzle} result={result} /> : null;
+  const question = (
+    <QuestionHeader
+      prompt={puzzle.prompt_fa}
+      puzzleKey={puzzle.id}
+      hints={hints}
+      usedHints={usedHints}
+      onUseHint={(id) => setUsedHints((p) => [...p, id])}
+    />
+  );
+  const board = (
+    <BoardZone
+      areaRef={areaRef}
+      size={size}
+      puzzle={puzzle}
+      selected={selected}
+      result={result}
+      disabled={!answering}
+      onToggle={toggle}
+    />
+  );
 
   return (
-    <div className="min-w-0">
-      <PageHeader title={t("piece.title")} subtitle={puzzle.prompt_fa} />
-      <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2">
-        <Badge>{t("play.practice")}</Badge>
-        <Badge>
-          {t("practice.solved")}: {faNum(solved)} · {t("play.correctCount")}: {faNum(correctTotal)} ·{" "}
-          {t("speed.score")}: {faNum(scoreTotal)}
-        </Badge>
-      </div>
-
-      <BoardSection
-        puzzle={puzzle}
-        selected={selected}
-        result={result}
-        disabled={!answering}
-        onToggle={toggle}
-      />
-
-      {phase !== "feedback" ? (
-        <div>
-          <p className="mt-3 text-sm font-bold text-stone-600">
-            {t("play.selected")}: {faNum(selected.length)}
-          </p>
-          <p className="mt-1 text-xs text-stone-500">{t("piece.emptyAllowed")}</p>
-          <div className="mt-2 flex gap-2">
-            <Button className="min-w-0 flex-1" onClick={submit} disabled={phase !== "ready"}>
-              {t("play.submit")}
-            </Button>
-            <Button variant="secondary" onClick={() => setSelected([])} disabled={phase !== "ready"}>
-              {t("play.clear")}
-            </Button>
+    <GameShell title={t("piece.title")} modeKey="play.practice" stat={stat}>
+      <div ref={rootRef} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {orientation === "landscape" ? (
+          <div className="flex min-h-0 min-w-0 flex-1">
+            {board}
+            <aside className="flex w-60 shrink-0 flex-col gap-1 overflow-y-auto py-1">
+              {question}
+              {feedback}
+              {action}
+            </aside>
           </div>
-          <HintCard puzzle={puzzle} usedHints={usedHints} onUse={(id) => setUsedHints((p) => [...p, id])} />
-          {error ? <p className="mt-2 text-sm font-bold text-red-600">{error}</p> : null}
-        </div>
-      ) : (
-        result && (
-          <Card className="mt-3">
-            <ResultBanner result={result} />
-            <FeedbackLegend />
-            <p className="mt-3 text-sm font-bold">
-              {t("play.correctAnswer")}:{" "}
-              <span dir="ltr">{result.detail.correct.concat(result.detail.missed).join("، ") || "—"}</span>
-            </p>
-            {puzzle.explanation ? (
-              <p className="mt-2 text-sm text-stone-600">
-                {t("play.explanation")}: {puzzle.explanation}
-              </p>
-            ) : null}
-            <div className="mt-3 flex gap-2">
-              <Button className="min-w-0 flex-1" onClick={advance}>
-                {t("play.next")}
-              </Button>
-              <Button variant="secondary" onClick={retryCurrent}>
-                {t("play.retry")}
-              </Button>
-            </div>
-          </Card>
-        )
-      )}
-    </div>
+        ) : (
+          <>
+            {question}
+            {board}
+            {feedback}
+            {action}
+          </>
+        )}
+      </div>
+    </GameShell>
   );
 }
 
 type SpeedPhase = "preparing" | "active" | "report";
+
+// Minimum preloaded speed puzzles before the clock may start (mirrors the
+// backend MIN_START_BUFFER). Refill thresholds keep the queue populated.
+const MIN_BUFFER = 20;
+// Refill early (well above zero) with a generous batch, so normal play
+// never waits: the buffer oscillates in a healthy range instead of
+// repeatedly draining toward empty.
+const REFILL_AT = 12;
+const REFILL_COUNT = 12;
+// Consecutive backend-unknown puzzles before the session is declared lost.
+const MAX_SKIPS = 3;
+// How long speed feedback stays visible before auto-advancing: long enough
+// to perceive green/red/orange, short enough to feel instant. No animation
+// may extend this; the timer keeps running throughout.
+const FEEDBACK_MS = 450;
 
 function SpeedLoop() {
   const [phase, setPhase] = useState<SpeedPhase>("preparing");
@@ -431,6 +339,7 @@ function SpeedLoop() {
   const sessionIdRef = useRef<string | null>(null);
   const queueRef = useRef<Puzzle[]>([]);
   const currentRef = useRef<Puzzle | null>(null);
+  const { rootRef, areaRef, orientation, size } = useGameFit();
 
   useEffect(() => {
     mountedRef.current = true;
@@ -781,20 +690,21 @@ function SpeedLoop() {
   if (phase === "preparing") {
     // Deliberately simple: internal buffer counts are never shown to users.
     return (
-      <div className="min-w-0">
-        <PageHeader title={t("piece.title")} subtitle={t("speed.howto")} />
-        <Card>
-          <p className="text-center text-sm font-bold text-stone-600">{t("speed.preparing")}</p>
-          {error ? (
-            <div>
-              <p className="mt-3 text-center text-sm font-bold text-red-600">{error}</p>
-              <Button className="mt-3 w-full" onClick={boot}>
-                {t("common.retry")}
-              </Button>
-            </div>
-          ) : null}
-        </Card>
-      </div>
+      <GameShell title={t("piece.title")} modeKey="play.speed">
+        <div className="grid min-h-0 flex-1 place-items-center px-4">
+          <Card>
+            <p className="text-center text-sm font-bold text-stone-600">{t("speed.preparing")}</p>
+            {error ? (
+              <div>
+                <p className="mt-3 text-center text-sm font-bold text-red-600">{error}</p>
+                <Button className="mt-3 w-full" onClick={boot}>
+                  {t("common.retry")}
+                </Button>
+              </div>
+            ) : null}
+          </Card>
+        </div>
+      </GameShell>
     );
   }
 
@@ -805,89 +715,82 @@ function SpeedLoop() {
   const puzzle = current;
   if (!session || !puzzle) {
     return (
-      <Card>
-        <p>{error ?? t("common.loading")}</p>
-        {error ? (
-          <Button className="mt-3" onClick={boot}>
-            {t("common.retry")}
-          </Button>
-        ) : null}
-      </Card>
+      <GameShell title={t("piece.title")} modeKey="play.speed">
+        <div className="grid min-h-0 flex-1 place-items-center px-4">
+          <Card>
+            <p className="text-center">{error ?? t("common.loading")}</p>
+            {error ? (
+              <Button className="mt-3 w-full" onClick={boot}>
+                {t("common.retry")}
+              </Button>
+            ) : null}
+          </Card>
+        </div>
+      </GameShell>
     );
   }
 
   const totalMs = session.duration_s * 1000;
   const progress = Math.max(0, Math.min(1, remainingMs / totalMs));
+  const hints = puzzle.hint_json.hints ?? [];
+  const timer = (
+    <TimerStrip remainingSec={remainingSec} correct={session.correct} progress={progress} />
+  );
+  const question = (
+    <QuestionHeader
+      prompt={puzzle.prompt_fa}
+      puzzleKey={puzzle.id}
+      hints={hints}
+      usedHints={usedHints}
+      onUseHint={(id) => setUsedHints((p) => [...p, id])}
+    />
+  );
+  const board = (
+    <BoardZone
+      areaRef={areaRef}
+      size={size}
+      puzzle={puzzle}
+      selected={selected}
+      result={result}
+      disabled={result !== null || busy}
+      onToggle={toggle}
+      overlay={result ? <SpeedPill result={result} /> : null}
+    />
+  );
+  const action = (
+    <SubmitBar
+      selectedCount={selected.length}
+      emptyHint={t("piece.emptyAllowed")}
+      submitting={busy}
+      onSubmit={submit}
+      onClear={() => setSelected([])}
+    />
+  );
 
   return (
-    <div className="min-w-0">
-      <PageHeader title={t("piece.title")} subtitle={puzzle.prompt_fa} />
-      <div
-        className="mb-3 rounded-2xl border-2 border-violet-200 bg-white px-4 py-2"
-        role="timer"
-        aria-live="polite"
-        aria-label={t("speed.timeLeft")}
-      >
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          <span className="text-sm font-bold text-stone-600">{t("speed.timeLeft")}</span>
-          <span className="text-xl font-black text-violet-700" dir="ltr">
-            {faNum(remainingSec)} <span className="text-xs font-bold">{t("common.seconds")}</span>
-          </span>
-          <Badge>
-            {t("play.correctCount")}: {faNum(session.correct)}
-          </Badge>
-        </div>
-        <div className="mt-2 h-2 min-w-0 overflow-hidden rounded-full bg-violet-100" aria-hidden="true">
-          <div
-            className="h-full rounded-full bg-violet-600 transition-[width]"
-            style={{ width: `${Math.round(progress * 100)}%` }}
-          />
-        </div>
-      </div>
-
-      <BoardSection
-        puzzle={puzzle}
-        selected={selected}
-        result={result}
-        disabled={result !== null || busy}
-        onToggle={toggle}
-      />
-
-      {!result ? (
-        <div>
-          <p className="mt-3 text-sm font-bold text-stone-600">
-            {t("play.selected")}: {faNum(selected.length)}
-          </p>
-          <p className="mt-1 text-xs text-stone-500">{t("piece.emptyAllowed")}</p>
-          <div className="mt-2 flex gap-2">
-            <Button className="min-w-0 flex-1" onClick={submit} disabled={busy}>
-              {t("play.submit")}
-            </Button>
-            <Button variant="secondary" onClick={() => setSelected([])} disabled={busy}>
-              {t("play.clear")}
-            </Button>
+    <GameShell title={t("piece.title")} modeKey="play.speed">
+      <div ref={rootRef} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {orientation === "landscape" ? (
+          <div className="flex min-h-0 min-w-0 flex-1">
+            {board}
+            <aside className="flex w-60 shrink-0 flex-col gap-1 overflow-y-auto py-1">
+              {question}
+              {timer}
+              {action}
+              {error ? <p className="px-3 text-center text-xs font-bold text-red-600">{error}</p> : null}
+            </aside>
           </div>
-          <HintCard puzzle={puzzle} usedHints={usedHints} onUse={(id) => setUsedHints((p) => [...p, id])} />
-          {error ? <p className="mt-2 text-sm font-bold text-red-600">{error}</p> : null}
-        </div>
-      ) : (
-        // Speed feedback is transient: green/red/orange stay on the board
-        // for FEEDBACK_MS, then the loop auto-advances. No manual button.
-        // The error + retry below only appears if the on-demand fallback
-        // (genuinely exhausted queue) fails, so the run never dead-ends.
-        <Card className="mt-3">
-          <ResultBanner result={result} />
-          {error ? (
-            <div>
-              <p className="mt-3 text-center text-sm font-bold text-red-600">{error}</p>
-              <Button className="mt-3 w-full" onClick={advance} disabled={busy}>
-                {t("common.retry")}
-              </Button>
-            </div>
-          ) : null}
-        </Card>
-      )}
-    </div>
+        ) : (
+          <>
+            {question}
+            {timer}
+            {board}
+            {action}
+            {error ? <p className="px-3 text-center text-xs font-bold text-red-600">{error}</p> : null}
+          </>
+        )}
+      </div>
+    </GameShell>
   );
 }
 
@@ -908,97 +811,102 @@ function SpeedReportView({
 }) {
   if (!report) {
     return (
-      <Card>
-        <p>{error ?? t("common.loading")}</p>
-        {error ? (
-          <Button className="mt-3" onClick={onRetry}>
-            {t("common.retry")}
-          </Button>
-        ) : null}
-      </Card>
+      <GameShell title={t("speed.result")} modeKey="play.speed">
+        <div className="grid min-h-0 flex-1 place-items-center px-4">
+          <Card>
+            <p className="text-center">{error ?? t("common.loading")}</p>
+            {error ? (
+              <Button className="mt-3 w-full" onClick={onRetry}>
+                {t("common.retry")}
+              </Button>
+            ) : null}
+          </Card>
+        </div>
+      </GameShell>
     );
   }
   const { session, entries } = report;
   const average = session.attempted > 0 ? session.score / session.attempted : null;
   const accuracy = session.attempted > 0 ? Math.round((session.correct / session.attempted) * 100) : null;
   return (
-    <div className="min-w-0">
-      <PageHeader title={t("speed.result")} subtitle={t("speed.finished")} />
-      <Card>
-        {session.attempted === 0 ? (
-          <p className="text-center text-sm font-bold text-stone-600">{t("report.empty")}</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-3">
-            <div className="rounded-2xl bg-violet-50 px-2 py-3">
-              <p className="text-2xl font-black text-violet-700">{faNum(session.attempted)}</p>
-              <p className="text-xs text-stone-500">{t("speed.attempted")}</p>
+    <GameShell title={t("speed.result")} modeKey="play.speed" scroll>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+        <p className="py-1 text-center text-sm font-bold text-stone-600">{t("speed.finished")}</p>
+        <Card>
+          {session.attempted === 0 ? (
+            <p className="text-center text-sm font-bold text-stone-600">{t("report.empty")}</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-3">
+              <div className="rounded-2xl bg-violet-50 px-2 py-3">
+                <p className="text-2xl font-black text-violet-700">{faNum(session.attempted)}</p>
+                <p className="text-xs text-stone-500">{t("speed.attempted")}</p>
+              </div>
+              <div className="rounded-2xl bg-green-50 px-2 py-3">
+                <p className="text-2xl font-black text-green-600">{faNum(session.correct)}</p>
+                <p className="text-xs text-stone-500">{t("report.correct")}</p>
+              </div>
+              <div className="rounded-2xl bg-amber-50 px-2 py-3">
+                <p className="text-2xl font-black text-amber-600">{faNum(session.partial)}</p>
+                <p className="text-xs text-stone-500">{t("report.partial")}</p>
+              </div>
+              <div className="rounded-2xl bg-red-50 px-2 py-3">
+                <p className="text-2xl font-black text-red-600">{faNum(session.wrong)}</p>
+                <p className="text-xs text-stone-500">{t("report.wrong")}</p>
+              </div>
+              <div className="rounded-2xl bg-violet-50 px-2 py-3">
+                <p className="text-2xl font-black text-violet-700">{faNum(session.score)}</p>
+                <p className="text-xs text-stone-500">{t("speed.score")}</p>
+              </div>
+              <div className="rounded-2xl bg-stone-100 px-2 py-3">
+                <p className="text-2xl font-black text-stone-700">
+                  {average === null ? "—" : faNum(Math.round(average * 100) / 100)}
+                </p>
+                <p className="text-xs text-stone-500">{t("speed.average")}</p>
+              </div>
             </div>
-            <div className="rounded-2xl bg-green-50 px-2 py-3">
-              <p className="text-2xl font-black text-green-600">{faNum(session.correct)}</p>
-              <p className="text-xs text-stone-500">{t("report.correct")}</p>
-            </div>
-            <div className="rounded-2xl bg-amber-50 px-2 py-3">
-              <p className="text-2xl font-black text-amber-600">{faNum(session.partial)}</p>
-              <p className="text-xs text-stone-500">{t("report.partial")}</p>
-            </div>
-            <div className="rounded-2xl bg-red-50 px-2 py-3">
-              <p className="text-2xl font-black text-red-600">{faNum(session.wrong)}</p>
-              <p className="text-xs text-stone-500">{t("report.wrong")}</p>
-            </div>
-            <div className="rounded-2xl bg-violet-50 px-2 py-3">
-              <p className="text-2xl font-black text-violet-700">{faNum(session.score)}</p>
-              <p className="text-xs text-stone-500">{t("speed.score")}</p>
-            </div>
-            <div className="rounded-2xl bg-stone-100 px-2 py-3">
-              <p className="text-2xl font-black text-stone-700">
-                {average === null ? "—" : faFloat(average)}
-              </p>
-              <p className="text-xs text-stone-500">{t("speed.average")}</p>
-            </div>
-          </div>
-        )}
-        {accuracy !== null ? (
-          <p className="mt-3 text-center text-sm font-bold text-stone-600">
-            {t("speed.accuracy")}: <span dir="ltr">{faNum(accuracy)}٪</span>
-          </p>
-        ) : null}
-        {entries.length > 0 ? (
-          <ul className="mt-4 grid gap-2">
-            {entries.map((entry, index) => {
-              const tone =
-                entry.result === "correct"
-                  ? "border-green-500 bg-green-50"
-                  : entry.result === "partial"
-                    ? "border-amber-500 bg-amber-50"
-                    : "border-red-400 bg-red-50";
-              return (
-                <li key={entry.attempt_id} className={`rounded-2xl border-2 px-4 py-3 ${tone}`}>
-                  <div className="flex min-w-0 items-center justify-between gap-2">
-                    <p className="min-w-0 truncate text-sm font-black text-stone-800">
-                      {t("report.puzzle")} {faNum(index + 1)} · {entry.prompt_fa}
+          )}
+          {accuracy !== null ? (
+            <p className="mt-3 text-center text-sm font-bold text-stone-600">
+              {t("speed.accuracy")}: <span dir="ltr">{faNum(accuracy)}٪</span>
+            </p>
+          ) : null}
+          {entries.length > 0 ? (
+            <ul className="mt-4 grid gap-2">
+              {entries.map((entry, index) => {
+                const tone =
+                  entry.result === "correct"
+                    ? "border-green-500 bg-green-50"
+                    : entry.result === "partial"
+                      ? "border-amber-500 bg-amber-50"
+                      : "border-red-400 bg-red-50";
+                return (
+                  <li key={entry.attempt_id} className={`rounded-2xl border-2 px-4 py-3 ${tone}`}>
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <p className="min-w-0 truncate text-sm font-black text-stone-800">
+                        {t("report.puzzle")} {faNum(index + 1)} · {entry.prompt_fa}
+                      </p>
+                      <span className="shrink-0 text-sm font-black">{resultLabel(entry.result)}</span>
+                    </div>
+                    <p className="mt-1 text-sm font-bold text-stone-700">
+                      {faNum(entry.score)} {t("speed.score")} · {t("play.missedCount")}:{" "}
+                      {faNum(entry.missed.length)} · {t("play.wrongCount")}: {faNum(entry.wrong.length)}
                     </p>
-                    <span className="shrink-0 text-sm font-black">{resultLabel(entry.result)}</span>
-                  </div>
-                  <p className="mt-1 text-sm font-bold text-stone-700">
-                    {faNum(entry.score)} {t("speed.score")} · {t("play.missedCount")}:{" "}
-                    {faNum(entry.missed.length)} · {t("play.wrongCount")}: {faNum(entry.wrong.length)}
-                  </p>
-                  <p className="mt-1 text-xs text-stone-500">
-                    {t("play.correctAnswer")}:{" "}
-                    <span dir="ltr">{entry.correct.concat(entry.missed).join("، ") || "—"}</span>
-                  </p>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
-        <div className="mt-4 grid gap-2">
-          <Button className="w-full" onClick={onRetry}>
-            {t("speed.retry")}
-          </Button>
-        </div>
-      </Card>
-    </div>
+                    <p className="mt-1 text-xs text-stone-500">
+                      {t("play.correctAnswer")}:{" "}
+                      <span dir="ltr">{entry.correct.concat(entry.missed).join("، ") || "—"}</span>
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+          <div className="mt-4 grid gap-2">
+            <Button className="w-full" onClick={onRetry}>
+              {t("speed.retry")}
+            </Button>
+          </div>
+        </Card>
+      </div>
+    </GameShell>
   );
 }
-

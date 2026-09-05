@@ -17,22 +17,50 @@ Main Page (/)
    ↓  تشخیص مهره card
    ├── تمرینی (?mode=practice)      └── سرعتی (?mode=speed)
    ↓                                     ↓
-first puzzle loads immediately     prepare ≥20 puzzles (no clock)
+full-viewport game screen           prepare ≥20 puzzles (no clock)
    ↓                                     ↓
-select → بررسی جواب → instant      clock starts → 60s session
+first puzzle loads immediately     clock starts → 60s session
+   ↓                                     ↓
+select → بررسی جواب → instant      per-puzzle feedback pill → queued next
 feedback → prefetched next               ↓
-                                   per-puzzle feedback → queued next
-                                              ↓
                                    authoritative final report
 ```
 
 - The Practice and Speed buttons on the home page directly enter their
   corresponding exercise modes. There is no intermediate mode-selection
   screen; the buttons themselves are the mode selection.
+- Gameplay runs in a full-viewport overlay (`PieceGameLayout.GameShell`):
+  board + question + timer + submit always fit without page scrolling.
 - Board: tap to select, tap again to deselect, any count incl. zero.
   Submission happens ONLY via «بررسی جواب» — never on square click.
 - While submitting, the button locks and duplicate submits are refused.
 - Board locks while submitting / after submission; feedback shows states.
+
+## Full-viewport gameplay (no scroll)
+
+Gameplay must show board + question + timer (speed) + submit simultaneously
+with no page scrolling, on portrait, landscape, desktop, and short screens:
+
+- `GameShell`: fixed full-viewport overlay (covers the AppShell chrome),
+  compact top bar (back link, title, mode badge, optional tally), body
+  scroll locked while mounted, back navigates home (browser back works too).
+- Portrait stacks question → timer → board → action; landscape puts the
+  board beside a 240px control column (question, timer, action, feedback).
+  Orientation is measured from the game root (`orientationOf`, tested).
+- Board sizing is exact, not estimated: a ResizeObserver measures the
+  flex-allocated board area and sets the largest fitting square
+  (`fitSquareSize`, capped at 600px). Callback refs re-measure on attach,
+  so nodes mounting after loading states are picked up (a mount-once
+  effect froze the board at zero — regression found by headless viewport
+  measurement, documented here so it is not reintroduced).
+- Speed feedback is a floating pill over the board (zero layout growth);
+  practice feedback details sit in-flow while the board flex-shrinks.
+- Verified matrix (headless Chrome, real geometry): 360×800, 390×844,
+  412×915, 667×375, 844×390, 1024×768, 1280×720, 1366×768 — board square
+  and in view, question/submit/timer in view, no page scroll, no JS
+  errors; plus wire-verified select→submit→advance→submit interaction
+  passes. Harness: `frontend/qa/viewports.cjs` (needs backend :8000 +
+  `vite dev` :5173 + system Chrome).
 
 ## Practice Mode
 
@@ -138,18 +166,36 @@ was replaced while the page was open, which surfaces as 404s:
 - The FEN travels to the client ONLY as `Puzzle.fen` for rendering.
   Client-provided FENs are never trusted for grading.
 
-## Question generation (`generator.py`)
+## Question typography and hints
 
-- Uniform random pick among the 12 canonical targets
-  (`CANONICAL_TARGETS`: 6 kinds × white/black), deliberately unbiased so
-  zero-target questions occur naturally.
+- The question is the visual hero: centered, `text-lg/xl font-black`.
+- Hints use a compact circular `؟` button (44px hit area, proper
+  aria-label) with an overlay popover, so help never steals layout space.
+  Hint usage still records `hints_used` for the shared mechanism.
+
+## Question generation (`generator.py` + `categories.py`)
+
+- One clean representation, no if/else chains: a `Category` is
+  `{key, color, kinds, name_fa, singular_fa, hint_fa}`. The generator picks
+  a category uniformly and derives squares from its definition; grading
+  works on the resulting square set unchanged, so future categories plug
+  in without touching the generator or validator.
+- 16 categories: 12 individual piece types (white/black ×
+  pawn/knight/bishop/rook/queen/king) + 4 groups — light pieces
+  (`white-minor`/`black-minor` = knight + bishop, «سوارهای سبک») and heavy
+  pieces (`white-heavy`/`black-heavy` = rook + queen, «سوارهای سنگین»),
+  e.g. «تمام سوارهای سبک سفید را پیدا کن».
+- Uniform draw over all 16 keys, so groups appear regularly (~25%
+  combined) without dominating; zero-target questions stay possible for
+  every key, including groups (e.g. no white knight/bishop on board).
 - Target squares computed server-side (`squares_for_target`).
-- Persian prompt (`prompt_for_target`, e.g. «تمام رخ‌های سیاه را پیدا کن»),
-  explanation (lists squares, or teaches that selecting nothing is correct),
-  and one generic hint per piece kind.
+- Persian prompt, explanation (lists squares, or teaches that selecting
+  nothing is correct), and one hint per category.
 - Persisted as a published `puzzles` row:
   `position_json={"target": key}`, `answer_json={"squares": [...], "target": key}`.
   No new puzzle table; switching sources later only touches the repository.
+- Legacy `TARGETS`/`CANONICAL_TARGETS` (validator) stay untouched for
+  seeded puzzles and existing tests.
 
 ## Target generation
 
@@ -341,15 +387,23 @@ Errors: `session_not_found` (404), `session_not_started` (409),
 - `tests/test_positions_repository.py` — read-only source, fast sampling,
   invalid skip, fallback, pinned-path semantics, real-DB integration (skipped
   when absent).
-- `tests/test_piece_generator.py` — all 12 targets, 0/1/n targets,
-  randomness, persistence, dedup-reuse, exclude steering.
+- `tests/test_piece_generator.py` — all 12 individual targets, 4 group
+  targets (squares, prompts, zero-target groups), independent python-chess
+  verification, distribution (all 16 keys appear; groups ≥10% of draws),
+  persistence, dedup-reuse, exclude steering.
 - `tests/test_piece_speed_api.py` — no-leak, prepare≥20/start lifecycle,
   60s config, expiry authority, report-vs-attempts equality, summary
   accumulation, hints, override resistance.
 - `tests/test_piece_attempts_api.py` — legacy seed + per-square attempt flow.
 - Frontend (`npm test`, vitest): catalog mode URLs, direct mode entry,
   select/deselect/submit, empty submit, 20-buffer-before-clock, expiry
-  report rendering.
+  report rendering, consecutive-submission lock release, refill continuity,
+  loading UI without buffer counts, `orientationOf`/`fitSquareSize` layout
+  math, compact `؟` hint button.
+- Headless viewport matrix (`frontend/qa/viewports.cjs`, system Chrome):
+  8 viewports × practice/speed — board square/in-view, question/submit/
+  timer in view, no page scroll, RTL+LTR, Vazirmatn loaded, no JS errors —
+  plus wire-verified interaction passes.
 
 ## Known limitations
 

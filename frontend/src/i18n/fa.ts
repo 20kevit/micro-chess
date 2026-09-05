@@ -13,6 +13,7 @@ export const fa = {
   "exercises.empty": "به‌زودی تمرین‌های جدید اضافه می‌شود.",
   "exercise.comingSoon": "به‌زودی",
   "common.loading": "در حال بارگذاری…",
+  "common.back": "بازگشت",
   "common.error": "مشکلی پیش آمد. دوباره تلاش کن.",
   "common.retry": "تلاش دوباره",
   "feedback.correct": "آفرین! درست بود.",

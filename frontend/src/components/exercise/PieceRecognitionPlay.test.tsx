@@ -15,13 +15,13 @@ const mockedApi = vi.mocked(api, true);
 
 const STARTPOS = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-function puzzle(id: number, prompt: string): Puzzle {
+function puzzle(id: number, prompt: string, withHint = false): Puzzle {
   return {
     id,
     exercise_slug: "piece-recognition",
     fen: STARTPOS,
     position_json: {},
-    hint_json: { hints: [] },
+    hint_json: withHint ? { hints: [{ id: "h1", text_fa: "متن راهنمایی" }] } : { hints: [] },
     prompt_fa: prompt,
     explanation: "",
     initial_rating: 900,
@@ -481,6 +481,36 @@ describe("speed consecutive submissions", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("gameplay chrome", () => {
+  it("practice shows question, board, and submit together", async () => {
+    const user = userEvent.setup();
+    mockedApi.nextPracticePuzzle = vi.fn().mockResolvedValue(puzzle(1, "سؤال چینش؟"));
+    renderPage("practice");
+    expect(await screen.findByTestId("question")).toBeTruthy();
+    expect(screen.getByTestId("chessboard")).toBeTruthy();
+    expect(screen.getByTestId("submit-bar")).toBeTruthy();
+    expect(screen.getByText("سؤال چینش؟")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "بررسی جواب" }));
+  });
+
+  it("hint is a compact ؟ button that reveals help without navigation", async () => {
+    const user = userEvent.setup();
+    mockedApi.nextPracticePuzzle = vi.fn().mockResolvedValue(puzzle(1, "سؤال راهنما؟", true));
+    mockedApi.submitAttempt = vi.fn().mockResolvedValue(attempt(1, "correct", 5));
+    renderPage("practice");
+    expect(await screen.findByText("سؤال راهنما؟")).toBeTruthy();
+    const hintButton = screen.getByRole("button", { name: "راهنمایی" });
+    expect(hintButton.textContent).toContain("؟");
+    await user.click(hintButton);
+    await user.click(screen.getByRole("button", { name: "نمایش راهنمایی" }));
+    expect(screen.getByText("متن راهنمایی")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "بررسی جواب" }));
+    expect(mockedApi.submitAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({ hints_used: ["h1"] }),
+    );
   });
 });
 
