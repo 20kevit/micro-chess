@@ -6,6 +6,9 @@ venv/
 *.egg-info/
 backend/microchess.db
 backend/.env
+# Shared Lichess position source (optional local data, never committed).
+puzzles.db
+backend/puzzles.db
 # ---> Node
 node_modules/
 frontend/dist/

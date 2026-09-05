@@ -86,3 +86,30 @@ export interface AttemptResponse {
   started_at: string | null;
   duration_ms: number | null;
 }
+
+export type SpeedStatus = "active" | "finished" | "expired";
+
+export interface SpeedSession {
+  session_id: string;
+  exercise_slug: string;
+  status: SpeedStatus;
+  duration_s: number;
+  started_at: string;
+  expires_at: string;
+  remaining_ms: number;
+}
+
+export interface SpeedSummary extends SpeedSession {
+  attempted: number;
+  correct: number;
+  partial: number;
+  wrong: number;
+  score: number;
+}
+
+export interface SpeedSubmitResponse {
+  attempt: AttemptResponse;
+  feedback_key: string;
+  detail: AttemptResponse["detail"];
+  session: SpeedSummary;
+}

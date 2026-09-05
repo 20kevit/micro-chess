@@ -37,15 +37,26 @@ Planned types (examples, not specs):
 
 ## First slice
 
-**Piece Recognition** — IMPLEMENTED (`piece-recognition`).
+**Piece Recognition** — MVP (`piece-recognition`). Full spec:
+`docs/exercises/01-piece-recognition.md`.
 
-- Route: `/exercises/piece-recognition` (entry → play → feedback → next).
-- Validator: `backend/app/modules/piece_recognition/validator.py` (set compare;
-  correct/partial/wrong per spec; malformed squares count as wrong).
-- Targets are data (`color` + piece `kinds`, incl. `minor-white`/`minor-black`
-  and `queen-any`); new targets need no flow changes.
-- Seed: `python -m app.modules.piece_recognition.seed` (15 puzzles, answers
-  derived from FEN and covered by `tests/test_piece_recognition.py`).
+- Route: `/exercises/piece-recognition` with `?mode=practice` (untimed) and
+  `?mode=speed` (60s session); card renders both entry buttons.
+- Play loop: `frontend/src/components/exercise/PieceRecognitionPlay.tsx`
+  (practice + speed, timer, hints, feedback legend); correctness, scoring,
+  and the speed clock stay backend-authoritative.
+- Position source: shared `puzzles.db` via `positions/repository.py`
+  (read-only, FEN only, fallback FENs when absent); per-puzzle questions
+  built by `piece_recognition/generator.py` (12 canonical color×kind
+  targets, zero-target questions valid, answers server-side only).
+- Validator: `backend/app/modules/piece_recognition/validator.py` (exact
+  set match incl. empty==empty; malformed squares count as wrong).
+- Practice: `POST /api/v1/piece-recognition/next` issues a fresh random
+  published puzzle; answers go through standard `POST /api/v1/attempts`.
+- Speed: `piece_recognition/sessions.py` + `router.py` (60s authoritative
+  sessions in `piece_speed_sessions`; per-answer rows reuse `attempts`).
+- Seed: `python -m app.modules.piece_recognition.seed` (15 legacy demo
+  puzzles, still served read-only; covered by tests).
 
 ## Second slice
 

@@ -17,6 +17,7 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 def init_db() -> None:
     # Import models so metadata is populated before create_all.
     from app.modules.exercises import models as _ex  # noqa: F401
+    from app.modules.piece_recognition import models as _pr1  # noqa: F401
     from app.modules.progress import models as _pr  # noqa: F401
     from app.modules.puzzles import models as _pz  # noqa: F401
     from app.modules.users import models as _u  # noqa: F401

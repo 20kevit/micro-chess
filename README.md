@@ -58,11 +58,14 @@ npm run build
 - Backend is authoritative for validation/scoring/rating. Frontend never decides correctness.
 - Exercise validators plug into `exercises/registry.py`; no giant `if/elif`.
 - Standard chess lives in `chess_engine/` (python-chess). Custom rules live in each exercise validator.
-- Tables now: `users`, `exercises`, `puzzles`, `attempts`. Rating tables postponed.
+- Shared `puzzles.db` (optional, read-only, FEN only) feeds `positions/repository.py`; per-exercise generators build questions server-side.
+- Exercise 1: practice (untimed, `POST .../next`) + speed (60s authoritative sessions); zero-target questions valid; answers never leave the server.
+- Tables now: `users`, `exercises`, `puzzles`, `attempts`, `piece_speed_sessions`. Rating tables postponed.
 - Puzzle answers immutable once published; archive instead of delete.
 - Attempts distinguish correct/partial/wrong/timeout/skipped/abandoned + rated/practice.
 - Audio is a `AudioPort` boundary only; no TTS vendor yet.
 - Anonymous progress: browser localStorage now; `attempts.user_id` nullable for future transfer.
+- Visual language: MicroChess Design System (`docs/DESIGN_SYSTEM.md`, tokens in `frontend/src/index.css`).
 
 ## Intentionally NOT implemented
 

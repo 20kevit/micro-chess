@@ -6,6 +6,9 @@ import type {
   PathStepResponse,
   Puzzle,
   ReconstructionStepResponse,
+  SpeedSession,
+  SpeedSubmitResponse,
+  SpeedSummary,
 } from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -59,5 +62,37 @@ export const api = {
     request<ReconstructionStepResponse>("/api/v1/reconstruction/step", {
       method: "POST",
       body: JSON.stringify({ promotion: "q", ...body }),
+    }),
+  // Piece Recognition: server-generated random puzzles + speed sessions.
+  // Answers stay server-side; these endpoints never return answer_json.
+  nextPracticePuzzle: () =>
+    request<Puzzle>("/api/v1/piece-recognition/next", { method: "POST" }),
+  startSpeedSession: () =>
+    request<SpeedSession>("/api/v1/piece-recognition/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  nextSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/piece-recognition/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/piece-recognition/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/piece-recognition/sessions/${sessionId}`),
+  finishSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/piece-recognition/sessions/${sessionId}/finish`, {
+      method: "POST",
     }),
 };

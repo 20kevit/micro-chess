@@ -3,7 +3,7 @@
 import chess
 
 from app.modules.piece_recognition import seed as seed_mod
-from app.modules.piece_recognition.validator import SLUG, TARGETS, validate
+from app.modules.piece_recognition.validator import CANONICAL_TARGETS, SLUG, TARGETS, validate
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
 
@@ -45,6 +45,31 @@ def test_wrong_no_overlap():
 def test_empty_answer_is_wrong():
     assert validate(ANSWER, {"selected_squares": []}).result == AttemptResult.WRONG
     assert validate(ANSWER, {}).result == AttemptResult.WRONG
+
+
+def test_zero_target_empty_selection_is_correct():
+    # Practice must not terminate on zero targets: submitting nothing is CORRECT.
+    out = validate({"squares": []}, {"selected_squares": []})
+    assert out.result == AttemptResult.CORRECT
+    assert out.detail == {"correct": [], "missed": [], "wrong": []}
+
+
+def test_zero_target_any_selection_is_wrong():
+    assert validate({"squares": []}, {"selected_squares": ["e4"]}).result == AttemptResult.WRONG
+
+
+def test_missing_target_is_not_correct():
+    assert validate({"squares": ["e4"]}, {"selected_squares": []}).result == AttemptResult.WRONG
+    assert validate({"squares": ["e4"]}, {"selected_squares": ["d5"]}).result == AttemptResult.WRONG
+
+
+def test_extra_square_is_not_correct():
+    assert validate({"squares": ["e4"]}, {"selected_squares": ["e4", "d5"]}).result == AttemptResult.PARTIAL
+
+
+def test_canonical_targets_cover_all_kinds_both_colors():
+    assert len(CANONICAL_TARGETS) == 12
+    assert "white-king" in CANONICAL_TARGETS and "black-king" in CANONICAL_TARGETS
 
 
 def test_malformed_squares_count_as_wrong():

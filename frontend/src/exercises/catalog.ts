@@ -14,10 +14,31 @@ export interface ExerciseMeta {
   status: ExerciseStatus;
   /** Playable route. Null while coming soon (card renders without a link). */
   route: string | null;
+  /** Explicit entry modes (e.g. practice vs speed). When present, the card
+   * renders one button per mode instead of a single ambiguous start button. */
+  modes?: ExerciseEntryMode[];
+}
+
+export interface ExerciseEntryMode {
+  id: string;
+  labelKey: FaKey;
+  descKey: FaKey;
+  /** Query string appended to the route, e.g. "?mode=speed". */
+  params: string;
 }
 
 export const EXERCISE_CATALOG: ExerciseMeta[] = [
-  { slug: "piece-recognition", titleKey: "exercises.piece-recognition.title", descKey: "exercises.piece-recognition.desc", status: "active", route: "/exercises/piece-recognition" },
+  {
+    slug: "piece-recognition",
+    titleKey: "exercises.piece-recognition.title",
+    descKey: "exercises.piece-recognition.desc",
+    status: "active",
+    route: "/exercises/piece-recognition",
+    modes: [
+      { id: "practice", labelKey: "play.practice", descKey: "practice.howto", params: "?mode=practice" },
+      { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
+    ],
+  },
   { slug: "legal-destinations", titleKey: "exercises.legal-destinations.title", descKey: "exercises.legal-destinations.desc", status: "active", route: "/exercises/legal-destinations" },
   { slug: "captures", titleKey: "exercises.captures.title", descKey: "exercises.captures.desc", status: "active", route: "/exercises/captures" },
   { slug: "hanging-pieces", titleKey: "exercises.hanging-pieces.title", descKey: "exercises.hanging-pieces.desc", status: "active", route: "/exercises/hanging-pieces" },

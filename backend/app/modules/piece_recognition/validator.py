@@ -6,10 +6,12 @@ Answer model (stored in puzzle.answer_json):
 Attempt model (sent by client):
     {"selected_squares": ["a2", "e5"]}
 
-Result rules:
-- CORRECT: every required square selected, no incorrect selections.
+Result rules (exact set match):
+- CORRECT: selected set equals the target set, including the empty set.
+  Submitting nothing for a zero-target question is CORRECT.
 - PARTIAL: at least one correct selection, but missed and/or wrong ones exist.
-- WRONG: no correct selections (includes empty and malformed-only answers).
+- WRONG: no correct selections (includes empty and malformed-only answers
+  against a non-empty target).
 
 Malformed square names are treated as incorrect selections, never as crashes.
 New target definitions only need a color + piece-kind set (see TARGETS and
@@ -26,7 +28,10 @@ SLUG = "piece-recognition"
 # Piece kinds use python-chess symbols (lowercase). "minor" = bishops + knights.
 # A target is {"color": "white" | "black" | "any", "kinds": [...]}.
 # Kept as data (not separate exercise types) so new targets plug in freely.
-TARGETS: dict[str, dict[str, Any]] = {
+# CANONICAL_TARGETS is the 6 piece types x 2 colors question space used by
+# the random question generator (zero-target questions included); the extra
+# legacy targets below stay for backward compatibility with seeded puzzles.
+CANONICAL_TARGETS: dict[str, dict[str, Any]] = {
     "white-pawn": {"color": "white", "kinds": ["p"]},
     "black-pawn": {"color": "black", "kinds": ["p"]},
     "white-knight": {"color": "white", "kinds": ["n"]},
@@ -37,6 +42,12 @@ TARGETS: dict[str, dict[str, Any]] = {
     "black-rook": {"color": "black", "kinds": ["r"]},
     "white-queen": {"color": "white", "kinds": ["q"]},
     "black-queen": {"color": "black", "kinds": ["q"]},
+    "white-king": {"color": "white", "kinds": ["k"]},
+    "black-king": {"color": "black", "kinds": ["k"]},
+}
+
+TARGETS: dict[str, dict[str, Any]] = {
+    **CANONICAL_TARGETS,
     "queen-any": {"color": "any", "kinds": ["q"]},
     "minor-white": {"color": "white", "kinds": ["b", "n"]},
     "minor-black": {"color": "black", "kinds": ["b", "n"]},
@@ -78,8 +89,10 @@ def validate(puzzle_answer: dict[str, Any], attempt: dict[str, Any]) -> Validati
     wrong = sorted((selected - expected)) + sorted(malformed)
 
     detail = {"correct": correct, "missed": missed, "wrong": wrong}
+    if not missed and not wrong:
+        # Exact set match — including empty selection on a zero-target
+        # question. Practice must never terminate on zero targets.
+        return ValidationResult(result=AttemptResult.CORRECT, message_key="feedback.correct", detail=detail)
     if not correct:
         return ValidationResult(result=AttemptResult.WRONG, message_key="feedback.wrong", detail=detail)
-    if not missed and not wrong:
-        return ValidationResult(result=AttemptResult.CORRECT, message_key="feedback.correct", detail=detail)
     return ValidationResult(result=AttemptResult.PARTIAL, message_key="feedback.partial", detail=detail)

@@ -16,6 +16,7 @@ docs/      product + architecture + api + exercises
 | `users` | account model + `/me` |
 | `exercises` | catalog model + validator `registry` |
 | `puzzles` | puzzle model + publish/archive service |
+| `positions` | shared read-only `puzzles.db` access (FEN only) + fallback FENs; no exercise logic |
 | `chess_engine` | python-chess wrapper ONLY (standard rules) |
 | `rule_engine` | `AttemptResult`/`AttemptMode`/`ValidationResult` contract |
 | `rating_engine` | stub; Glicko-2 later |
@@ -23,7 +24,7 @@ docs/      product + architecture + api + exercises
 | `feedback_engine` | pure result → i18n key |
 | `learning` | placeholder (educational content later) |
 | `progress` | `Attempt` model + submit flow |
-| `piece_recognition` | first exercise: validator + seed data (registers `piece-recognition`) |
+| `piece_recognition` | exercise 1: validator + generator + speed sessions + router (registers `piece-recognition`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
@@ -44,6 +45,23 @@ POST /api/v1/attempts
   → persist Attempt with raw answer_json
 ```
 
+Exercise 1 extras (same pattern, no core-flow changes):
+
+```text
+puzzles.db (shared, read-only, FEN only)
+→ positions/repository (data access; skips invalid rows; fallback FENs)
+→ piece_recognition/generator (random FEN + random canonical question
+  → prompt/explanation/hint → persisted published Puzzle)
+→ POST /api/v1/piece-recognition/next (practice) — returns PuzzleOut, no answer
+→ POST /api/v1/attempts (standard submit)
+
+Speed sessions (60s, backend-authoritative clock in piece_speed_sessions):
+→ POST .../sessions → issue → POST .../sessions/{id}/next
+→ POST .../sessions/{id}/submit (reuses submit_attempt, mode=practice)
+→ 410 session_expired when server time passes ends_at
+→ GET/POST .../sessions/{id}[/finish] → summary
+```
+
 No `if/elif` per exercise in core flow. New exercise = new validator function + `register_validator(slug, fn)`.
 
 ## Database (foundation)
@@ -60,6 +78,10 @@ Piece Recognition additions (same tables, new columns only):
 - `puzzles.hint_json` convention: `{"hints": [{"id", "text_fa", "rating_cost"}]}`.
 - `attempts.started_at?`, `attempts.duration_ms?` (server-computed), `attempts.hints_used` (JSON list).
 - `ValidationResult.detail` carries `{"correct", "missed", "wrong"}` back to the client.
+- `piece_speed_sessions(id, exercise_slug, user_id?, status, duration_s=60,
+  started_at, ends_at, puzzle_ids[], attempt_ids[], attempted/correct/partial/wrong_count,
+  score)` — authoritative 60s clock + aggregates for Exercise 1 Speed Mode;
+  per-answer rows still live in `attempts` (mode=practice).
 
 Notes:
 
@@ -72,7 +94,11 @@ Notes:
 - Routes: `/`, `/exercises`, `*` → NotFound. Exercise detail pages come with Piece Recognition.
 - `api/client.ts` transports data only. `i18n/` holds Persian strings (`fa.ts`).
 - `components/ui/` design system; `components/chess/` SVG board + pieces.
+- `components/exercise/` play loops (shared `ExercisePlay` + dedicated loops
+  like `PieceRecognitionPlay`); `exercises/catalog.ts` is the central registry
+  (entries may declare explicit `modes`, e.g. practice/speed).
 - `lib/localProgress.ts` anonymous localStorage stub.
+- Visual language documented in `docs/DESIGN_SYSTEM.md`; tokens in `index.css`.
 
 ## Decisions log
 
@@ -82,7 +108,15 @@ Notes:
 4. `rating_delta` nullable now; `preview_rating_delta` returns None until Glicko-2.
 5. Tailwind v4 (`@import "tailwindcss"`) to avoid config boilerplate.
 6. No Alembic yet — `init_db()` + `create_all` is enough for the foundation stage.
-7. Piece Recognition: set-compare validator (malformed squares count as wrong);
-   targets are data (`color` + `kinds`), not separate exercise types.
+7. Piece Recognition: exact set-match validator (empty==empty is CORRECT;
+   malformed squares count as wrong); targets are data (`color` + `kinds`),
+   canonical 12 color×kind for generation plus legacy `queen-any`/minor targets.
 8. No target-piece highlighting on the board — avoids leaking the answer.
 9. Hints recorded per attempt (`hints_used` + `rating_cost` in data); rating math still stubbed.
+10. `puzzles.db` is a shared read-only position source (FEN only); exercise
+    question/answer generation happens server-side per exercise; zero-target
+    questions are valid; Practice is untimed; Speed is a 60s
+    backend-authoritative session (`piece_speed_sessions`); the frontend
+    never receives the answer before submission; the board never exceeds the
+    viewport; the MicroChess Design System (`docs/DESIGN_SYSTEM.md`) is
+    shared by future exercises.

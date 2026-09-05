@@ -1,15 +1,68 @@
 @import "tailwindcss";
 
-/* Design tokens: friendly, game-like, still professional. */
-/* Keep components mobile-first; board stays square via aspect-square. */
+/* MicroChess Design System tokens (documented in docs/DESIGN_SYSTEM.md).
+   Friendly, game-like, still professional. Mobile-first; the board stays
+   square via aspect-square and must never exceed the viewport width. */
 
 :root {
   color-scheme: light;
+
+  /* Brand */
+  --mc-primary: #7c3aed; /* violet-600: main actions, active states */
+  --mc-primary-strong: #6d28d9; /* violet-700: pressed / emphasis */
+  --mc-primary-soft: #ede9fe; /* violet-100: badges, soft fills */
+  --mc-accent: #fcd34d; /* amber-300: secondary actions */
+  --mc-accent-strong: #f59e0b; /* amber-500: missed / warning */
+
+  /* Feedback */
+  --mc-success: #16a34a; /* green-600: correct */
+  --mc-success-soft: #f0fdf4; /* green-50 */
+  --mc-error: #dc2626; /* red-600: wrong */
+  --mc-error-soft: #fef2f2; /* red-50 */
+  --mc-warning: #d97706; /* amber-600: missed */
+  --mc-warning-soft: #fffbeb; /* amber-50 */
+  --mc-info: #0284c7; /* sky-600: task target marker */
+
+  /* Surfaces & text */
+  --mc-bg: #f6f4ff;
+  --mc-surface: #ffffff;
+  --mc-text: #1f2430; /* stone-900-ish */
+  --mc-muted: #78716c; /* stone-500 */
+
+  /* Shape & elevation */
+  --mc-radius-sm: 1rem; /* buttons: rounded-2xl */
+  --mc-radius-lg: 1.5rem; /* cards/board: rounded-3xl / rounded-2xl */
+  --mc-shadow-sm: 0 1px 2px rgb(124 58 237 / 0.08);
+  --mc-shadow-md: 0 4px 14px rgb(124 58 237 / 0.1);
+
+  /* Spacing scale (Tailwind default, semantic use): 2 / 3 / 4 steps
+     between related items, 4+ between sections. */
 }
 
 body {
   font-family: "Vazirmatn", system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: #f6f4ff;
-  color: #1f2430;
+  background: var(--mc-bg);
+  color: var(--mc-text);
   -webkit-tap-highlight-color: transparent;
+  overflow-x: clip;
+}
+
+/* Chessboard island: always LTR + capped at the available width so it can
+   never overflow the viewport (page padding -> max board width -> square). */
+.mc-board {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Visible keyboard focus everywhere (accessibility). */
+:where(button, a, input):focus-visible {
+  outline: 3px solid var(--mc-primary);
+  outline-offset: 2px;
+}
+
+/* Subtle, purposeful motion only; the board itself never animates. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
 }

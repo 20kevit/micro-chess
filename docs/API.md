@@ -52,3 +52,23 @@ Example:
   - `result` in correct/partial/wrong/timeout/skipped/abandoned.
   - `rating_delta` is `null` until Glicko-2 lands; practice attempts never set it.
   - Errors: `puzzle_not_available` (404 for missing/unpublished/archived).
+
+## Piece Recognition (Exercise 1)
+
+- `POST /api/v1/piece-recognition/next` → fresh random practice `PuzzleOut`
+  (published row, no `answer_json`).
+- `POST /api/v1/piece-recognition/sessions` `{duration_s?}` (default 60) →
+  `{session_id, exercise_slug, status, duration_s, started_at, expires_at, remaining_ms}`.
+- `POST /api/v1/piece-recognition/sessions/{id}/next` → session `PuzzleOut`;
+  `410 session_expired` after the server clock passes `expires_at`.
+- `POST /api/v1/piece-recognition/sessions/{id}/submit`
+  `{puzzle_id, answer: {selected_squares: []}, hints_used?: [], started_at?}` →
+  `{attempt: AttemptOut, feedback_key, detail, session: summary}`.
+  Only puzzles issued to the session are accepted (404 otherwise);
+  client-supplied FEN/target/solution fields are ignored.
+- `GET /api/v1/piece-recognition/sessions/{id}` → summary
+  `{session_id, status, duration_s, started_at, expires_at, remaining_ms,
+  attempted, correct, partial, wrong, score}` (auto-expires).
+- `POST /api/v1/piece-recognition/sessions/{id}/finish` → final summary.
+- Errors: `session_not_found` (404), `session_expired` (410),
+  `puzzle_not_in_session`/`puzzle_not_available` (404).

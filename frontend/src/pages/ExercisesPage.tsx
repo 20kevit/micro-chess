@@ -38,9 +38,27 @@ function ExerciseCard({ meta, number }: { meta: ExerciseMeta; number: number }) 
       </div>
       <p className="mt-1 text-sm text-stone-500">{t(meta.descKey)}</p>
       {playable && meta.route ? (
-        <Link to={meta.route} className="mt-3 block" aria-label={t(meta.titleKey)}>
-          <Button className="w-full">{t("play.start")}</Button>
-        </Link>
+        meta.modes ? (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {meta.modes.map((entryMode, i) => (
+              <Link
+                key={entryMode.id}
+                to={`${meta.route}${entryMode.params}`}
+                className="block"
+                aria-label={`${t(meta.titleKey)} — ${t(entryMode.labelKey)}`}
+              >
+                <Button variant={i === 0 ? "secondary" : "primary"} className="w-full">
+                  {t(entryMode.labelKey)}
+                </Button>
+                <p className="mt-1 text-center text-xs text-stone-500">{t(entryMode.descKey)}</p>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <Link to={meta.route} className="mt-3 block" aria-label={t(meta.titleKey)}>
+            <Button className="w-full">{t("play.start")}</Button>
+          </Link>
+        )
       ) : null}
     </Card>
   );
