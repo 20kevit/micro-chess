@@ -277,3 +277,31 @@ Same lifecycle and contract as Exercises 1–7 and 10 (open → prepare ≥20
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
 - Full spec: `docs/exercises/11-heavier-side.md`.
+
+## Chinese Board (Exercise 13)
+
+Same lifecycle and contract as Exercises 1–7, 10, and 11 (open → prepare
+≥20 → start 60s clock → submit loop → finish/report), under
+`/api/v1/chinese-board`:
+
+- `POST /api/v1/chinese-board/next` `{exclude_ids?: []}` → fresh random
+  real-position practice `PuzzleOut` (no `answer_json`; the FEN in
+  `position_json.fen` is the board shown during memorization, plus the
+  server-computed `piece_count` and `memorization_ms = piece_count × 300`;
+  the piece set verdict is not).
+- `POST /api/v1/chinese-board/sessions` → `preparing` session (60s default).
+- `POST /api/v1/chinese-board/sessions/{id}/puzzles` `{count}` →
+  buffer/refill puzzles (cap 60); `POST .../start` requires ≥20.
+- `POST /api/v1/chinese-board/sessions/{id}/submit` →
+  `{attempt, feedback_key, detail, session}` with
+  `answer: {pieces: [{square, piece, color}]}` (free placement; only
+  `pieces` is read, client score/count/FEN fields ignored);
+  `5×correct − 2×(wrong+missing)` scoring with no floor (negatives kept;
+  a wrong-square original is one error, never double-counted); only
+  session-issued puzzles accepted. Practice submits through standard
+  `POST /api/v1/attempts` and advances manually; speed auto-advances
+  after ~600ms feedback.
+- `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
+  per-puzzle report rebuilt from stored attempts;
+  `POST .../finish` → final summary. Same error codes as Exercise 1.
+- Full spec: `docs/exercises/13-chinese-board.md`.

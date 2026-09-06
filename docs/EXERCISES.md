@@ -627,6 +627,55 @@ into real-board material evaluation:
   four options, single-option cases, absent rights, blocked paths incl. b-file,
   check, transit/destination attacks, stale rook/king flags, partial subsets).
 
+## Chinese Board (Exercise 13)
+
+**Chinese Board** — IMPLEMENTED (`chinese-board`, Exercise 13,
+صفحه چینی — never `صفحه حفظی`, which stays the Memory Board title).
+Full spec: `docs/exercises/13-chinese-board.md`.
+
+- Route: `/exercises/chinese-board` with `?mode=practice` (untimed) and
+  `?mode=speed` (60s session); card renders both entry buttons directly
+  (no intermediate mode screen), same pattern as Exercises 1–7 and 10–11.
+- Play loop: dedicated `ChineseBoardPlay` (practice + speed) over the
+  shared `ChessBoard` (fixed White orientation in both phases, SVG pieces
+  only): read-only memorize board with a subtle countdown for the
+  server-authoritative budget (`position_json.memorization_ms` =
+  `piece_count × 300ms`), a motion-safe fade into an empty rebuild board
+  with a 12-piece tap palette + eraser (free placement, replace on tap,
+  no legality rules), and an explicit «بررسی صفحه» check; correctness,
+  scoring, and the speed clock stay backend-authoritative.
+- Position source: shared `puzzles.db` via `positions/repository.py`
+  (read-only, FEN only, fallback FENs when absent), exactly like
+  Exercises 1/4/5/11; per-puzzle budgets built server-side by
+  `chinese_board/generator.py` (any valid FEN eligible — counts are
+  naturally bounded by chess at ≤32, ~1.2s–9.6s on measured real data —
+  answers server-side only).
+- Rule: exact `(color, type, square)` reconstruction. Matching is
+  exact-first, then same-`(color,type)` wrong-square pairing (ONE error
+  per misplaced piece, never missing-plus-extra double-counting), then
+  missing, then extra; FEN metadata (side/castling/en-passant/clocks)
+  ignored.
+- Validator: `backend/app/modules/chinese_board/validator.py` (CORRECT
+  only when perfect, else WRONG; malformed/duplicate-square input fails
+  safe; client score/count/FEN fields ignored; detail carries disjoint
+  correct/wrong/missing/extra descriptors plus square overlays).
+- Scoring: registered scorer (`5×correct − 2×(wrong+missing)`, negatives
+  kept, no floor).
+- Practice: `POST /api/v1/chinese-board/next` issues fresh random
+  published puzzles (identical FEN rows reused; `exclude_ids` steers
+  variety); the client keeps a current+next prefetch buffer. Checking
+  submits through standard `POST /api/v1/attempts`; feedback shows the
+  four counts plus the score with a «پاسخ شما»/«پاسخ صحیح» toggle plus
+  sounds, then waits for manual «صفحه بعدی» (NO auto-advance) or retry.
+- Speed: `chinese_board/sessions.py` + `router.py` (open → prepare ≥20 →
+  start 60s clock → memorize → rebuild → check loop with ~600ms feedback
+  auto-advance, no manual next → server-rebuilt per-puzzle report;
+  per-answer rows reuse `attempts`).
+- Seed: `python -m app.modules.chinese_board.seed` (15 verified positions
+  spanning 4–32 pieces, study budgets 1200–9600ms).
+- QA: `frontend/qa/chinese-board.cjs` (viewport matrix + place/replace/
+  erase/check/next passes, pieces-only payload assertion).
+
 ## Exercise 4 (spec-track)
 
 **Undefended Pieces** — IMPLEMENTED (`undefended-pieces`). Full spec:

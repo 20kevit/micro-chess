@@ -129,6 +129,12 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
       { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
     ],
   },
+  { slug: "chinese-board", titleKey: "exercises.chinese-board.title", descKey: "exercises.chinese-board.desc", status: "active", route: "/exercises/chinese-board",
+    modes: [
+      { id: "practice", labelKey: "play.practice", descKey: "practice.howto", params: "?mode=practice" },
+      { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
+    ],
+  },
   { slug: "is-checkmate", titleKey: "exercises.is-checkmate.title", descKey: "exercises.is-checkmate.desc", status: "active", route: "/exercises/is-checkmate" },
   { slug: "memory-board", titleKey: "exercises.memory-board.title", descKey: "exercises.memory-board.desc", status: "active", route: "/exercises/memory-board" },
   { slug: "blindfold-square-vision", titleKey: "exercises.blindfold-square-vision.title", descKey: "exercises.blindfold-square-vision.desc", status: "active", route: "/exercises/blindfold-square-vision" },

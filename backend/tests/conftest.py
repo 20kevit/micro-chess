@@ -14,6 +14,7 @@ from app.db.base import Base
 def db_session():
     from app.modules.balance_scale import models as _bs  # noqa: F401
     from app.modules.captures import models as _cap  # noqa: F401
+    from app.modules.chinese_board import models as _cb  # noqa: F401
     from app.modules.exercises import models as _ex  # noqa: F401
     from app.modules.get_out_of_check import models as _goc  # noqa: F401
     from app.modules.give_check import models as _gc  # noqa: F401

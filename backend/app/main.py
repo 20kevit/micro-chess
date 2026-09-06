@@ -9,6 +9,7 @@ from app.db.session import init_db
 from app.modules.auth.router import router as auth_router
 from app.modules.balance_scale.router import router as balance_scale_router
 from app.modules.captures.router import router as captures_router
+from app.modules.chinese_board.router import router as chinese_board_router
 from app.modules.exercises.router import router as exercises_router
 from app.modules.get_out_of_check.router import router as get_out_of_check_router
 from app.modules.give_check.router import router as give_check_router
@@ -26,6 +27,7 @@ from app.modules.users.router import router as users_router
 import app.modules.blindfold_square_vision as _blindfold_square_vision  # noqa: F401
 import app.modules.blindfold_calculation as _blindfold_calculation  # noqa: F401
 import app.modules.captures as _captures  # noqa: F401
+import app.modules.chinese_board as _chinese_board  # noqa: F401
 import app.modules.balance_scale as _balance_scale  # noqa: F401
 import app.modules.checkmate as _checkmate  # noqa: F401
 import app.modules.get_out_of_check as _get_out_of_check  # noqa: F401
@@ -74,6 +76,7 @@ app.include_router(balance_scale_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(exercises_router, prefix="/api/v1")
 app.include_router(captures_router, prefix="/api/v1")
+app.include_router(chinese_board_router, prefix="/api/v1")
 app.include_router(get_out_of_check_router, prefix="/api/v1")
 app.include_router(give_check_router, prefix="/api/v1")
 app.include_router(pathfinding_router, prefix="/api/v1")

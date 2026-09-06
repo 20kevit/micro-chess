@@ -583,4 +583,53 @@ export const api = {
     request<SpeedSummary>(`/api/v1/heavier-side/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Chinese Board: memorize a real position, rebuild it from memory +
+  // speed sessions. Same contract as above (the FEN in position_json is
+  // the board shown during memorization; the piece set verdict and the
+  // study budget stay server-side; grading always server-side).
+  // Prefetch buffers never carry answers.
+  nextChinesePracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/chinese-board/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startChineseSpeedSession: () =>
+    request<SpeedSession>("/api/v1/chinese-board/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  prepareChineseSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/chinese-board/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startChineseSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/chinese-board/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextChineseSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/chinese-board/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitChineseSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/chinese-board/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getChineseSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/chinese-board/sessions/${sessionId}`),
+  getChineseSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/chinese-board/sessions/${sessionId}/report`),
+  finishChineseSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/chinese-board/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
 };

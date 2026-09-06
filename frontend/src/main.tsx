@@ -9,6 +9,7 @@ import { BlindfoldSquareVisionPage } from "./pages/BlindfoldSquareVisionPage";
 import { CapturesPage } from "./pages/CapturesPage";
 import { CastlingRightsPage } from "./pages/CastlingRightsPage";
 import { CheckmatePage } from "./pages/CheckmatePage";
+import { ChineseBoardPage } from "./pages/ChineseBoardPage";
 import { ExercisesPage } from "./pages/ExercisesPage";
 import { GetOutOfCheckPage } from "./pages/GetOutOfCheckPage";
 import { GiveCheckPage } from "./pages/GiveCheckPage";
@@ -44,6 +45,7 @@ const router = createBrowserRouter([
       { path: "/exercises/give-check", element: <GiveCheckPage /> },
       { path: "/exercises/get-out-of-check", element: <GetOutOfCheckPage /> },
       { path: "/exercises/heavier-side", element: <MaterialComparisonPage /> },
+      { path: "/exercises/chinese-board", element: <ChineseBoardPage /> },
       { path: "/exercises/memory-board", element: <MemoryBoardPage /> },
       { path: "/exercises/opening-traps", element: <OpeningTrapsPage /> },
       { path: "/exercises/opening-move-reconstruction", element: <OpeningMoveReconstructionPage /> },

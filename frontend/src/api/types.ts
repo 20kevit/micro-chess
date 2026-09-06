@@ -67,6 +67,13 @@ export interface AttemptResponse {
     correct: string[];
     missed: string[];
     wrong: string[];
+    missing?: string[];
+    extra?: string[];
+    correct_squares?: string[];
+    missed_squares?: string[];
+    wrong_squares?: string[];
+    piece_count?: number;
+    memorization_ms?: number;
     submitted_value?: number;
     target_value?: number;
     left_value?: number;
