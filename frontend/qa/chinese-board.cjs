@@ -6,13 +6,13 @@
 const puppeteer = require("puppeteer-core");
 
 const VIEWPORTS = [
-  [360, 800],
-  [390, 844],
-  [412, 915],
-  [667, 375],
-  [844, 390],
+  [1920, 1080],
+  [1366, 768],
+  [768, 1024],
   [1024, 768],
-  [1280, 800],
+  [390, 844],
+  [360, 800],
+  [844, 390],
 ];
 const EXE = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const APP = "http://localhost:5173";
@@ -34,6 +34,14 @@ async function measure(page) {
     const boardEl = document.querySelector('[data-testid="chessboard"]');
     const pieces = (sel) =>
       Array.from(document.querySelectorAll(`${sel} img`)).length;
+    const checkBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+      (b.textContent || "").includes("بررسی صفحه"),
+    );
+    const checkRect = (() => {
+      if (!checkBtn) return null;
+      const b = checkBtn.getBoundingClientRect();
+      return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height) };
+    })();
     return {
       innerW: window.innerWidth,
       innerH: window.innerHeight,
@@ -49,6 +57,8 @@ async function measure(page) {
       next: r('[data-testid="next-bar"]'),
       feedback: r('[data-testid="feedback"]'),
       timer: r('[data-testid="timer"]'),
+      palette: r('[role="group"][aria-label="مهره‌ها"]'),
+      check: checkRect,
       memorizePieces: pieces('[data-testid="chessboard"]'),
     };
   });
@@ -101,9 +111,9 @@ async function loadMode(browser, w, h, mode) {
         check(`${tag} board-square`, m.board && Math.abs(m.board.w - m.board.h) <= 1 && m.board.w >= 120, `${m.board && m.board.w}px`);
         check(`${tag} rtl-page-ltr-board`, m.dir === "rtl" && m.boardDir === "ltr", `${m.dir}/${m.boardDir}`);
         check(`${tag} vazirmatn-loaded`, m.vazirmatn === true, String(m.vazirmatn));
-        // Wait out the study budget (max ~9.6s on real data) + fade.
+        // Wait out the study budget (max ~12.8s on real data) + fade.
         try {
-          await page.waitForSelector('[data-testid="submit-bar"]', { timeout: 20000 });
+          await page.waitForSelector('[data-testid="submit-bar"]', { timeout: 25000 });
         } catch (e) {
           check(`${tag} reaches-rebuild`, false, "submit-bar never appeared");
           await page.close();
@@ -112,6 +122,9 @@ async function loadMode(browser, w, h, mode) {
         m = await measure(page);
         check(`${tag} board-cleared`, m.memorizePieces === 0, `${m.memorizePieces} imgs`);
         check(`${tag} board-still-in-view`, inView(m, m.board), JSON.stringify(m.board));
+        check(`${tag} palette-in-view`, inView(m, m.palette), JSON.stringify(m.palette));
+        check(`${tag} submit-in-view`, inView(m, m.submit), JSON.stringify(m.submit));
+        check(`${tag} check-visible`, inView(m, m.check), JSON.stringify(m.check));
         check(`${tag} no-page-scroll-rebuild`, m.scrollH <= m.innerH + 1 && m.scrollW <= m.innerW + 1, `${m.scrollW}x${m.scrollH}/${m.innerW}x${m.innerH}`);
         check(`${tag} no-js-errors`, errors.length === 0, errors.join(" | ").slice(0, 200));
         await page.close();
@@ -126,7 +139,7 @@ async function loadMode(browser, w, h, mode) {
       page.on("response", (r) => {
         if (r.url().includes("/attempts") && r.request().method() === "POST") posts.push(r.status());
       });
-      await page.waitForSelector('[data-testid="submit-bar"]', { timeout: 20000 });
+      await page.waitForSelector('[data-testid="submit-bar"]', { timeout: 25000 });
       // Place white queen on e4, replace with black knight, erase it.
       await page.click('[aria-label="سفید وزیر"]');
       await page.click('[aria-label="e4"]');
@@ -181,7 +194,7 @@ async function loadMode(browser, w, h, mode) {
         if (r.url().includes("/submit") && r.request().method() === "POST") submits.push(r.status());
       });
       await page.waitForSelector('[data-testid="timer"]', { timeout: 45000 });
-      await page.waitForSelector('[data-testid="submit-bar"]', { timeout: 20000 });
+      await page.waitForSelector('[data-testid="submit-bar"]', { timeout: 25000 });
       await page.click('[aria-label="سفید وزیر"]');
       await page.click('[aria-label="d1"]');
       await page.click("button::-p-text(بررسی صفحه)");

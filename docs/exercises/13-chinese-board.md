@@ -29,25 +29,32 @@ at grading — the client never supplies the original position.
 ## Memorization budget
 
 ```text
-memorization_ms = piece_count × 300
+memorization_ms = piece_count × 400
 ```
 
 Every piece (kings included) counts once; empty squares and FEN metadata
 (side to move, castling, en passant, clocks) are ignored. No difficulty
 gate and no piece-count filter: the count is naturally bounded by chess
-(≤ 32 pieces, so ~1.2s–9.6s on real data). Measured on the real
+(≤ 32 pieces, so ~1.6s–12.8s on real data). Measured on the real
 `puzzles.db` (5.3M rows, 2000-position sample): counts span 4–32, bulk at
 7–26, median near 18–19. Every real position is servable as-is, so no
 bounded policy beyond the chess maximum was needed.
 
 The budget travels in `position_json.memorization_ms` (computed
-server-side); the client only renders the countdown.
+server-side from the single `MEMORIZE_MS_PER_PIECE` constant in
+`chinese_board/pieces.py`); the client only renders the countdown and
+holds no independent timing value.
 
 ## Reconstruction interaction
 
-- Tap palette piece (12 SVG pieces + eraser, all ≥44px, labelled,
-  `aria-pressed`), tap square to place; tapping an occupied square
-  replaces the piece; eraser removes. No drag-and-drop required.
+## Reconstruction interaction
+
+- Tap palette piece (12 SVG pieces + eraser, all fixed 44px in a wrapping
+  centered row, labelled, `aria-pressed`), tap square to place; tapping an
+  occupied square replaces the piece; eraser removes. No drag-and-drop
+  required. Fixed-size tools (never a stretching grid) keep pieces
+  undistorted in narrow sidebars and stop the palette ballooning on
+  tablets — see the viewport rule in `docs/DESIGN_SYSTEM.md`.
 - Free placement: duplicate kings, missing kings, illegal positions are
   all allowed mid-reconstruction. Nothing is enforced before checking.
 - Fixed White orientation in both phases (critical for spatial memory);
@@ -113,13 +120,29 @@ attempts. Late submits are rejected authoritatively (410).
 ## Feedback
 
 Counts (درست/اشتباه/جا افتاده/اضافی) + score + success/error sound.
-Boards: yours (green exact, red wrong/extra) toggleable with the correct
-board (green exact, amber gaps) — only after submission, never before.
+Practice boards: yours (green exact, red wrong/extra) toggleable with the
+correct board (green exact, amber gaps) — only after submission, never
+before; review boards are width-capped (`max-w-[520px]`, centered) so
+they never blow out narrow viewports. Speed feedback is counts + score
+only (no board), so the 600ms glance always fits without scrolling.
+
+## Responsive viewport fit
+
+The whole exercise fits the viewport with no page-level scroll
+(`board_size <= min(available_width, available_height)` via the shared
+`useGameFit` measurement — the board container determines the size, never
+the reverse). Portrait stacks question → board → palette → بررسی;
+landscape keeps the height-capped board large beside a 368px control
+column sized by arithmetic (2-row palette + single-line question +
+timer + check fit 330px+ heights, verified down to 844×390 and 667×375).
+Verified with `frontend/qa/chinese-board.cjs` on 1920×1080, 1366×768,
+768×1024, 1024×768, 390×844, 360×800, 844×390 (board/palette/check
+in-view, no overflow, no JS errors, both modes).
 
 ## Files
 
 - `backend/app/modules/chinese_board/pieces.py` — extraction, counting,
-  `MEMORIZE_MS_PER_PIECE = 300` (pure, fully tested).
+  `MEMORIZE_MS_PER_PIECE = 400` (pure, fully tested).
 - `backend/app/modules/chinese_board/validator.py` — descriptor matching
   (`{pieces}` vs FEN-derived set) + square overlays for the result UI.
 - `backend/app/modules/chinese_board/scoring.py` — +5/−2, negatives kept.

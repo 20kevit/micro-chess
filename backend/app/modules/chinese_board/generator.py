@@ -13,7 +13,7 @@ Selection policy (bounded, never an infinite loop):
    never loaded into memory).
 2. Accept the first valid candidate. No difficulty gate and no piece-count
    filter: the count is naturally bounded by chess (<= 32 pieces, so the
-   study budget ``piece_count * 300ms`` spans ~1.2s-9.6s on real data)
+   study budget ``piece_count * 400ms`` spans ~1.6s-12.8s on real data)
    and every real position is a fair memory question.
 3. Fall back to a curated fallback FEN evaluated the same way.
 

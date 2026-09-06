@@ -101,13 +101,15 @@ def test_piece_count_counts_every_piece_once():
     assert cb.piece_count(TEN_PIECE_FEN) == 10
 
 
-def test_memorization_time_is_count_times_300ms():
-    assert cb.memorization_ms(FOUR_PIECE_FEN) == 1200
-    assert cb.memorization_ms(TEN_PIECE_FEN) == 3000
-    assert cb.MEMORIZE_MS_PER_PIECE == 300
-    # Spec examples: 10 pieces -> 3000ms, 20 pieces -> 6000ms.
-    assert 10 * cb.MEMORIZE_MS_PER_PIECE == 3000
-    assert 20 * cb.MEMORIZE_MS_PER_PIECE == 6000
+def test_memorization_time_is_count_times_400ms():
+    assert cb.memorization_ms(FOUR_PIECE_FEN) == 1600
+    assert cb.memorization_ms(TEN_PIECE_FEN) == 4000
+    assert cb.MEMORIZE_MS_PER_PIECE == 400
+    # Spec examples: 5 pieces -> 2000ms, 8 -> 3200ms, 10 -> 4000ms, 15 -> 6000ms.
+    assert 5 * cb.MEMORIZE_MS_PER_PIECE == 2000
+    assert 8 * cb.MEMORIZE_MS_PER_PIECE == 3200
+    assert 10 * cb.MEMORIZE_MS_PER_PIECE == 4000
+    assert 15 * cb.MEMORIZE_MS_PER_PIECE == 6000
 
 
 def test_fen_metadata_does_not_change_count_or_budget():
@@ -115,7 +117,7 @@ def test_fen_metadata_does_not_change_count_or_budget():
     a = "3qk3/8/8/8/8/8/8/3QK3 w - - 0 1"
     b = "3qk3/8/8/8/8/8/8/3QK3 b KQkq e3 14 39"
     assert cb.piece_count(a) == cb.piece_count(b) == 4
-    assert cb.memorization_ms(a) == cb.memorization_ms(b) == 1200
+    assert cb.memorization_ms(a) == cb.memorization_ms(b) == 1600
 
 
 # --- Entry normalization ---
@@ -144,7 +146,7 @@ def test_perfect_reconstruction_is_correct():
     assert out.detail["missing"] == []
     assert out.detail["extra"] == []
     assert out.detail["piece_count"] == 4
-    assert out.detail["memorization_ms"] == 1200
+    assert out.detail["memorization_ms"] == 1600
 
 
 def test_order_does_not_matter():
@@ -350,7 +352,7 @@ def test_question_for_fen_computes_budget():
     data = gen_mod.question_for_fen(TEN_PIECE_FEN)
     assert data is not None
     assert data["piece_count"] == 10
-    assert data["memorization_ms"] == 3000
+    assert data["memorization_ms"] == 4000
     assert data["fen"] == TEN_PIECE_FEN
 
 
@@ -367,7 +369,7 @@ def test_generated_puzzles_come_from_db_with_server_budget(db_session):
         position = puzzle.position_json
         assert position["fen"] == puzzle.fen
         assert position["piece_count"] == cb.piece_count(puzzle.fen)
-        assert position["memorization_ms"] == position["piece_count"] * 300
+        assert position["memorization_ms"] == position["piece_count"] * 400
 
 
 def test_generator_never_leaks_answer_fields(db_session):
@@ -397,7 +399,7 @@ def test_seed_puzzles_valid_with_rising_sizes(db_session):
         count = cb.piece_count(puzzle.fen)
         counts.append(count)
         assert puzzle.position_json["piece_count"] == count
-        assert puzzle.position_json["memorization_ms"] == count * 300
+        assert puzzle.position_json["memorization_ms"] == count * 400
         assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
         pieces = [{"square": p["square"], "piece": p["type"], "color": p["color"]}
                   for p in cb.extract_pieces(puzzle.fen)]
@@ -434,7 +436,7 @@ def test_api_list_hides_answer(client, db_session):
     assert "answer_json" not in body[0]
     assert body[0]["fen"]
     assert body[0]["position_json"]["fen"] == body[0]["fen"]
-    assert body[0]["position_json"]["memorization_ms"] == body[0]["position_json"]["piece_count"] * 300
+    assert body[0]["position_json"]["memorization_ms"] == body[0]["position_json"]["piece_count"] * 400
 
 
 def test_api_next_hides_answer(client, db_session):
@@ -443,7 +445,7 @@ def test_api_next_hides_answer(client, db_session):
     body = res.json()
     assert "answer_json" not in body
     assert body["fen"]
-    assert body["position_json"]["memorization_ms"] == body["position_json"]["piece_count"] * 300
+    assert body["position_json"]["memorization_ms"] == body["position_json"]["piece_count"] * 400
     assert "correct" not in body["position_json"]
     assert "pieces" not in body["position_json"]
 

@@ -155,11 +155,11 @@ describe("catalog and i18n", () => {
   });
 
   it("memorize budget comes from the server payload", () => {
-    expect(memorizeMsOf(puzzle(1, FEN_SMALL, 3000))).toBe(3000);
-    expect(memorizeMsOf(puzzle(1, FEN_SMALL, 9600))).toBe(9600);
-    // piece_count fallback: count * 300.
+    expect(memorizeMsOf(puzzle(1, FEN_SMALL, 4000))).toBe(4000);
+    expect(memorizeMsOf(puzzle(1, FEN_SMALL, 12800))).toBe(12800);
+    // piece_count fallback matches the backend 0.4s rule: count * 400.
     const noBudget = { ...puzzle(1, FEN_SMALL), position_json: { piece_count: 10 } };
-    expect(memorizeMsOf(noBudget)).toBe(3000);
+    expect(memorizeMsOf(noBudget)).toBe(4000);
   });
 });
 
@@ -292,6 +292,27 @@ describe("practice mode", () => {
     }
   });
 
+  it("palette tools are fixed-size and never stretch", async () => {
+    vi.useFakeTimers();
+    try {
+      mockedApi.nextChinesePracticePuzzle = vi.fn().mockResolvedValue(puzzle(1, FEN_SMALL));
+      renderPage("practice");
+      await flushMemorize();
+      await finishMemorizing(1200);
+      // Fixed 44px tools: no aspect-square stretch (which distorted pieces
+      // in narrow sidebars) and no full-width ballooning on tablets.
+      for (const name of ["سفید وزیر", "سیاه اسب", "سفید شاه", "سیاه سرباز", fa["memory.eraser"]]) {
+        const btn = screen.getByRole("button", { name });
+        expect(btn.className).toContain("h-11");
+        expect(btn.className).toContain("w-11");
+        expect(btn.className).toContain("min-h-[44px]");
+        expect(btn.className).not.toContain("aspect-square");
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("toggles between your answer and the correct board after submit", async () => {
     vi.useFakeTimers();
     try {
@@ -309,6 +330,8 @@ describe("practice mode", () => {
       expect(screen.getByTestId("answer-board")).toBeTruthy();
       // The correct board renders the memorized position (black king on e8).
       expect(screen.getByTestId("answer-board").innerHTML).toContain("bK");
+      // Review boards are width-capped so they never blow out narrow viewports.
+      expect(screen.getByTestId("answer-board").className).toContain("max-w-[520px]");
     } finally {
       vi.useRealTimers();
     }
@@ -362,6 +385,11 @@ describe("speed mode", () => {
       const body = vi.mocked(mockedApi.submitChineseSpeedAnswer).mock.calls[0][1];
       expect(body.answer).toEqual({ pieces: [{ square: "d1", piece: "Q", color: "white" }] });
       expect(screen.getByTestId("feedback")).toBeTruthy();
+      // Speed feedback is counts + score only (no board), so the 600ms
+      // glance always fits without scrolling.
+      expect(screen.queryByTestId("yours-board")).toBeNull();
+      expect(screen.queryByTestId("answer-board")).toBeNull();
+      expect(screen.getByTestId("feedback").textContent).toContain(fa["chineseBoard.correct"]);
       // Brief feedback, then automatic transition to the next puzzle.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(700);

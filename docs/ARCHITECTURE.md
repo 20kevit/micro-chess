@@ -34,8 +34,7 @@ docs/      product + architecture + api + exercises
 | `pathfinding_obstacles` | exercise 7: single authoritative transition layer + state-space BFS (`transitions.py`) + stateful validator + scorer + solved quality-gated generator + speed sessions + router (registers `pathfinding-obstacles`) |
 | `balance_scale` | exercise 10: DP optimal-piece solver (`solver.py`, no chess rules) + exact-total validator + minimum-count scorer + tier-mixed random generator + speed sessions + router (registers `balance-scale`) |
 | `material_comparison` | exercise 11: isolated material calculator (`material.py`: P=1 N=3 B=3 R=5 Q=9 K=0, classifier, 10% gate) + FEN-shape validator (legacy left/right fallback) + simple +5/−2 scorer + eligible-position generator (bounded category-balanced sampling from `puzzles.db`) + speed sessions + router (registers `heavier-side`) |
-| `chinese_board` | exercise 13: pure piece helpers (`pieces.py`: extraction/count/`count×300ms` budget) + descriptor validator (`validator.py`: exact-first, same-kind wrong-square pairing without double-counting, CORRECT-only-when-perfect) + per-piece +5/−2 scorer (negatives kept, no floor) + any-valid-FEN generator (bounded sampling from `puzzles.db`, server-side budget) + speed sessions + router (registers `chinese-board`) |
-| `chinese_board` | exercise 13: pure piece helpers (`pieces.py`: extraction/count/`count×300ms` budget) + descriptor validator (`validator.py`: exact-first, wrong-square pairing without double-counting, CORRECT-only-when-perfect) + per-piece +5/−2 scorer (negatives kept, no floor) + any-valid-FEN generator (bounded sampling from `puzzles.db`, server-side budget) + speed sessions + router (registers `chinese-board`) |
+| `chinese_board` | exercise 13: pure piece helpers (`pieces.py`: extraction/count/`count×400ms` budget) + descriptor validator (`validator.py`: exact-first, same-kind wrong-square pairing without double-counting, CORRECT-only-when-perfect) + per-piece +5/−2 scorer (negatives kept, no floor) + any-valid-FEN generator (bounded sampling from `puzzles.db`, server-side budget) + speed sessions + router (registers `chinese-board`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
@@ -137,7 +136,7 @@ Piece Recognition additions (same tables, new columns only):
   (`chinese_board/sessions.py` mirrors the same lifecycle; any-valid
   shared `puzzles.db` positions from `chinese_board/generator.py`,
   piece sets re-derived from the stored FEN, per-puzzle study budgets
-  (`piece_count × 300ms`) as display-only metadata).
+  (`piece_count × 400ms`) as display-only metadata).
 
 Notes:
 

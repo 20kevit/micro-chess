@@ -30,7 +30,7 @@ const FALLBACK_BUDGET_MS = 3000;
 
 // Dedicated Practice + Speed loop for Chinese Board (صفحه چینی).
 // Each puzzle is first shown read-only for a server-authoritative study
-// budget (piece_count * 300ms in position_json.memorization_ms), then the
+// budget (piece_count * 400ms in position_json.memorization_ms), then the
 // board fades to empty and the child rebuilds the whole position with a
 // tap palette (select piece, tap square, replace freely, eraser removes).
 // Renders and transports answers only; the piece set, the study budget,
@@ -70,14 +70,20 @@ function toolLabel(tool: Tool): string {
   return `${color} ${pieceName(tool)}`;
 }
 
-/** Server-authoritative study budget (ms) for a puzzle. */
+/** Server-authoritative study budget (ms) for a puzzle.
+ *
+ * Single source of truth is the backend (`MEMORIZE_MS_PER_PIECE` in
+ * `chinese_board/pieces.py`), delivered per puzzle as
+ * `position_json.memorization_ms`. The multipliers below only cover
+ * malformed payloads and must match the backend constant — never invent
+ * a separate frontend timing. */
 export function memorizeMsOf(puzzle: Puzzle): number {
   const raw = puzzle.position_json.memorization_ms;
   if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) return Math.round(raw);
   const count = puzzle.position_json.piece_count;
   if (typeof count === "number" && Number.isFinite(count) && count > 0)
-    return Math.round(count) * 300;
-  return Math.max(1, Object.keys(fenToPieces(puzzle.fen)).length) * 300 || FALLBACK_BUDGET_MS;
+    return Math.round(count) * 400;
+  return Math.max(1, Object.keys(fenToPieces(puzzle.fen)).length) * 400 || FALLBACK_BUDGET_MS;
 }
 
 function piecesToAnswer(placed: BoardMap): Array<{ square: string; piece: string; color: string }> {
@@ -173,9 +179,17 @@ function FittedBoard({
 }
 
 function Palette({ active, onPick }: { active: Tool | null; onPick: (tool: Tool | null) => void }) {
+  // Fixed 44px tools in a wrapping centered row: the palette never
+  // stretches (which would distort the SVG pieces in narrow sidebars),
+  // never balloons (which would steal board space on tablets), and wraps
+  // to more rows on very narrow screens instead of overflowing.
+  const toolClass = (isActive: boolean) =>
+    `h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 rounded-xl border-2 p-1 transition ${
+      isActive ? "border-violet-600 bg-violet-50" : "border-stone-200 bg-white"
+    }`;
   return (
     <div className="shrink-0 px-3 pt-1" role="group" aria-label={t("chineseBoard.palette")}>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="flex flex-wrap justify-center gap-1">
         {PALETTE.map((symbol) => {
           const isActive = active === symbol;
           return (
@@ -186,9 +200,7 @@ function Palette({ active, onPick }: { active: Tool | null; onPick: (tool: Tool 
               aria-label={toolLabel(symbol)}
               title={toolLabel(symbol)}
               onClick={() => onPick(isActive ? null : symbol)}
-              className={`aspect-square min-h-[44px] rounded-xl border-2 p-1 transition ${
-                isActive ? "border-violet-600 bg-violet-50" : "border-stone-200 bg-white"
-              }`}
+              className={toolClass(isActive)}
               style={{ touchAction: "manipulation" }}
             >
               <ChessPiece symbol={symbol} />
@@ -201,7 +213,7 @@ function Palette({ active, onPick }: { active: Tool | null; onPick: (tool: Tool 
           aria-label={t("memory.eraser")}
           title={t("memory.eraser")}
           onClick={() => onPick(active === "eraser" ? null : "eraser")}
-          className={`aspect-square min-h-[44px] rounded-xl border-2 text-lg font-black transition ${
+          className={`h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 rounded-xl border-2 text-lg font-black transition ${
             active === "eraser"
               ? "border-violet-600 bg-violet-50 text-violet-800"
               : "border-stone-200 bg-white text-stone-500"
@@ -263,6 +275,47 @@ function ResultPanel({
   const [view, setView] = useState<"yours" | "correct">("yours");
   const missing = missingOf(result);
   const extra = extraOf(result);
+  const counts = (
+    <div
+      className={`shrink-0 rounded-2xl border-2 px-3 py-2 ${
+        result.result === "correct" ? "border-green-500 bg-green-50" : "border-red-400 bg-red-50"
+      }`}
+    >
+      <FeedbackText feedbackKey={result.feedback_key} />
+      <div className="mt-1 grid grid-cols-4 gap-1 text-center">
+        <div>
+          <p className="text-xl font-black text-green-600">{faNum(correctCountOf(result))}</p>
+          <p className="text-[11px] text-stone-500">{t("chineseBoard.correct")}</p>
+        </div>
+        <div>
+          <p className="text-xl font-black text-red-600">
+            {faNum(result.detail.wrong.length - extra.length)}
+          </p>
+          <p className="text-[11px] text-stone-500">{t("chineseBoard.wrong")}</p>
+        </div>
+        <div>
+          <p className="text-xl font-black text-amber-600">{faNum(missing.length)}</p>
+          <p className="text-[11px] text-stone-500">{t("chineseBoard.missing")}</p>
+        </div>
+        <div>
+          <p className="text-xl font-black text-red-600">{faNum(extra.length)}</p>
+          <p className="text-[11px] text-stone-500">{t("chineseBoard.extra")}</p>
+        </div>
+      </div>
+      <p className="mt-1 text-center text-base font-black text-stone-800">
+        {faNum(result.score)} {t("speed.score")}
+      </p>
+    </div>
+  );
+  // Speed (compact) feedback shows counts + score only: the 600ms glance
+  // must always fit without scrolling, so no board is rendered there.
+  if (compact) {
+    return (
+      <div className="shrink-0 px-3 pb-3" data-testid="feedback">
+        {counts}
+      </div>
+    );
+  }
   const userStates: Partial<Record<string, "selected" | "correct" | "missed" | "wrong" | "target">> =
     {};
   for (const s of result.detail.correct_squares ?? []) userStates[s] = "correct";
@@ -276,67 +329,38 @@ function ResultPanel({
   const states = view === "yours" ? userStates : answerStates;
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3" data-testid="feedback">
-      <div
-        className={`shrink-0 rounded-2xl border-2 px-3 py-2 ${
-          result.result === "correct" ? "border-green-500 bg-green-50" : "border-red-400 bg-red-50"
-        }`}
-      >
-        <FeedbackText feedbackKey={result.feedback_key} />
-        <div className="mt-1 grid grid-cols-4 gap-1 text-center">
-          <div>
-            <p className="text-xl font-black text-green-600">{faNum(correctCountOf(result))}</p>
-            <p className="text-[11px] text-stone-500">{t("chineseBoard.correct")}</p>
-          </div>
-          <div>
-            <p className="text-xl font-black text-red-600">
-              {faNum(result.detail.wrong.length - extra.length)}
-            </p>
-            <p className="text-[11px] text-stone-500">{t("chineseBoard.wrong")}</p>
-          </div>
-          <div>
-            <p className="text-xl font-black text-amber-600">{faNum(missing.length)}</p>
-            <p className="text-[11px] text-stone-500">{t("chineseBoard.missing")}</p>
-          </div>
-          <div>
-            <p className="text-xl font-black text-red-600">{faNum(extra.length)}</p>
-            <p className="text-[11px] text-stone-500">{t("chineseBoard.extra")}</p>
-          </div>
-        </div>
-        <p className="mt-1 text-center text-base font-black text-stone-800">
-          {faNum(result.score)} {t("speed.score")}
-        </p>
+      {counts}
+      <div className="grid shrink-0 grid-cols-2 gap-1" role="group" aria-label={t("play.correctAnswer")}>
+        <button
+          type="button"
+          aria-pressed={view === "yours"}
+          onClick={() => setView("yours")}
+          className={`min-h-[44px] rounded-xl border-2 text-sm font-black transition ${
+            view === "yours"
+              ? "border-violet-600 bg-violet-50 text-violet-800"
+              : "border-stone-200 bg-white text-stone-600"
+          }`}
+          style={{ touchAction: "manipulation" }}
+        >
+          {t("chineseBoard.yourAnswer")}
+        </button>
+        <button
+          type="button"
+          aria-pressed={view === "correct"}
+          onClick={() => setView("correct")}
+          className={`min-h-[44px] rounded-xl border-2 text-sm font-black transition ${
+            view === "correct"
+              ? "border-violet-600 bg-violet-50 text-violet-800"
+              : "border-stone-200 bg-white text-stone-600"
+          }`}
+          style={{ touchAction: "manipulation" }}
+        >
+          {t("chineseBoard.correctBoard")}
+        </button>
       </div>
-      {!compact ? (
-        <div className="grid shrink-0 grid-cols-2 gap-1" role="group" aria-label={t("play.correctAnswer")}>
-          <button
-            type="button"
-            aria-pressed={view === "yours"}
-            onClick={() => setView("yours")}
-            className={`min-h-[44px] rounded-xl border-2 text-sm font-black transition ${
-              view === "yours"
-                ? "border-violet-600 bg-violet-50 text-violet-800"
-                : "border-stone-200 bg-white text-stone-600"
-            }`}
-            style={{ touchAction: "manipulation" }}
-          >
-            {t("chineseBoard.yourAnswer")}
-          </button>
-          <button
-            type="button"
-            aria-pressed={view === "correct"}
-            onClick={() => setView("correct")}
-            className={`min-h-[44px] rounded-xl border-2 text-sm font-black transition ${
-              view === "correct"
-                ? "border-violet-600 bg-violet-50 text-violet-800"
-                : "border-stone-200 bg-white text-stone-600"
-            }`}
-            style={{ touchAction: "manipulation" }}
-          >
-            {t("chineseBoard.correctBoard")}
-          </button>
-        </div>
-      ) : null}
-      <div dir="ltr" data-testid={view === "yours" ? "yours-board" : "answer-board"}>
+      {/* Capped like the main board (same GAME_BOARD_MAX philosophy) and
+          centered, so review boards never blow out narrow viewports. */}
+      <div dir="ltr" data-testid={view === "yours" ? "yours-board" : "answer-board"} className="mx-auto w-full max-w-[520px]">
         <ChessBoard pieces={shown} squareStates={states} disabled />
       </div>
     </div>
@@ -657,7 +681,12 @@ function PracticeLoop() {
         {orientation === "landscape" ? (
           <div className="flex min-h-0 min-w-0 flex-1">
             {board}
-            <aside className="flex w-64 shrink-0 flex-col gap-1 overflow-y-auto py-1">
+            {/* Wide control column (w-92 = 368px): fits all 13 palette
+                tools in 2 rows (7×44px + gaps = 332px ≤ 344px usable) and
+                keeps the question on one line, so palette + بررسی stay
+                visible without scrolling down to ~330px heights. The
+                board is height-capped here, so it loses nothing. */}
+            <aside className="flex w-92 shrink-0 flex-col gap-1 overflow-y-auto py-1">
               {question}
               {controls}
             </aside>
@@ -1176,7 +1205,10 @@ function SpeedLoop() {
         {orientation === "landscape" ? (
           <div className="flex min-h-0 min-w-0 flex-1">
             {board}
-            <aside className="flex w-64 shrink-0 flex-col gap-1 overflow-y-auto py-1">
+            {/* Same wide control column as practice (see above): with the
+                extra timer strip, this is what keeps بررسی visible
+                without scrolling at short landscape heights. */}
+            <aside className="flex w-92 shrink-0 flex-col gap-1 overflow-y-auto py-1">
               {question}
               {timer}
               {controls}

@@ -136,6 +136,22 @@ Tailwind scale; convention: `gap-2/mt-2` between related controls,
 4. Feedback must not grow the page: transient overlays/pills for timed
    modes; in-flow details only where the board can flex-shrink.
 5. Squares use `touch-action: manipulation`, min 44px targets.
+6. Tool palettes (piece pickers, inventories) use FIXED-size buttons
+   (e.g. `h-11 w-11`) in a wrapping centered row (`flex flex-wrap
+   justify-center`) — never a stretching grid. Stretch grids distort
+   pieces in narrow sidebars (`aspect-square` vs `min-height` conflict)
+   and balloon on tablets, stealing board space. Wrapping keeps every
+   viewport usable without page scroll.
+7. Review/summary boards obey the same cap as the main board
+   (`GAME_BOARD_MAX` philosophy, e.g. `max-w-[520px]`, centered) — an
+   unconstrained second board blows out narrow viewports. Timed-mode
+   glances (≤600ms) show counts + score only, no board.
+8. Landscape control columns are sized by arithmetic, not feel: the
+   column must fit its tallest stack (question + timer + palette rows +
+   check) inside short heights (346px at 844×390). The Chinese Board
+   column is 368px (`w-92`) because 13 tools × 44px need 332px for two
+   rows and the question needs ~256px to stay single-line — while the
+   board stays height-capped and loses nothing.
 
 ## i18n
 
