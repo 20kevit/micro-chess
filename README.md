@@ -80,9 +80,22 @@ npm run build
   count, pin-to-Queen still counts, Kings never answers), identical
   per-square scoring; full spec in
   `docs/exercises/04-undefended-pieces.md`.
+- Exercise 5 (Giving Check «کیش دادن»): same practice+speed architecture
+  with a shared-`puzzles.db` position source (FEN only, bounded sampling
+  that rejects positions with either King already in check), answer as a
+  SET of arrows (every legal non-King checking move as from→to UCI:
+  direct/capture/discovered/double/promotion/en-passant, Kings and
+  castling never answers), reusable multi-arrow board layer
+  (press-drag-release for mouse + touch, per-arrow remove/promotion,
+  green/amber/red feedback), identical per-move scoring; full spec in
+  `docs/exercises/05-giving-check.md`.
+- Former Exercises 5 (Hanging Pieces) and 6 (Attacker/Defender Equality)
+  were removed from the project; later exercises renumbered accordingly
+  and Castling Rights moved to the end of the roadmap
+  (see `docs/EXERCISES.md`).
 - Tables now: `users`, `exercises`, `puzzles`, `attempts`, `piece_speed_sessions`,
   `legal_speed_sessions`, `capture_speed_sessions`,
-  `undefended_speed_sessions`. Rating tables postponed.
+  `undefended_speed_sessions`, `giving_check_speed_sessions`. Rating tables postponed.
 - Puzzle answers immutable once published; archive instead of delete.
 - Attempts distinguish correct/partial/wrong/timeout/skipped/abandoned + rated/practice.
 - Audio is a `AudioPort` boundary only; no TTS vendor yet.

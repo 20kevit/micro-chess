@@ -11,8 +11,8 @@ The answer contains only enemy-occupied squares that are capture
 destinations under the puzzle's rule profile: sliding rays stop at the
 first occupied square and pawn pushes are never captures. Whether the
 target is defended (or the capture is tactically good) NEVER matters:
-defense, exchange evaluation, and hanging-piece logic belong to other
-exercises and are deliberately not consulted here.
+defense and exchange evaluation belong to other exercises and are
+deliberately not consulted here.
 
 Rule profiles are data (name -> function), not branches in the attempt
 flow, mirroring Exercise 2:

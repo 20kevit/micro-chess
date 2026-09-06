@@ -72,10 +72,17 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
       { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
     ],
   },
-  { slug: "hanging-pieces", titleKey: "exercises.hanging-pieces.title", descKey: "exercises.hanging-pieces.desc", status: "active", route: "/exercises/hanging-pieces" },
-  { slug: "equal-attackers-defenders", titleKey: "exercises.equal-attackers-defenders.title", descKey: "exercises.equal-attackers-defenders.desc", status: "active", route: "/exercises/equal-attackers-defenders" },
-  { slug: "castling-rights", titleKey: "exercises.castling-rights.title", descKey: "exercises.castling-rights.desc", status: "active", route: "/exercises/castling-rights" },
-  { slug: "give-check", titleKey: "exercises.give-check.title", descKey: "exercises.give-check.desc", status: "active", route: "/exercises/give-check" },
+  {
+    slug: "give-check",
+    titleKey: "exercises.give-check.title",
+    descKey: "exercises.give-check.desc",
+    status: "active",
+    route: "/exercises/give-check",
+    modes: [
+      { id: "practice", labelKey: "play.practice", descKey: "practice.howto", params: "?mode=practice" },
+      { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
+    ],
+  },
   { slug: "get-out-of-check", titleKey: "exercises.get-out-of-check.title", descKey: "exercises.get-out-of-check.desc", status: "active", route: "/exercises/get-out-of-check" },
   { slug: "pathfinding", titleKey: "exercises.pathfinding.title", descKey: "exercises.pathfinding.desc", status: "active", route: "/exercises/pathfinding" },
   { slug: "pin", titleKey: "exercises.pin.title", descKey: "exercises.pin.desc", status: "active", route: "/exercises/pin" },
@@ -91,6 +98,7 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
   { slug: "trapped-pieces", titleKey: "exercises.trapped-pieces.title", descKey: "exercises.trapped-pieces.desc", status: "active", route: "/exercises/trapped-pieces" },
   { slug: "avoid-stalemate", titleKey: "exercises.avoid-stalemate.title", descKey: "exercises.avoid-stalemate.desc", status: "coming_soon", route: null },
   { slug: "rule-of-the-square", titleKey: "exercises.rule-of-the-square.title", descKey: "exercises.rule-of-the-square.desc", status: "active", route: "/exercises/rule-of-the-square" },
+  { slug: "castling-rights", titleKey: "exercises.castling-rights.title", descKey: "exercises.castling-rights.desc", status: "active", route: "/exercises/castling-rights" },
 ];
 
 export function getExerciseMeta(slug: string): ExerciseMeta | undefined {

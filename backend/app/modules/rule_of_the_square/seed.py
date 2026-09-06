@@ -149,7 +149,7 @@ def seed_db(db: Session) -> int:
             title_en="Rule of the Square",
             description="ببین شاه به پیاده می‌رسد یا نه.",
             is_active=True,
-            sort_order=19,
+            sort_order=17,
         )
         db.add(exercise)
         db.commit()

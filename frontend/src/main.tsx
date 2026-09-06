@@ -9,11 +9,9 @@ import { BlindfoldSquareVisionPage } from "./pages/BlindfoldSquareVisionPage";
 import { CapturesPage } from "./pages/CapturesPage";
 import { CastlingRightsPage } from "./pages/CastlingRightsPage";
 import { CheckmatePage } from "./pages/CheckmatePage";
-import { EqualAttackersDefendersPage } from "./pages/EqualAttackersDefendersPage";
 import { ExercisesPage } from "./pages/ExercisesPage";
 import { GetOutOfCheckPage } from "./pages/GetOutOfCheckPage";
 import { GiveCheckPage } from "./pages/GiveCheckPage";
-import { HangingPiecesPage } from "./pages/HangingPiecesPage";
 import { LegalDestinationsPage } from "./pages/LegalDestinationsPage";
 import { MaterialComparisonPage } from "./pages/MaterialComparisonPage";
 import { MemoryBoardPage } from "./pages/MemoryBoardPage";
@@ -41,9 +39,6 @@ const router = createBrowserRouter([
       { path: "/exercises/captures", element: <CapturesPage /> },
       { path: "/exercises/undefended-pieces", element: <UndefendedPiecesPage /> },
       { path: "/exercises/balance-scale", element: <BalanceScalePage /> },
-      { path: "/exercises/hanging-pieces", element: <HangingPiecesPage /> },
-      { path: "/exercises/equal-attackers-defenders", element: <EqualAttackersDefendersPage /> },
-      { path: "/exercises/castling-rights", element: <CastlingRightsPage /> },
       { path: "/exercises/is-checkmate", element: <CheckmatePage /> },
       { path: "/exercises/give-check", element: <GiveCheckPage /> },
       { path: "/exercises/get-out-of-check", element: <GetOutOfCheckPage /> },
@@ -57,6 +52,7 @@ const router = createBrowserRouter([
       { path: "/exercises/pathfinding", element: <PathfindingPage /> },
       { path: "/exercises/pin", element: <PinPage /> },
       { path: "/exercises/trapped-pieces", element: <TrappedPiecesPage /> },
+      { path: "/exercises/castling-rights", element: <CastlingRightsPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

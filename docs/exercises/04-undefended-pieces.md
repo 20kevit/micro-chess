@@ -10,7 +10,7 @@ The one rule that defines this exercise:
 > A non-King piece is Undefended iff at least one valid enemy piece
 > attacks it AND no valid friendly piece defends it.
 
-This is structural, not tactical: no hanging/material evaluation, no
+This is structural, not tactical: no material evaluation, no
 engine, no "would the opponent actually capture it".
 
 ## Purpose

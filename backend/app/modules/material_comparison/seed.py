@@ -183,7 +183,7 @@ def seed_db(db: Session) -> int:
             title_en="Which Side is Heavier?",
             description="بگو کدام طرف مهره‌های ارزشمندتری دارد.",
             is_active=True,
-            sort_order=11,
+            sort_order=9,
         )
         db.add(exercise)
         db.commit()

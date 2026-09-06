@@ -181,7 +181,7 @@ def seed_db(db: Session) -> int:
             title_en="Memory Board",
             description="موقعیت را حفظ کن و از نو بچین.",
             is_active=True,
-            sort_order=13,
+            sort_order=11,
         )
         db.add(exercise)
         db.commit()

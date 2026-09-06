@@ -28,6 +28,7 @@ docs/      product + architecture + api + exercises
 | `legal_destinations` | exercise 2: validator + scorer + white-only generator + speed sessions + router (registers `legal-destinations`) |
 | `captures` | exercise 3: validator + scorer + hunter-vs-black generator + speed sessions + router (registers `captures`) |
 | `undefended_pieces` | exercise 4: validator + scorer + shared-position generator + speed sessions + router (registers `undefended-pieces`) |
+| `give_check` | exercise 5: validator + scorer + shared-position generator (in-check rejection) + speed sessions + router (registers `give-check`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
@@ -99,6 +100,10 @@ Piece Recognition additions (same tables, new columns only):
 - `undefended_speed_sessions` — same shape for Exercise 4 Speed Mode
   (`undefended_pieces/sessions.py` mirrors the same lifecycle; random
   shared `puzzles.db` positions evaluated by `undefended_squares`).
+- `giving_check_speed_sessions` — same shape for Exercise 5 Speed Mode
+  (`give_check/sessions.py` mirrors the same lifecycle; random shared
+  `puzzles.db` positions evaluated by `checking_moves`, in-check
+  positions rejected at generation).
 
 Notes:
 
@@ -108,9 +113,9 @@ Notes:
 
 ## Frontend
 
-- Routes: `/`, `/exercises`, `*` → NotFound. Exercise detail pages come with Piece Recognition.
+- Routes: `/`, `/exercises`, `/exercises/<slug>` (practice/speed via `?mode=`), `*` → NotFound.
 - `api/client.ts` transports data only. `i18n/` holds Persian strings (`fa.ts`).
-- `components/ui/` design system; `components/chess/` SVG board + pieces.
+- `components/ui/` design system; `components/chess/` SVG board + pieces + reusable multi-arrow layer (`BoardArrow`, toned feedback arrows, `arrowDrawMode`).
 - `components/exercise/` play loops (shared `ExercisePlay` + dedicated loops
   like `PieceRecognitionPlay`); `exercises/catalog.ts` is the central registry
   (entries may declare explicit `modes`, e.g. practice/speed).

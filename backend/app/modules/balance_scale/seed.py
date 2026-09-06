@@ -186,7 +186,7 @@ def seed_db(db: Session) -> int:
             title_en="Balance Scale",
             description="با مهره‌های بانک، کفه چپ را با کفه راست برابر کن.",
             is_active=True,
-            sort_order=10,
+            sort_order=8,
         )
         db.add(exercise)
         db.commit()

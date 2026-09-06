@@ -50,8 +50,9 @@ Example:
   - Response: `{id, puzzle_id, exercise_slug, mode, result, score, feedback_key, rating_delta, detail, hints_used, started_at, duration_ms, created_at}`
   - `detail` is `{correct: [], missed: [], wrong: []}` for piece-recognition.
   - `score` is authoritative and backend-computed (per-square 5/−1/−2 for
-    piece-recognition, legal-destinations, captures, and undefended-pieces
-    via their registered scorers, else correct=1.0/partial=0.5/0); never
+    piece-recognition, legal-destinations, captures, and undefended-pieces,
+    per-move 5/−1/−2 for giving-check, via their registered scorers,
+    else correct=1.0/partial=0.5/0); never
     trusted from the client; may be negative.
   - `result` in correct/partial/wrong/timeout/skipped/abandoned.
   - `rating_delta` is `null` until Glicko-2 lands; practice attempts never set it.
@@ -149,3 +150,28 @@ Same lifecycle and contract as Exercises 1–3 (open → prepare ≥20 → start
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
 - Full spec: `docs/exercises/04-undefended-pieces.md`.
+
+## Giving Check (Exercise 5)
+
+Same lifecycle and contract as Exercises 1–4 (open → prepare ≥20 → start
+60s clock → submit loop → finish/report), under `/api/v1/giving-check`:
+
+- `POST /api/v1/giving-check/next` `{exclude_ids?: []}` → fresh
+  random shared-position practice `PuzzleOut` (no `answer_json`; only
+  FEN is used from `puzzles.db`, Moves/Rating/Themes ignored;
+  positions with either king already in check are never issued).
+- `POST /api/v1/giving-check/sessions` → `preparing` session (60s default).
+- `POST /api/v1/giving-check/sessions/{id}/puzzles` `{count}` →
+  buffer/refill puzzles (cap 60); `POST .../start` requires ≥20.
+- `POST /api/v1/giving-check/sessions/{id}/submit` →
+  `{attempt, feedback_key, detail, session}` with
+  `answer: {moves: [{from, to, promotion?}]}` (plain UCI strings also
+  accepted; direction matters; duplicates normalized); per-move
+  5/−1/−2 scoring with the +5 zero-target bonus; only session-issued
+  puzzles accepted. Correct = every legal non-King move (UCI) that
+  leaves the opponent king in check (direct/capture/discovered/double/
+  promotion/en-passant; kings and castling never answers).
+- `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
+  per-puzzle report rebuilt from stored attempts;
+  `POST .../finish` → final summary. Same error codes as Exercise 1.
+- Full spec: `docs/exercises/05-giving-check.md`.

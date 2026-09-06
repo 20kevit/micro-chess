@@ -11,6 +11,49 @@ export type BoardMap = Partial<Record<string, PieceSymbol>>;
 export interface BoardArrow {
   from: string;
   to: string;
+  /** Visual tone. Defaults to "user" (violet); feedback uses the rest. */
+  tone?: ArrowTone;
+}
+
+export type ArrowTone = "user" | "correct" | "missed" | "wrong";
+
+/** Stable key for an arrow. Direction matters: e2e4 !== e4e2. */
+export function arrowKey(a: Pick<BoardArrow, "from" | "to">): string {
+  return `${a.from.toLowerCase()}${a.to.toLowerCase()}`;
+}
+
+/** Deduplicate arrows (direction-sensitive) and drop zero-length ones. */
+export function normalizeArrows<T extends Pick<BoardArrow, "from" | "to">>(arrows: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const a of arrows) {
+    const from = a.from.toLowerCase();
+    const to = a.to.toLowerCase();
+    if (from === to) continue;
+    const key = `${from}${to}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(a);
+  }
+  return out;
+}
+
+/** Split a UCI move ("e2e4", "g7g8q") into arrow parts. Null when malformed. */
+export function uciToArrow(uci: string): { from: string; to: string; promotion?: string } | null {
+  const m = /^[a-h][1-8][a-h][1-8][qrbn]?$/.exec(uci.trim().toLowerCase());
+  if (!m) return null;
+  const move = m[0];
+  return {
+    from: move.slice(0, 2),
+    to: move.slice(2, 4),
+    ...(move.length === 5 ? { promotion: move[4] } : {}),
+  };
+}
+
+/** Join arrow parts into a canonical UCI string. */
+export function arrowToUci(from: string, to: string, promotion?: string): string {
+  const promo = (promotion ?? "").trim().toLowerCase();
+  return `${from.toLowerCase()}${to.toLowerCase()}${"qrbn".includes(promo) && promo.length === 1 ? promo : ""}`;
 }
 
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
@@ -39,6 +82,13 @@ interface Props {
   arrowsEnabled?: boolean;
   /** Currently displayed arrow (controlled by the parent). */
   arrow?: BoardArrow | null;
+  /** All displayed arrows (multi-arrow exercises). Combines with `arrow`. */
+  arrows?: BoardArrow[];
+  /** How arrow gestures start. Default preserves the legacy behavior
+   * (right-drag on desktop, long-press-drag on touch). "any-drag" turns
+   * every press-drag-release (left mouse button or touch) into an arrow,
+   * for exercises where arrows are the whole answer. */
+  arrowDrawMode?: "right-or-longpress" | "any-drag";
   /** Fired after a successful piece drop (replaces any arrow). */
   onMove?: (from: string, to: string) => void;
   /** Fired after an arrow gesture completes (replaces any arrow). */
@@ -55,6 +105,13 @@ const STATE_RING: Record<string, string> = {
   wrong: "outline-4 outline -outline-offset-4 outline-red-500",
   // Marks the task's target piece. Never implies a correct destination.
   target: "outline-4 outline -outline-offset-4 outline-sky-400",
+};
+
+const ARROW_COLORS: Record<ArrowTone, string> = {
+  user: "#7c3aed",
+  correct: "#16a34a",
+  missed: "#d97706",
+  wrong: "#dc2626",
 };
 
 type GestureMode = "idle" | "pending" | "arrow" | "drag" | "dead";
@@ -77,6 +134,8 @@ export function ChessBoard({
   draggableSquares = null,
   arrowsEnabled = false,
   arrow = null,
+  arrows = [],
+  arrowDrawMode = "right-or-longpress",
   onMove,
   onArrowDraw,
   markers = {},
@@ -97,6 +156,7 @@ export function ChessBoard({
     startY: 0,
     hasPiece: false,
     canDrag: false,
+    arrowDrag: false,
     timer: 0 as number | ReturnType<typeof setTimeout> | null,
     previewTo: "",
   });
@@ -167,6 +227,7 @@ export function ChessBoard({
     g.previewTo = square;
     g.hasPiece = pieces[square] !== undefined;
     g.canDrag = g.hasPiece && (!draggableSquares || draggableSquares.includes(square));
+    g.arrowDrag = arrowsEnabled && arrowDrawMode === "any-drag";
     capture(e);
 
     if (e.pointerType === "mouse") {
@@ -181,6 +242,9 @@ export function ChessBoard({
         g.pointerId = -1;
         return;
       }
+      g.mode = "pending";
+    } else if (g.arrowDrag) {
+      // Arrow exercises: every touch drag draws an arrow (no long-press).
       g.mode = "pending";
     } else {
       // Touch/pen: wait to distinguish tap, piece drag and long-press arrow.
@@ -206,6 +270,9 @@ export function ChessBoard({
         const pos = fractionAt(e.clientX, e.clientY);
         const symbol = pieces[g.origin];
         if (pos && symbol) setDragPreview({ symbol, x: pos.x, y: pos.y });
+      } else if (g.arrowDrag) {
+        g.mode = "arrow";
+        setArrowPreview({ from: g.origin, to: g.origin });
       } else {
         // Slid off without a draggable piece: cancel, select nothing.
         g.mode = "dead";
@@ -237,7 +304,7 @@ export function ChessBoard({
     if (g.mode === "arrow") {
       const target = squareAt(e.clientX, e.clientY) ?? g.previewTo;
       if (!isRightButton) {
-        // Touch long-press released: a real arrow replaces, same square taps through.
+        // Drag released: a real arrow is drawn, same-square taps through.
         if (target && target !== origin) onArrowDraw?.(origin, target);
         else onSquarePress?.(origin);
       } else if (target && target !== origin) {
@@ -257,6 +324,8 @@ export function ChessBoard({
 
   function renderArrow(a: BoardArrow, key: string, preview: boolean) {
     if (a.from === a.to) return null;
+    const tone: ArrowTone = a.tone ?? "user";
+    const color = ARROW_COLORS[tone] ?? ARROW_COLORS.user;
     const p1 = centerOf(a.from);
     const p2 = centerOf(a.to);
     if (p1.x < 0.5 || p2.x < 0.5 || p1.y < 0.5 || p2.y < 0.5) return null;
@@ -267,14 +336,19 @@ export function ChessBoard({
           y1={p1.y}
           x2={p2.x}
           y2={p2.y}
-          stroke="#7c3aed"
+          stroke={color}
           strokeWidth={0.3}
           strokeLinecap="round"
-          markerEnd={`url(#${markerId})`}
+          markerEnd={preview ? `url(#${markerId}-user)` : `url(#${markerId}-${tone})`}
         />
       </g>
     );
   }
+
+  const allArrows = normalizeArrows([
+    ...arrows,
+    ...(arrow && arrow.from !== arrow.to ? [arrow] : []),
+  ]);
 
   return (
     <div
@@ -356,30 +430,31 @@ export function ChessBoard({
             }),
           )}
         </div>
-        {(arrowPreview ?? arrow) ? (
+        {arrowPreview ?? (allArrows.length > 0 ? allArrows[0] : null) ? (
           <svg
             className="pointer-events-none absolute inset-0 h-full w-full"
             viewBox="0 0 8 8"
             aria-hidden="true"
           >
             <defs>
-              <marker
-                id={markerId}
-                markerWidth={1.6}
-                markerHeight={1.6}
-                refX={1.1}
-                refY={0.8}
-                orient="auto"
-                markerUnits="strokeWidth"
-              >
-                <path d="M0,0 L1.6,0.8 L0,1.6 Z" fill="#7c3aed" />
-              </marker>
+              {(Object.keys(ARROW_COLORS) as ArrowTone[]).map((tone) => (
+                <marker
+                  key={tone}
+                  id={`${markerId}-${tone}`}
+                  markerWidth={1.6}
+                  markerHeight={1.6}
+                  refX={1.1}
+                  refY={0.8}
+                  orient="auto"
+                  markerUnits="strokeWidth"
+                >
+                  <path d="M0,0 L1.6,0.8 L0,1.6 Z" fill={ARROW_COLORS[tone]} />
+                </marker>
+              ))}
             </defs>
             {arrowPreview
               ? renderArrow(arrowPreview, "arrow-preview", true)
-              : arrow
-                ? renderArrow(arrow, "arrow-final", false)
-                : null}
+              : allArrows.map((a, i) => renderArrow(a, `arrow-${arrowKey(a)}-${i}`, false))}
           </svg>
         ) : null}
         {dragPreview ? (

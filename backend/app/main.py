@@ -9,6 +9,7 @@ from app.db.session import init_db
 from app.modules.auth.router import router as auth_router
 from app.modules.captures.router import router as captures_router
 from app.modules.exercises.router import router as exercises_router
+from app.modules.give_check.router import router as give_check_router
 from app.modules.legal_destinations.router import router as legal_destinations_router
 from app.modules.pathfinding.router import router as pathfinding_router
 from app.modules.piece_recognition.router import router as piece_recognition_router
@@ -22,12 +23,9 @@ import app.modules.blindfold_square_vision as _blindfold_square_vision  # noqa: 
 import app.modules.blindfold_calculation as _blindfold_calculation  # noqa: F401
 import app.modules.captures as _captures  # noqa: F401
 import app.modules.balance_scale as _balance_scale  # noqa: F401
-import app.modules.castling_rights as _castling_rights  # noqa: F401
 import app.modules.checkmate as _checkmate  # noqa: F401
-import app.modules.equal_attackers_defenders as _equal  # noqa: F401
 import app.modules.get_out_of_check as _get_out_of_check  # noqa: F401
 import app.modules.give_check as _give_check  # noqa: F401
-import app.modules.hanging_pieces as _hanging_pieces  # noqa: F401
 import app.modules.legal_destinations as _legal_destinations  # noqa: F401
 import app.modules.material_comparison as _material_comparison  # noqa: F401
 import app.modules.memory_board as _memory_board  # noqa: F401
@@ -40,6 +38,8 @@ import app.modules.pin as _pin  # noqa: F401
 import app.modules.rule_of_the_square as _rule_of_the_square  # noqa: F401
 import app.modules.trapped_pieces as _trapped_pieces  # noqa: F401
 import app.modules.undefended_pieces as _undefended_pieces  # noqa: F401
+# Castling Rights sits at the end of the exercise roadmap (see docs/EXERCISES.md).
+import app.modules.castling_rights as _castling_rights  # noqa: F401
 
 
 @asynccontextmanager
@@ -68,6 +68,7 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(exercises_router, prefix="/api/v1")
 app.include_router(captures_router, prefix="/api/v1")
+app.include_router(give_check_router, prefix="/api/v1")
 app.include_router(pathfinding_router, prefix="/api/v1")
 app.include_router(piece_recognition_router, prefix="/api/v1")
 app.include_router(legal_destinations_router, prefix="/api/v1")

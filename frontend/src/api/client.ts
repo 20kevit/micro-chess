@@ -286,4 +286,51 @@ export const api = {
     request<SpeedSummary>(`/api/v1/undefended-pieces/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Giving Check: random shared positions, all checking moves as arrows.
+  // Same contract as above (public puzzle data only, grading
+  // always server-side). Prefetch buffers never carry answers.
+  nextGiveCheckPracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/giving-check/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startGiveCheckSpeedSession: () =>
+    request<SpeedSession>("/api/v1/giving-check/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  prepareGiveCheckSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/giving-check/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startGiveCheckSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/giving-check/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextGiveCheckSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/giving-check/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitGiveCheckSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/giving-check/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getGiveCheckSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/giving-check/sessions/${sessionId}`),
+  getGiveCheckSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/giving-check/sessions/${sessionId}/report`),
+  finishGiveCheckSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/giving-check/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
 };

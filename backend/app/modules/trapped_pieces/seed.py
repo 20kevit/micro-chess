@@ -133,7 +133,7 @@ def seed_db(db: Session) -> int:
             title_en="Trapped Pieces",
             description="مهره‌هایی که هیچ حرکت قانونی ندارند را پیدا کن.",
             is_active=True,
-            sort_order=15,
+            sort_order=13,
         )
         db.add(exercise)
         db.commit()

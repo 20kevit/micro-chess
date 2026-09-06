@@ -233,7 +233,7 @@ def seed_db(db: Session) -> int:
             title_en="Pin",
             description="با یک حرکت قانونی، یک آچمز کلاسیک بساز.",
             is_active=True,
-            sort_order=9,
+            sort_order=7,
         )
         db.add(exercise)
         db.commit()

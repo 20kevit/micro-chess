@@ -186,7 +186,7 @@ def seed_db(db: Session) -> int:
             title_en="Get Out of Check",
             description="حرکتی پیدا کن که شاه را از کیش خارج کند.",
             is_active=True,
-            sort_order=7,
+            sort_order=5,
         )
         db.add(exercise)
         db.commit()

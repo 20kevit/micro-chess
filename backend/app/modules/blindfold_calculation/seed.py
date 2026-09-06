@@ -216,7 +216,7 @@ def seed_db(db: Session) -> int:
             title_en="Blindfold Calculation",
             description="بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
             is_active=True,
-            sort_order=16,
+            sort_order=14,
         )
         db.add(exercise)
         db.commit()

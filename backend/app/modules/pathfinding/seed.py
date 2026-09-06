@@ -27,7 +27,7 @@ def seed_db(db: Session) -> int:
             title_en="Pathfinding",
             description="مهره را قدم‌به‌قدم و امن به خانه ستاره‌دار برسان.",
             is_active=True,
-            sort_order=8,
+            sort_order=6,
         )
         db.add(exercise)
         db.commit()

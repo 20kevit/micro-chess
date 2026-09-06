@@ -319,7 +319,7 @@ def seed_db(db: Session) -> int:
             title_en="Opening Traps",
             description="تاکتیک تله‌های گشایشی را ذهنی پیدا کن.",
             is_active=True,
-            sort_order=17,
+            sort_order=15,
         )
         db.add(exercise)
         db.commit()

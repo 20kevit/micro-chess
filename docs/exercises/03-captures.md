@@ -11,8 +11,8 @@ The one rule that defines this exercise:
 > Whether a black piece is defended or not DOES NOT MATTER.
 
 A defended black queen is still a correct answer when the hunter can
-capture it. Defense, exchange evaluation, and hanging-piece logic belong
-to Exercise 4 and are never consulted here.
+capture it. Defense and exchange evaluation belong to other exercises
+and are never consulted here.
 
 ## Purpose
 

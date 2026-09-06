@@ -3,29 +3,35 @@
 No exercise is implemented in the foundation. Each gets its own spec from the user
 before implementation. New exercise = catalog row + validator + tests + UI.
 
-Planned types (examples, not specs):
+Roadmap (final numbering; Exercises 1–4 are production vertical slices):
 
-1. Piece Recognition
-2. Legal Destinations
-3. Captures
-4. Hanging Pieces
-5. Equal Attackers & Defenders
-6. Castling Rights
-7. Give Check
-8. Get Out of Check
-9. Pathfinding
-10. Pin
-11. Balance Scale
-12. Which Side is Heavier?
-13. Is it Checkmate?
-14. Memory Board
-15. Blindfold Square Vision
-16. Trapped Pieces
-17. Blindfold Calculation
-18. Opening Traps Blindfold
-19. Reverse Opening
-20. Avoid Stalemate
-21. Square Rule
+1. Piece Recognition (`piece-recognition`)
+2. Legal Destinations (`legal-destinations`)
+3. Captures (`captures`)
+4. Undefended Pieces (`undefended-pieces`)
+5. Giving Check (`give-check`)
+6. Get Out of Check (`get-out-of-check`)
+7. Pathfinding (`pathfinding`)
+8. Pin (`pin`)
+9. Balance Scale (`balance-scale`)
+10. Which Side is Heavier? (`heavier-side`)
+11. Is it Checkmate? (`is-checkmate`)
+12. Memory Board (`memory-board`)
+13. Blindfold Square Vision (`blindfold-square-vision`)
+14. Blindfold Calculation (`blindfold-calculation`)
+15. Opening Traps Blindfold (`opening-traps`)
+16. Opening Move Reconstruction (`opening-move-reconstruction`)
+17. Trapped Pieces (`trapped-pieces`)
+18. Rule of the Square (`rule-of-the-square`)
+19. Castling Rights (`castling-rights`, moved to the end of the roadmap)
+
+Coming soon (no number yet): Reverse Opening, Avoid Stalemate.
+
+Removed (no placeholders left): the former Exercises 5 (Hanging
+Pieces, `hanging-pieces`) and 6 (Equal Attackers & Defenders,
+`equal-attackers-defenders`) were deleted from the project — backend
+modules, frontend pages, routes, catalog entries, tests, and docs.
+Everything after them moved two numbers back.
 
 ## How to add an exercise (later)
 
@@ -141,60 +147,53 @@ Planned types (examples, not specs):
 - Seed: `python -m app.modules.captures.seed` (15 legacy demo puzzles,
   still served read-only; covered by tests).
 
-## Fourth slice
+## Removed slices (no placeholders)
 
-**Hanging Pieces** — IMPLEMENTED (`hanging-pieces`).
-
-- Route: `/exercises/hanging-pieces` (shared `ExercisePlay` loop with no
-  pre-highlight; only the user's selections are shown).
-- Validator: `backend/app/modules/hanging_pieces/validator.py` (hanging =
-  enemy attackers > 0 AND friendly defenders == 0, from python-chess attack
-  geometry, never legal moves; own square never counts as a defender).
-- Seed: `python -m app.modules.hanging_pieces.seed` (15 puzzles covering
-  single/multiple/none hanging, multi-attack/defense, all piece types as
-  attackers and defenders, blockers, king attack/defense, decoys).
+**Hanging Pieces** (`hanging-pieces`, former Exercise 5) and **Equal
+Attackers & Defenders** (`equal-attackers-defenders`, former Exercise 6)
+were completely removed: backend modules, frontend pages, routes,
+catalog entries, tests, and docs. Everything below moved two numbers
+back; Exercises 1–4 are untouched.
 
 ## Fifth slice
 
-**Equal Attackers & Defenders** — IMPLEMENTED (`equal-attackers-defenders`).
+**Giving Check** — IMPLEMENTED (`give-check`). Full spec:
+`docs/exercises/05-giving-check.md`.
 
-- Route: `/exercises/equal-attackers-defenders` (shared `ExercisePlay` loop
-  with no pre-highlight; only the user's selections are shown).
-- Validator: `backend/app/modules/equal_attackers_defenders/validator.py`
-  (target = attackers > 0 AND attackers == defenders, from python-chess
-  attack geometry, never legal moves; own square never counts as a defender).
-- Seed: `python -m app.modules.equal_attackers_defenders.seed` (15 puzzles
-  covering 1v1/2v2/3v3, unequal counts, empty boards, all piece types as
-  attackers and defenders, blockers, king attack/defense, decoys).
+- Route: `/exercises/give-check` with `?mode=practice` (untimed) and
+  `?mode=speed` (60s session); card renders both entry buttons
+  directly (no intermediate mode screen), same pattern as Exercises 1–4.
+- Play loop: `frontend/src/components/exercise/GivingCheckPlay.tsx`
+  (practice + speed reusing the `PieceGameLayout` shell, timer, hints,
+  feedback; multi-arrow board layer in `components/chess/ChessBoard.tsx`
+  with press-drag-release drawing, per-arrow remove/promotion, toned
+  feedback arrows); correctness, scoring, and the speed clock stay
+  backend-authoritative.
+- Position source: shared `puzzles.db` via `positions/repository.py`
+  (read-only, FEN only, fallback FENs when absent), exactly like
+  Exercise 4; per-puzzle answers built server-side by
+  `give_check/generator.py` (bounded 25-candidate sampling that rejects
+  positions with either king in check and prefers non-empty answers
+  while keeping zero-target valid, answers server-side only).
+- Rule: every legal non-King move (UCI) that leaves the opponent king
+  in check — direct, capture, discovered (moving piece's from→to),
+  double (one arrow), promotion (distinct choices), en passant;
+  kings/castling never answers.
+- Validator: `backend/app/modules/give_check/validator.py` (exact UCI
+  set match incl. empty==empty; direction-sensitive,
+  duplicates/order-insensitive; malformed arrows count as wrong).
+- Practice: `POST /api/v1/giving-check/next` issues fresh random
+  published puzzles (identical FEN rows reused; `exclude_ids` steers
+  variety); the client keeps a current+next prefetch buffer. Answers go
+  through standard `POST /api/v1/attempts`.
+- Speed: `give_check/sessions.py` + `router.py` (open → prepare ≥20 →
+  start 60s clock → submit loop with ~450ms auto-advance, no manual next
+  → server-rebuilt per-puzzle report; per-answer rows reuse `attempts`).
+- Scoring: registered per-move scorer (+5 correct / −1 missed / −2 wrong,
+  +5 bonus for correctly answered zero-target, negatives kept, independent
+  of the CORRECT/PARTIAL/WRONG label).
 
 ## Sixth slice
-
-**Castling Rights** — IMPLEMENTED (`castling-rights`).
-
-- Route: `/exercises/castling-rights` (shared `ExercisePlay` loop extended
-  with a fixed four-option mode; board shows the position as context only).
-- Validator: `backend/app/modules/castling_rights/validator.py` (each option
-  must appear in that color's python-chess legal moves on a turn-flipped
-  board; explicit king/rook presence guards stale FEN flags safely).
-- Seed: `python -m app.modules.castling_rights.seed` (15 puzzles covering all
-  four options, single-option cases, absent rights, blocked paths incl. b-file,
-  check, transit/destination attacks, stale rook/king flags, partial subsets).
-
-## Seventh slice
-
-**Give Check** — IMPLEMENTED (`give-check`).
-
-- Route: `/exercises/give-check` (shared `ExercisePlay` loop extended with a
-  from→to move-input mode, promotion picker and exercise-mode toggle; the
-  modes `all-checks`/`appropriate-checks` currently behave identically).
-- Validator: `backend/app/modules/give_check/validator.py` (any legal
-  python-chess move that leaves the opponent king in check; FEN travels in
-  the server-only `answer_json`, never exposed).
-- Seed: `python -m app.modules.give_check.seed` (15 hand-designed puzzles
-  covering all piece types, discovered/capture/blocked/pinned/multi-answer
-  and promotion checks; every example independently verified at seed time).
-
-## Eighth slice
 
 **Get Out of Check** — IMPLEMENTED (`get-out-of-check`).
 
@@ -209,7 +208,7 @@ Planned types (examples, not specs):
   doubles, pinned and discovered-fail cases, single/multi answers and a
   black-to-move position; every example independently verified at seed time).
 
-## Ninth slice
+## Seventh slice
 
 **Pathfinding** — IMPLEMENTED (`pathfinding`).
 
@@ -224,7 +223,7 @@ Planned types (examples, not specs):
   templates for all six piece types, every template proven solvable by BFS;
   15 persisted puzzles).
 
-## Tenth slice
+## Eighth slice
 
 **Pin** — IMPLEMENTED (`pin`).
 
@@ -239,7 +238,7 @@ Planned types (examples, not specs):
   pawn/knight/king-created pins, multi-answer, existing-pin and decoy cases;
   every example independently verified at seed time).
 
-## Eleventh slice
+## Ninth slice
 
 **Balance Scale** — IMPLEMENTED (`balance-scale`).
 
@@ -253,7 +252,7 @@ Planned types (examples, not specs):
   of rising difficulty with independent subset-sum verification; 15 persisted
   puzzles).
 
-## Twelfth slice
+## Tenth slice
 
 **Which Side is Heavier?** — IMPLEMENTED (`heavier-side`).
 
@@ -266,7 +265,7 @@ Planned types (examples, not specs):
 - Seed: `python -m app.modules.material_comparison.seed` (15 hand-designed
   puzzles, 6 left / 6 right / 3 equal, with independent total verification).
 
-## Thirteenth slice
+## Eleventh slice
 
 **Is it Checkmate?** — IMPLEMENTED (`is-checkmate`).
 
@@ -281,7 +280,7 @@ Planned types (examples, not specs):
   blockable/capturable/king-escape and decoy cases; every classification
   independently verified at seed time).
 
-## Fourteenth slice
+## Twelfth slice
 
 **Memory Board** — IMPLEMENTED (`memory-board`).
 
@@ -297,7 +296,7 @@ Planned types (examples, not specs):
   of rising difficulty, 8s/6s/4s memorize durations, every FEN independently
   verified at seed time).
 
-## Fifteenth slice
+## Thirteenth slice
 
 **Blindfold Square Vision** — IMPLEMENTED (`blindfold-square-vision`).
 
@@ -313,20 +312,7 @@ Planned types (examples, not specs):
   hand-designed puzzles, K3/Q2/R2/B2/N4/P2 with 1/2/3/6-move knight cases;
   every distance independently verified at seed time).
 
-## Sixteenth slice
-
-**Trapped Pieces** — IMPLEMENTED (`trapped-pieces`).
-
-- Route: `/exercises/trapped-pieces` (shared `ExercisePlay` loop with no
-  pre-highlight; only the user's selections are shown).
-- Validator: `backend/app/modules/trapped_pieces/validator.py` (trapped =
-  non-king piece with zero pseudo-legal moves via `generate_pseudo_legal_moves`;
-  pinned pieces have pseudo moves so they are NOT trapped; kings excluded).
-- Seed: `python -m app.modules.trapped_pieces.seed` (15 hand-designed puzzles
-  covering all five trappable kinds, pawn mutual blocks, pinned-not-trapped,
-  king-excluded and empty cases; every answer independently verified).
-
-## Seventeenth slice
+## Fourteenth slice
 
 **Blindfold Calculation** — IMPLEMENTED (`blindfold-calculation`).
 
@@ -353,7 +339,7 @@ Planned types (examples, not specs):
   mate-in-1: back-rank, queen, rook, bishop, knight incl. smothered,
   pawn capture, Scholar's, black-to-move and corner patterns).
 
-## Eighteenth slice
+## Fifteenth slice
 
 **Opening Traps Blindfold** — IMPLEMENTED (`opening-traps`).
 
@@ -386,7 +372,7 @@ Planned types (examples, not specs):
   WRONG, because the exercise grades the documented trap tactic, not
   general engine evaluation (no Stockfish by design).
 
-## Nineteenth slice
+## Sixteenth slice
 
 **Opening Move Reconstruction** — IMPLEMENTED (`opening-move-reconstruction`).
 
@@ -419,11 +405,23 @@ Planned types (examples, not specs):
 - Known limitation: single canonical line per puzzle in the seed, though
   the position-based grader already accepts any equivalent line.
 
-## Twenty-first slice
+## Seventeenth slice
+
+**Trapped Pieces** — IMPLEMENTED (`trapped-pieces`).
+
+- Route: `/exercises/trapped-pieces` (shared `ExercisePlay` loop with no
+  pre-highlight; only the user's selections are shown).
+- Validator: `backend/app/modules/trapped_pieces/validator.py` (trapped =
+  non-king piece with zero pseudo-legal moves via `generate_pseudo_legal_moves`;
+  pinned pieces have pseudo moves so they are NOT trapped; kings excluded).
+- Seed: `python -m app.modules.trapped_pieces.seed` (15 hand-designed puzzles
+  covering all five trappable kinds, pawn mutual blocks, pinned-not-trapped,
+  king-excluded and empty cases; every answer independently verified).
+
+## Eighteenth slice
 
 **Rule of the Square** — IMPLEMENTED (`rule-of-the-square`).
 
-- Exercise 20 stays intentionally absent; the catalog moves from 19 to 21.
 - Route: `/exercises/rule-of-the-square` (dedicated `RuleOfTheSquarePlay`
   loop: visible board, two large touch choices شاه می‌رسد / شاه نمی‌رسد,
   no piece movement; the square corners are marked only after submission).
@@ -448,6 +446,21 @@ Planned types (examples, not specs):
 - Known limitation: MVP is the simplified single-pawn race only; no
   opposition, zugzwang subtleties beyond the race, or multi-pawn
   endgames.
+
+## Nineteenth slice (end of the roadmap)
+
+**Castling Rights** — IMPLEMENTED (`castling-rights`).
+
+- Moved here from the former Exercise 6 slot; it is parked at the end
+  of the roadmap and is not under active development.
+- Route: `/exercises/castling-rights` (shared `ExercisePlay` loop extended
+  with a fixed four-option mode; board shows the position as context only).
+- Validator: `backend/app/modules/castling_rights/validator.py` (each option
+  must appear in that color's python-chess legal moves on a turn-flipped
+  board; explicit king/rook presence guards stale FEN flags safely).
+- Seed: `python -m app.modules.castling_rights.seed` (15 puzzles covering all
+  four options, single-option cases, absent rights, blocked paths incl. b-file,
+  check, transit/destination attacks, stale rook/king flags, partial subsets).
 
 ## Exercise 4 (spec-track)
 

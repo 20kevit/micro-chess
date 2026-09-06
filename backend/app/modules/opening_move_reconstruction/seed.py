@@ -232,7 +232,7 @@ def seed_db(db: Session) -> int:
             title_en="Opening Reconstruction",
             description="حرکت‌های ابتدای بازی را بازسازی کن.",
             is_active=True,
-            sort_order=18,
+            sort_order=16,
         )
         db.add(exercise)
         db.commit()
