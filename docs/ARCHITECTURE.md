@@ -29,6 +29,7 @@ docs/      product + architecture + api + exercises
 | `captures` | exercise 3: validator + scorer + hunter-vs-black generator + speed sessions + router (registers `captures`) |
 | `undefended_pieces` | exercise 4: validator + scorer + shared-position generator + speed sessions + router (registers `undefended-pieces`) |
 | `give_check` | exercise 5: validator + scorer + shared-position generator (in-check rejection) + speed sessions + router (registers `give-check`) |
+| `pathfinding` | exercise 6: movement geometry + BFS (`moves.py`) + validator + scorer + weighted generator + speed sessions + router (registers `pathfinding`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
@@ -104,6 +105,10 @@ Piece Recognition additions (same tables, new columns only):
   (`give_check/sessions.py` mirrors the same lifecycle; random shared
   `puzzles.db` positions evaluated by `checking_moves`, in-check
   positions rejected at generation).
+- `pathfinding_speed_sessions` — same shape for Exercise 6 Speed Mode
+  (`pathfinding/sessions.py` mirrors the same lifecycle; weighted
+  single-piece puzzles from `pathfinding/generator.py`, BFS optimals
+  stored server-side).
 
 Notes:
 
@@ -119,7 +124,8 @@ Notes:
 - `components/exercise/` play loops (shared `ExercisePlay` + dedicated loops
   like `PieceRecognitionPlay`); `exercises/catalog.ts` is the central registry
   (entries may declare explicit `modes`, e.g. practice/speed).
-- `lib/localProgress.ts` anonymous localStorage stub.
+- `lib/localProgress.ts` anonymous localStorage stub; `lib/sound.ts` tiny
+  WebAudio blips (error/success) with no dependencies.
 - Visual language documented in `docs/DESIGN_SYSTEM.md`; tokens in `index.css`.
 
 ## Decisions log

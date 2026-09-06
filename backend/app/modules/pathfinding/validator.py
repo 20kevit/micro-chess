@@ -1,138 +1,63 @@
-"""Pathfinding rules: single-step legality plus full-path replay.
+"""Pathfinding rules (Exercise 6, simple version).
 
-The selected piece moves step by step toward a target square. A step is
-allowed when it is a legal chess move for that piece (python-chess, with
-the mover to move: pins, blocks, pawn rules and king safety included) AND
-it satisfies the exercise rule:
+One white piece (knight/bishop/rook/queen) walks step by step toward a
+star square on an otherwise EMPTY board. A step is allowed iff it is one
+legal move of that piece's real chess movement with no blockers
+(see ``moves.py``). There is no king on the board, so there is no
+king-safety, check, attack-map or capture concept in this exercise —
+those belong to Exercise 7 (obstacles), implemented separately.
 
-- landing on an enemy piece is allowed only as a legal capture
-  (captures of the enemy king are never allowed);
-- landing on an empty square is allowed only when no enemy attacks it.
+Puzzle definition (stored in the puzzle row, server-side only):
+- ``Puzzle.fen``: empty board with the single white piece (rendering).
+- ``position_json``: {"from", "target", "piece"} (public task data).
+- ``answer_json``: {"fen", "from", "target", "piece", "optimal_moves"}
+  (never exposed; ``optimal_moves`` is the BFS minimum).
 
-Enemy control is recomputed from the board after every move, so captures
-change the control map. En passant never arises (enemies are static and
-generated positions carry no ep square); the ep square is stripped when
-serializing so a stale flag can never enable a phantom capture.
-Promotion defaults to queen when a pawn reaches the last rank.
+Attempt model (sent by the client):
+- {"path": ["e2", "e4", ...], "illegal_attempts": 2}
+  ``path`` starts at ``from`` and lists every square the piece stood on
+  (path[0] == from, len(path) - 1 == actual legal moves).
+  ``illegal_attempts`` counts rejected drag/click tries client-side.
+
+Validation: CORRECT iff every consecutive step is legal geometry for the
+stored piece AND the path ends exactly on the target. Anything else
+(incomplete path, illegal step, wrong start, malformed input, claiming
+completion from another square) is WRONG. There is no PARTIAL: reaching
+the star is the submission event. Any legal route with the optimal move
+count scores as optimal — no specific BFS route is ever enforced.
 """
+
+from __future__ import annotations
 
 from typing import Any
 
-import chess
-
+from app.modules.pathfinding import moves
 from app.modules.rule_engine.base import AttemptResult, ValidationResult, normalize_square
 
 SLUG = "pathfinding"
 
-_PROMOTIONS = {"q": chess.QUEEN, "r": chess.ROOK, "b": chess.BISHOP, "n": chess.KNIGHT}
+
+def _illegal_count(raw: Any) -> int:
+    if isinstance(raw, bool):
+        return 0
+    if isinstance(raw, int) and raw > 0:
+        return raw
+    return 0
 
 
-def _promotion_choice(raw: Any) -> chess.PieceType | None:
-    if not isinstance(raw, str):
-        return None
-    return _PROMOTIONS.get(raw.strip().lower())
+def replay_path(kind: str, start: str, target: str, path: list[str]) -> dict[str, Any]:
+    """Replay a path with pure movement geometry.
 
-
-def _serialize(board: chess.Board, mover: chess.Color) -> str:
-    board.turn = mover
-    board.ep_square = None
-    return board.fen()
-
-
-def mover_color(fen: str, start: str) -> chess.Color:
-    """Color of the piece on the start square. Raises ValueError when empty."""
-    board = chess.Board(fen)  # raises on invalid FEN
-    piece = board.piece_at(chess.parse_square(start))
-    if piece is None:
-        raise ValueError("no_piece_on_start_square")
-    return piece.color
-
-
-def iter_moves(fen: str, mover: chess.Color, origin: str):
-    """Yield (dest, new_fen, captured_square|None) for every allowed step.
-
-    Single source of truth for the movement rule; used by step validation,
-    full-path replay and the generator's reachability check.
+    Returns {"ok", "prefix", "fail_at", "reached", "moves"}. Never raises
+    on bad squares (they fail the replay); raises ValueError only for an
+    unknown piece kind.
     """
-    board = chess.Board(fen)  # raises on invalid FEN
-    origin_sq = chess.parse_square(origin)
-    piece = board.piece_at(origin_sq)
-    if piece is None or piece.color != mover:
-        return
-    board.turn = mover
-    enemy = not mover
-    for move in board.legal_moves:
-        if move.from_square != origin_sq:
-            continue
-        dest_piece = board.piece_at(move.to_square)
-        if dest_piece is not None:
-            if dest_piece.color != enemy or dest_piece.piece_type == chess.KING:
-                continue
-            if not board.is_capture(move):
-                continue
-        elif board.is_attacked_by(enemy, move.to_square):
-            continue
-        probe = board.copy(stack=False)
-        probe.push(move)
-        captured = chess.square_name(move.to_square) if dest_piece is not None else None
-        yield chess.square_name(move.to_square), _serialize(probe, mover), captured
-
-
-def apply_step(
-    fen: str,
-    mover: chess.Color,
-    origin: str,
-    dest: str,
-    promotion: Any = None,
-) -> dict[str, Any] | None:
-    """Apply one step. Returns {"fen", "captured"} or None when forbidden.
-
-    Raises ValueError on invalid FEN or square names.
-    """
-    origin_sq = chess.parse_square(origin)
-    dest_sq = chess.parse_square(dest)
-    if origin_sq == dest_sq:
-        return None
-    matches = [
-        (square, new_fen, captured)
-        for (square, new_fen, captured) in iter_moves(fen, mover, origin)
-        if square == chess.square_name(dest_sq)
-    ]
-    if not matches:
-        return None
-    # Pawn promotion: the client sends its choice, defaulting to queen.
-    board = chess.Board(fen)
-    board.turn = mover
-    probe_moves = [
-        m for m in board.legal_moves if m.from_square == origin_sq and m.to_square == dest_sq
-    ]
-    if any(m.promotion is not None for m in probe_moves):
-        promo = _promotion_choice(promotion) or chess.QUEEN
-        if not any(m.promotion == promo for m in probe_moves):
-            return None
-    _, new_fen, captured = matches[0]
-    return {"fen": new_fen, "captured": captured}
-
-
-def replay_path(
-    fen: str,
-    start: str,
-    target: str,
-    path: list[str],
-    promotion: Any = None,
-) -> dict[str, Any]:
-    """Replay a full path from the initial position.
-
-    Returns {"ok", "prefix", "fail_at", "reached", "moves"}. Raises
-    ValueError on invalid FEN or start square.
-    """
-    mover = mover_color(fen, start)
-    prefix = [start]
-    current_fen = fen
-    current = start
+    if kind not in moves.ALLOWED_KINDS:
+        raise ValueError("unknown_piece_kind")
+    prefix = [path[0]] if path else []
+    current = path[0] if path else start
     for square in path[1:]:
-        nxt = apply_step(current_fen, mover, current, square, promotion)
-        if nxt is None:
+        if not moves.is_legal_step(kind, current, square):
             return {
                 "ok": False,
                 "prefix": prefix,
@@ -140,47 +65,65 @@ def replay_path(
                 "reached": False,
                 "moves": len(prefix) - 1,
             }
-        current_fen = nxt["fen"]
         current = square
         prefix.append(square)
+    reached = bool(path) and current == target
     return {
-        "ok": current == target,
+        "ok": reached,
         "prefix": prefix,
-        "fail_at": None if current == target else target,
-        "reached": current == target,
-        "moves": len(prefix) - 1,
+        "fail_at": None if reached else target,
+        "reached": reached,
+        "moves": max(0, len(prefix) - 1),
     }
 
 
 def validate(puzzle_answer: dict[str, Any], attempt: dict[str, Any]) -> ValidationResult:
-    fen = puzzle_answer.get("fen") if isinstance(puzzle_answer, dict) else None
-    start = normalize_square(puzzle_answer.get("from")) if isinstance(puzzle_answer, dict) else None
-    target = normalize_square(puzzle_answer.get("target")) if isinstance(puzzle_answer, dict) else None
-    raw_path = attempt.get("path") if isinstance(attempt, dict) else None
-    promotion = attempt.get("promotion") if isinstance(attempt, dict) else None
+    answer = puzzle_answer if isinstance(puzzle_answer, dict) else {}
+    start = normalize_square(answer.get("from"))
+    target = normalize_square(answer.get("target"))
+    raw_kind = answer.get("piece")
+    kind = raw_kind.strip().lower() if isinstance(raw_kind, str) else None
+    optimal = answer.get("optimal_moves")
+    optimal_n = optimal if isinstance(optimal, int) and optimal >= 0 else None
 
     def wrong(detail_extra: dict[str, Any] | None = None) -> ValidationResult:
-        detail = {"correct": [], "missed": [target] if target else [], "wrong": []}
+        detail: dict[str, Any] = {
+            "correct": [],
+            "missed": [target] if target else [],
+            "wrong": [],
+            "reached": False,
+            "moves": 0,
+            "optimal_moves": optimal_n if optimal_n is not None else 0,
+            "illegal_attempts": 0,
+        }
         if detail_extra:
             detail.update(detail_extra)
         return ValidationResult(result=AttemptResult.WRONG, message_key="feedback.wrong", detail=detail)
 
-    if not isinstance(fen, str) or start is None or target is None:
+    if start is None or target is None or kind not in moves.ALLOWED_KINDS or optimal_n is None:
         return wrong()
-    if not isinstance(raw_path, list) or not raw_path:
+    raw = attempt.get("path") if isinstance(attempt, dict) else None
+    if not isinstance(raw, list) or not raw:
         return wrong()
     path: list[str] = []
-    for entry in raw_path:
+    for entry in raw:
         square = normalize_square(entry)
         if square is None:
             return wrong({"wrong": [str(entry)]})
         path.append(square)
     if path[0] != start:
         return wrong({"wrong": [path[0]]})
+    illegal = _illegal_count(attempt.get("illegal_attempts") if isinstance(attempt, dict) else 0)
     try:
-        run = replay_path(fen, start, target, path, promotion)
+        run = replay_path(kind, start, target, path)
     except ValueError:
         return wrong()
+    base = {
+        "optimal_moves": optimal_n,
+        "illegal_attempts": illegal,
+        "moves": run["moves"],
+        "path": run["prefix"],
+    }
     if run["ok"]:
         return ValidationResult(
             result=AttemptResult.CORRECT,
@@ -190,14 +133,47 @@ def validate(puzzle_answer: dict[str, Any], attempt: dict[str, Any]) -> Validati
                 "missed": [],
                 "wrong": [],
                 "reached": True,
-                "moves": run["moves"],
+                **base,
             },
         )
-    detail: dict[str, Any] = {
-        "correct": run["prefix"],
-        "missed": [] if run["reached"] else [target],
-        "wrong": [run["fail_at"]] if run["fail_at"] else [],
-        "reached": run["reached"],
-        "moves": run["moves"],
-    }
-    return ValidationResult(result=AttemptResult.WRONG, message_key="feedback.wrong", detail=detail)
+    return ValidationResult(
+        result=AttemptResult.WRONG,
+        message_key="feedback.wrong",
+        detail={
+            "correct": run["prefix"],
+            "missed": [] if run["reached"] else [target],
+            "wrong": [run["fail_at"]] if run["fail_at"] else [],
+            "reached": run["reached"],
+            **base,
+        },
+    )
+
+
+# --- Single-step assistance (used by POST /pathfinding/step) ---
+
+
+def apply_step(kind: str, origin: str, dest: str) -> str | None:
+    """One-step oracle: the destination square when legal, else None.
+
+    Pure geometry, no board state: on the empty board every legal step is
+    always available regardless of history. Raises ValueError on unknown
+    piece kind.
+    """
+    if kind not in moves.ALLOWED_KINDS:
+        raise ValueError("unknown_piece_kind")
+    origin_sq = normalize_square(origin)
+    dest_sq = normalize_square(dest)
+    if origin_sq is None or dest_sq is None or origin_sq == dest_sq:
+        return None
+    if not moves.is_legal_step(kind, origin_sq, dest_sq):
+        return None
+    return dest_sq
+
+
+def mover_kind(answer: dict[str, Any]) -> str:
+    """Piece kind stored in the puzzle answer. Raises ValueError when bad."""
+    raw = answer.get("piece") if isinstance(answer, dict) else None
+    kind = raw.strip().lower() if isinstance(raw, str) else ""
+    if kind not in moves.ALLOWED_KINDS:
+        raise ValueError("unknown_piece_kind")
+    return kind

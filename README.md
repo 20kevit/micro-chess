@@ -90,13 +90,25 @@ npm run build
   (press-drag-release for mouse + touch, per-arrow remove/promotion,
   green/amber/red feedback), identical per-move scoring; full spec in
   `docs/exercises/05-giving-check.md`.
+- Exercise 6 (Pathfinding «مسیر یابی», simple version): same
+  practice+speed architecture with a dynamic weighted generator (one
+  white knight/bishop/rook/queen at 50/20/20/10, one star, empty board —
+  no king, no enemies, no captures), pure movement geometry + BFS
+  shortest-path counts stored server-side, drag-primary/click-supported
+  step loop with persistent selection (220ms practice / 110ms speed
+  glide, illegal buzz + red flash), arrival auto-submits
+  `{path, illegal_attempts}` for `optimal×5 − extra×2 − illegal×3`
+  scoring; full spec in `docs/exercises/06-pathfinding.md`.
+  Obstacle/enemy-piece pathfinding is NOT included — it lands separately
+  as Exercise 7; Get Out of Check is postponed (no roadmap number).
 - Former Exercises 5 (Hanging Pieces) and 6 (Attacker/Defender Equality)
   were removed from the project; later exercises renumbered accordingly
   and Castling Rights moved to the end of the roadmap
   (see `docs/EXERCISES.md`).
 - Tables now: `users`, `exercises`, `puzzles`, `attempts`, `piece_speed_sessions`,
   `legal_speed_sessions`, `capture_speed_sessions`,
-  `undefended_speed_sessions`, `giving_check_speed_sessions`. Rating tables postponed.
+  `undefended_speed_sessions`, `giving_check_speed_sessions`,
+  `pathfinding_speed_sessions`. Rating tables postponed.
 - Puzzle answers immutable once published; archive instead of delete.
 - Attempts distinguish correct/partial/wrong/timeout/skipped/abandoned + rated/practice.
 - Audio is a `AudioPort` boundary only; no TTS vendor yet.

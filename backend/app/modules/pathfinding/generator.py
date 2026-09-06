@@ -1,231 +1,226 @@
-"""Deterministic pathfinding puzzle generator.
+"""Pathfinding puzzle generator (Exercise 6, simple version).
 
-Puzzles are built from hand-designed templates (covering all six piece
-types and the required situation variety) and every template is proven
-solvable by breadth-first search before it is accepted. Generation is fully
-deterministic: the same code always yields the same 15 puzzles.
+Every puzzle: exactly one white piece (knight 50% / bishop 20% / rook
+20% / queen 10%, deliberately weighted — never assumed to emerge), one
+distinct star square, empty board otherwise. No king, no pawns, no black
+pieces, no second white piece.
 
-The BFS solver searches (position × captured-set) states using the same
-single-step rule as the validator (`iter_moves`). Independent test
-recomputation with raw python-chess guards against shared bugs.
+- Piece choice uses the documented weights via ``rng.choices`` (finite
+  samples fluctuate; batch-exactness is never required).
+- Start and target are uniform random distinct squares; the target must
+  be REACHABLE (bishop opposite-color pairs are rejected) and its BFS
+  ``optimal_moves`` is stored server-side in ``answer_json``.
+- Difficulty: uniform sampling already mixes 1-move (rook/queen sharing
+  a line, bishop on its diagonal) with natural multi-move knight/bishop
+  puzzles. To avoid floods of trivial one-movers, sampling rejects a
+  1-move candidate with probability ``AVOID_TRIVIAL`` (bounded retries),
+  so the dataset keeps 1-, 2-, 3- and longer puzzles. No adaptive
+  difficulty yet.
+- The frontend renders from ``Puzzle.fen`` + ``position_json`` (from,
+  target, piece) and NEVER receives ``optimal_moves``.
+
+Persisted row: ``fen`` (empty board + piece), ``position_json`` (public),
+``answer_json`` (server-only incl. optimal_moves), Persian prompt/hints.
 """
 
-from collections import deque
+from __future__ import annotations
 
-import chess
+import random
 
-from app.modules.pathfinding.validator import iter_moves, mover_color
+from sqlalchemy.orm import Session
 
-# Each template: piece kind (for distribution checks), start, target,
-# full FEN, minimum accepted shortest-path length in moves, prompt,
-# explanation, hints, rating.
-TEMPLATES: list[dict] = [
-    {
-        "kind": "knight",
-        "start": "b1",
-        "target": "d2",
-        "fen": "k5r1/8/8/8/8/8/8/1N5K w - - 0 1",
-        "min_moves": 1,
-        "explanation": "اسب از b1 مستقیم به d2 می‌پرد؛ راه ساده و یک‌حرکتی.",
-        "hints": [{"id": "h1", "text_fa": "حرکت اسب به شکل L است.", "rating_cost": 5}],
-        "rating": 700.0,
-    },
-    {
-        "kind": "knight",
-        "start": "e4",
-        "target": "g5",
-        "fen": "k5r1/8/5p2/8/4N3/8/8/7K w - - 0 1",
-        "min_moves": 5,
-        "explanation": "سرباز f6 خانه g5 را کنترل می‌کند؛ اسب اول آن را می‌زند و بعد با چند حرکت به g5 می‌رسد.",
-        "hints": [{"id": "h1", "text_fa": "اول مهره‌ای که راه را بسته بزن.", "rating_cost": 10}],
-        "rating": 1100.0,
-    },
-    {
-        "kind": "knight",
-        "start": "d4",
-        "target": "e6",
-        "fen": "k7/8/4p3/8/3N4/8/8/7K w - - 0 1",
-        "min_moves": 1,
-        "explanation": "اسب d4 سرباز e6 را می‌زند و همان‌جا می‌ماند.",
-        "hints": [{"id": "h1", "text_fa": "زدن مهره دشمن هم یک حرکت قانونی است.", "rating_cost": 5}],
-        "rating": 800.0,
-    },
-    {
-        "kind": "rook",
-        "start": "a1",
-        "target": "a8",
-        "fen": "7k/8/8/8/8/8/8/R6K w - - 0 1",
-        "min_moves": 1,
-        "explanation": "ستون a کاملاً باز است؛ رخ مستقیم به a8 می‌رود.",
-        "hints": [{"id": "h1", "text_fa": "رخ در ستون و ردیف خالی مستقیم می‌رود.", "rating_cost": 5}],
-        "rating": 700.0,
-    },
-    {
-        "kind": "rook",
-        "start": "a1",
-        "target": "g1",
-        "fen": "k7/8/8/8/8/8/7K/R3p3 w - - 0 1",
-        "min_moves": 2,
-        "explanation": "سرباز e1 راه را بسته؛ رخ اول آن را می‌زند و بعد به g1 می‌رود.",
-        "hints": [{"id": "h1", "text_fa": "زدن مهره مسیر را باز می‌کند.", "rating_cost": 5}],
-        "rating": 850.0,
-    },
-    {
-        "kind": "rook",
-        "start": "a1",
-        "target": "h1",
-        "fen": "k7/8/8/8/8/8/2p1p3/R5K1 w - - 0 1",
-        "min_moves": 3,
-        "explanation": "سربازهای c2 و e2 ردیف اول را کنترل می‌کنند؛ رخ از ستون a بالا می‌رود و از دور می‌چرخد.",
-        "hints": [{"id": "h1", "text_fa": "اگر راه مستقیم خطرناک است، دور بزن.", "rating_cost": 10}],
-        "rating": 1000.0,
-    },
-    {
-        "kind": "bishop",
-        "start": "c1",
-        "target": "h6",
-        "fen": "k7/8/8/4p3/8/8/8/2B3K1 w - - 0 1",
-        "min_moves": 1,
-        "explanation": "قطر c1 تا h6 کاملاً باز است.",
-        "hints": [{"id": "h1", "text_fa": "فیل فقط روی قطر خودش حرکت می‌کند.", "rating_cost": 5}],
-        "rating": 750.0,
-    },
-    {
-        "kind": "bishop",
-        "start": "c1",
-        "target": "e3",
-        "fen": "k7/8/8/8/8/8/3p4/2B4K w - - 0 1",
-        "min_moves": 2,
-        "explanation": "سرباز d2 راه قطر را بسته؛ فیل اول آن را می‌زند و بعد به e3 می‌رود.",
-        "hints": [{"id": "h1", "text_fa": "مهره‌ای که راه را بسته بزن.", "rating_cost": 5}],
-        "rating": 900.0,
-    },
-    {
-        "kind": "queen",
-        "start": "d1",
-        "target": "h5",
-        "fen": "k7/8/8/8/8/8/8/3Q2K1 w - - 0 1",
-        "min_moves": 1,
-        "explanation": "وزیر مستقیم از قطر به h5 می‌رود.",
-        "hints": [{"id": "h1", "text_fa": "وزیر هم مثل رخ و هم مثل فیل حرکت می‌کند.", "rating_cost": 5}],
-        "rating": 750.0,
-    },
-    {
-        "kind": "queen",
-        "start": "d4",
-        "target": "d8",
-        "fen": "k7/8/3p4/8/3Q4/8/8/6K1 w - - 0 1",
-        "min_moves": 2,
-        "explanation": "سرباز d6 ستون را بسته؛ وزیر از راه دیگر (مثلاً h8) به d8 می‌رسد.",
-        "hints": [{"id": "h1", "text_fa": "وقتی ستون بسته است، از عرض یا قطر برو.", "rating_cost": 10}],
-        "rating": 950.0,
-    },
-    {
-        "kind": "king",
-        "start": "e1",
-        "target": "g3",
-        "fen": "k7/8/8/8/3b4/8/8/4K3 w - - 0 1",
-        "min_moves": 3,
-        "explanation": "فیل d4 خانه‌های f2 و e3 را کنترل می‌کند؛ شاه با احتیاط و قدم‌به‌قدم جلو می‌رود.",
-        "hints": [{"id": "h1", "text_fa": "شاه هیچ‌وقت وارد خانه زیر ضربه نمی‌شود.", "rating_cost": 10}],
-        "rating": 1000.0,
-    },
-    {
-        "kind": "king",
-        "start": "e1",
-        "target": "d2",
-        "fen": "k7/8/8/8/8/8/3p4/4K3 w - - 0 1",
-        "min_moves": 1,
-        "explanation": "شاه سرباز بی‌دفاع d2 را می‌زند.",
-        "hints": [{"id": "h1", "text_fa": "زدن مهره بی‌دفاع با شاه مجاز است.", "rating_cost": 5}],
-        "rating": 800.0,
-    },
-    {
-        "kind": "pawn",
-        "start": "e2",
-        "target": "e4",
-        "fen": "k7/8/8/8/8/8/4P3/7K w - - 0 1",
-        "min_moves": 1,
-        "explanation": "سرباز از خانه اول مستقیم دو خانه جلو می‌رود؛ راه کاملاً امن است.",
-        "hints": [{"id": "h1", "text_fa": "سرباز از خانه اول می‌تواند دو خانه برود.", "rating_cost": 5}],
-        "rating": 700.0,
-    },
-    {
-        "kind": "pawn",
-        "start": "e4",
-        "target": "d6",
-        "fen": "k7/8/8/3p1p2/4P3/8/8/7K w - - 0 1",
-        "min_moves": 2,
-        "explanation": "سرباز e4 سرباز d5 را می‌زند و بعد یک خانه جلو می‌رود.",
-        "hints": [{"id": "h1", "text_fa": "سرباز فقط مورب می‌زند.", "rating_cost": 5}],
-        "rating": 850.0,
-    },
-    {
-        "kind": "pawn",
-        "start": "e3",
-        "target": "d5",
-        "fen": "k7/8/8/8/3p4/4P3/8/7K w - - 0 1",
-        "min_moves": 2,
-        "explanation": "سرباز سیاه e4 راه مستقیم را بسته؛ باید اول d4 را زد و بعد جلو رفت.",
-        "hints": [{"id": "h1", "text_fa": "اگر جلو بسته است، مورب را بررسی کن.", "rating_cost": 10}],
-        "rating": 950.0,
-    },
-]
+from app.modules.exercises.models import Exercise
+from app.modules.pathfinding import moves
+from app.modules.pathfinding.validator import SLUG
+from app.modules.puzzles.models import Puzzle
 
-PROMPT_FA = "مهره‌ی مشخص‌شده را قدم‌به‌قدم به خانه‌ی ستاره‌دار برسان."
+PROMPT_FA = "مهره را با حرکت‌های قانونی به خانه ستاره‌دار برسان."
+
+HINTS: dict[str, str] = {
+    "knight": "اسب به شکل L می‌پرد؛ گاهی دور زدن کوتاه‌تر است.",
+    "bishop": "فیل فقط روی قطر هم‌رنگ خودش حرکت می‌کند.",
+    "rook": "رخ در ستون و ردیف خالی مستقیم می‌رود.",
+    "queen": "وزیر هم مثل رخ و هم مثل فیل حرکت می‌کند.",
+}
+
+# Roadmap position: Exercise 6 (Pathfinding; Get Out of Check postponed,
+# Pathfinding with Obstacles lands separately as Exercise 7).
+SORT_ORDER = 6
+
+TITLE_FA = "مسیر یابی"
+
+# Chance of re-rolling a 1-move candidate to keep longer puzzles common.
+AVOID_TRIVIAL = 0.6
+MAX_ROLLS = 30
 
 
-def solve(fen: str, start: str, target: str, max_depth: int = 12) -> list[str] | None:
-    """Shortest valid path from start to target, or None when unreachable.
+def _random_square(rng: random.Random) -> str:
+    return f"{'abcdefgh'[rng.randrange(8)]}{rng.randrange(1, 9)}"
 
-    Breadth-first search over (position × captured-set) states. This is the
-    independent solvability proof used at generation time.
-    """
-    mover = mover_color(fen, start)
-    queue: deque[tuple[str, str, list[str], frozenset]] = deque([(fen, start, [start], frozenset())])
-    seen = {(start, frozenset())}
-    while queue:
-        cur_fen, pos, path, captured = queue.popleft()
-        if pos == target:
-            return path
-        if len(path) - 1 >= max_depth:
+
+def _fen_for(kind: str, square: str) -> str:
+    """Empty-board FEN with the single white piece on ``square``."""
+    letter = moves.PIECE_LETTER[kind]
+    file_idx = "abcdefgh".index(square[0])
+    rank = int(square[1:])
+    rows: list[str] = []
+    for r in range(8, 0, -1):
+        if r == rank:
+            left, right = file_idx, 7 - file_idx
+            row = ""
+            if left:
+                row += str(left)
+            row += letter
+            if right:
+                row += str(right)
+            rows.append(row)
+        else:
+            rows.append("8")
+    return f"{'/'.join(rows)} w - - 0 1"
+
+
+def pick_kind(rng: random.Random) -> str:
+    kinds = list(moves.PIECE_WEIGHTS.keys())
+    weights = [moves.PIECE_WEIGHTS[k] for k in kinds]
+    return rng.choices(kinds, weights=weights, k=1)[0]
+
+
+def generate_question_data(rng: random.Random | None = None) -> dict:
+    """Pure question/answer builder (no DB). Always reachable, never trivial-only."""
+    rng = rng if rng is not None else random
+    for _ in range(MAX_ROLLS):
+        kind = pick_kind(rng)
+        start = _random_square(rng)
+        target = _random_square(rng)
+        if target == start:
             continue
-        for dest, new_fen, taken in iter_moves(cur_fen, mover, pos):
-            new_captured = captured | ({taken} if taken else set())
-            key = (dest, frozenset(new_captured))
-            if key in seen:
-                continue
-            seen.add(key)
-            queue.append((new_fen, dest, path + [dest], new_captured))
-    return None
-
-
-def generate_all() -> list[dict]:
-    """Build and verify all pathfinding puzzles. Raises on any failure."""
-    puzzles = []
-    for item in TEMPLATES:
-        board = chess.Board(item["fen"])  # raises on invalid FEN
-        if board.piece_at(chess.parse_square(item["start"])) is None:
-            raise ValueError(f"no selected piece: {item['fen']} {item['start']}")
-        path = solve(item["fen"], item["start"], item["target"])
-        if path is None:
-            raise ValueError(f"unsolvable template: {item['fen']} {item['start']}->{item['target']}")
-        if len(path) - 1 < item["min_moves"]:
-            raise ValueError(f"path too short ({len(path) - 1} moves): {item['fen']}")
-        puzzles.append(
-            {
-                "fen": item["fen"],
-                "from": item["start"],
-                "target": item["target"],
-                "kind": item["kind"],
+        optimal = moves.shortest_path_length(kind, start, target)
+        if optimal is None or optimal < 1:
+            continue  # unreachable (bishop opposite color) or degenerate
+        if optimal == 1 and rng.random() < AVOID_TRIVIAL:
+            continue  # keep 1-movers a minority
+        return {
+            "fen": _fen_for(kind, start),
+            "from": start,
+            "target": target,
+            "piece": kind,
+            "optimal_moves": optimal,
+            "prompt_fa": PROMPT_FA,
+            "explanation": f"کمترین راه {HINTS[kind]}",
+            "hint_json": {"hints": [{"id": "h1", "text_fa": HINTS[kind], "rating_cost": 5}]},
+        }
+    # Bounded fallback: accept the first reachable pair even if trivial.
+    for _ in range(MAX_ROLLS):
+        kind = pick_kind(rng)
+        start = _random_square(rng)
+        target = _random_square(rng)
+        if target == start:
+            continue
+        optimal = moves.shortest_path_length(kind, start, target)
+        if optimal is not None and optimal >= 1:
+            return {
+                "fen": _fen_for(kind, start),
+                "from": start,
+                "target": target,
+                "piece": kind,
+                "optimal_moves": optimal,
                 "prompt_fa": PROMPT_FA,
-                "explanation": item["explanation"],
-                "hints": item["hints"],
-                "rating": item["rating"],
-                "shortest_moves": len(path) - 1,
+                "explanation": f"کمترین راه {HINTS[kind]}",
+                "hint_json": {"hints": [{"id": "h1", "text_fa": HINTS[kind], "rating_cost": 5}]},
             }
+    raise RuntimeError("could not generate a reachable pathfinding puzzle")
+
+
+def _rating_for(optimal: int, rng: random.Random) -> float:
+    return float(max(700.0, min(1250.0, 750.0 + optimal * 60.0 + rng.randrange(0, 50))))
+
+
+def ensure_exercise(db: Session) -> None:
+    exercise = db.get(Exercise, SLUG)
+    if exercise is None:
+        db.add(
+            Exercise(
+                slug=SLUG,
+                title_fa=TITLE_FA,
+                title_en="Pathfinding",
+                description="مهره را با حرکت‌های قانونی به خانه ستاره‌دار برسان.",
+                is_active=True,
+                sort_order=SORT_ORDER,
+            )
         )
-    kinds = sorted({p["kind"] for p in puzzles})
-    if kinds != ["bishop", "king", "knight", "pawn", "queen", "rook"]:
-        raise ValueError(f"piece distribution incomplete: {kinds}")
-    return puzzles
+        db.commit()
+    else:
+        changed = False
+        if exercise.sort_order != SORT_ORDER:
+            exercise.sort_order = SORT_ORDER
+            changed = True
+        if exercise.title_fa != TITLE_FA:
+            exercise.title_fa = TITLE_FA
+            changed = True
+        if changed:
+            db.commit()
+
+
+def create_puzzle(
+    db: Session,
+    rng: random.Random | None = None,
+    exclude_ids: set[int] | None = None,
+) -> Puzzle:
+    """Generate one random reachable puzzle and persist it published."""
+    rng = rng if rng is not None else random
+    ensure_exercise(db)
+    excluded = set(exclude_ids or [])
+    data = generate_question_data(rng)
+    # Reuse identical (piece, from, target) rows instead of duplicating;
+    # steer away from just-shown ids with bounded re-rolls (best-effort).
+    # Filtered in Python (portable across SQLite/PostgreSQL, tiny tables).
+    for _ in range(10):
+        candidates = (
+            db.query(Puzzle)
+            .filter(
+                Puzzle.exercise_slug == SLUG,
+                Puzzle.is_published == True,  # noqa: E712
+                Puzzle.is_archived == False,  # noqa: E712
+            )
+            .order_by(Puzzle.id)
+            .all()
+        )
+        usable: Puzzle | None = None
+        identical = False
+        for puzzle in candidates:
+            pos = puzzle.position_json if isinstance(puzzle.position_json, dict) else {}
+            if (
+                pos.get("from") == data["from"]
+                and pos.get("target") == data["target"]
+                and pos.get("piece") == data["piece"]
+            ):
+                identical = True
+                if usable is None and puzzle.id not in excluded:
+                    usable = puzzle
+        if usable is not None:
+            return usable
+        if not identical:
+            break
+        data = generate_question_data(rng)
+    puzzle = Puzzle(
+        exercise_slug=SLUG,
+        fen=data["fen"],
+        position_json={"from": data["from"], "target": data["target"], "piece": data["piece"]},
+        answer_json={
+            "fen": data["fen"],
+            "from": data["from"],
+            "target": data["target"],
+            "piece": data["piece"],
+            "optimal_moves": data["optimal_moves"],
+        },
+        hint_json=data["hint_json"],
+        prompt_fa=data["prompt_fa"],
+        explanation=data["explanation"],
+        initial_rating=_rating_for(data["optimal_moves"], rng),
+        is_published=True,
+        is_archived=False,
+    )
+    db.add(puzzle)
+    db.commit()
+    db.refresh(puzzle)
+    return puzzle

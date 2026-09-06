@@ -176,3 +176,31 @@ Same lifecycle and contract as Exercises 1–4 (open → prepare ≥20 → start
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
 - Full spec: `docs/exercises/05-giving-check.md`.
+
+## Pathfinding (Exercise 6)
+
+Same lifecycle and contract as Exercises 1–5 (open → prepare ≥20 → start
+60s clock → submit loop → finish/report), under `/api/v1/pathfinding`:
+
+- `POST /api/v1/pathfinding/next` `{exclude_ids?: []}` → fresh
+  random single-piece practice `PuzzleOut` (no `answer_json`; the
+  start/target/piece in `position_json` is public task data, the BFS
+  optimal count is not).
+- `POST /api/v1/pathfinding/step`
+  `{puzzle_id, fen, selected_at, from, to}` → legality oracle
+  `{ok, fen, selected_at, reached, captured: null, message_key}`;
+  rejects wrong-piece origins, `from != selected_at` mismatches,
+  illegal geometry, post-completion moves, and unknown puzzles (404
+  `puzzle_not_available`).
+- `POST /api/v1/pathfinding/sessions` → `preparing` session (60s default).
+- `POST /api/v1/pathfinding/sessions/{id}/puzzles` `{count}` →
+  buffer/refill puzzles (cap 60); `POST .../start` requires ≥20.
+- `POST /api/v1/pathfinding/sessions/{id}/submit` →
+  `{attempt, feedback_key, detail, session}` with
+  `answer: {path: [...squares], illegal_attempts: n}`;
+  `optimal×5 − extra×2 − illegal×3` scoring; only session-issued
+  puzzles accepted; client score/optimal fields ignored.
+- `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
+  per-puzzle report rebuilt from stored attempts;
+  `POST .../finish` → final summary. Same error codes as Exercise 1.
+- Full spec: `docs/exercises/06-pathfinding.md`.

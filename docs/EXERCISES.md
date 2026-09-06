@@ -3,15 +3,15 @@
 No exercise is implemented in the foundation. Each gets its own spec from the user
 before implementation. New exercise = catalog row + validator + tests + UI.
 
-Roadmap (final numbering; Exercises 1–4 are production vertical slices):
+Roadmap (final numbering; Exercises 1–6 are production vertical slices):
 
 1. Piece Recognition (`piece-recognition`)
 2. Legal Destinations (`legal-destinations`)
 3. Captures (`captures`)
 4. Undefended Pieces (`undefended-pieces`)
 5. Giving Check (`give-check`)
-6. Get Out of Check (`get-out-of-check`)
-7. Pathfinding (`pathfinding`)
+6. Pathfinding (`pathfinding`)
+7. Pathfinding with Obstacles (future; obstacle/enemy-piece pathfinding)
 8. Pin (`pin`)
 9. Balance Scale (`balance-scale`)
 10. Which Side is Heavier? (`heavier-side`)
@@ -24,6 +24,10 @@ Roadmap (final numbering; Exercises 1–4 are production vertical slices):
 17. Trapped Pieces (`trapped-pieces`)
 18. Rule of the Square (`rule-of-the-square`)
 19. Castling Rights (`castling-rights`, moved to the end of the roadmap)
+
+Get Out of Check (`get-out-of-check`) is postponed: the implementation
+remains in the repo and playable, but it holds no numbered roadmap slot
+until it returns to active development.
 
 Coming soon (no number yet): Reverse Opening, Avoid Stalemate.
 
@@ -196,7 +200,8 @@ back; Exercises 1–4 are untouched.
 
 ## Sixth slice
 
-**Get Out of Check** — IMPLEMENTED (`get-out-of-check`).
+**Get Out of Check** — IMPLEMENTED (`get-out-of-check`), currently
+POSTPONED (no numbered roadmap slot; route stays playable).
 
 - Route: `/exercises/get-out-of-check` (shared `ExercisePlay` move-input loop
   in drag-only mode: arrows stay off, from/to rings carry the selection).
@@ -209,20 +214,54 @@ back; Exercises 1–4 are untouched.
   doubles, pinned and discovered-fail cases, single/multi answers and a
   black-to-move position; every example independently verified at seed time).
 
-## Seventh slice
+## Seventh slice (Exercise 6 spec-track)
 
-**Pathfinding** — IMPLEMENTED (`pathfinding`).
+**Pathfinding** — IMPLEMENTED (`pathfinding`, simple version). Full spec:
+`docs/exercises/06-pathfinding.md`.
 
-- Route: `/exercises/pathfinding` (dedicated `PathfindingPlay` loop reusing
-  board/attempt/timing/hint/feedback primitives: per-move drag validated by
-  `POST /api/v1/pathfinding/step`, star-marked target, full path auto-submitted
-  as one attempt on arrival).
-- Validator: `backend/app/modules/pathfinding/validator.py` (legal
-  python-chess move plus exercise rule: captures only onto enemies, empty
-  squares only when unattacked; control recalculated after every move).
-- Generator + seed: `python -m app.modules.pathfinding.seed` (deterministic
-  templates for all six piece types, every template proven solvable by BFS;
-  15 persisted puzzles).
+- Route: `/exercises/pathfinding` with `?mode=practice` (untimed) and
+  `?mode=speed` (60s session); card renders both entry buttons directly
+  (no intermediate mode screen), same pattern as Exercises 1–5.
+- Play loop: `frontend/src/components/exercise/PathfindingPlay.tsx`
+  (practice + speed reusing the `PieceGameLayout` shell, timer, hints,
+  feedback; one white knight/bishop/rook/queen walks to a star on an
+  empty board — no king, no enemies, no captures; drag primary,
+  click-to-move supported, piece stays selected, 220ms practice /
+  110ms speed glide, illegal buzz + 700ms red flash; arrival
+  auto-submits `{path, illegal_attempts}`); correctness, optimal counts,
+  scoring, and the speed clock stay backend-authoritative.
+- Position source: dynamic weighted generator
+  (`pathfinding/generator.py` — knight 50 / bishop 20 / rook 20 /
+  queen 10, uniform distinct start/target, BFS-verified reachable with
+  stored `optimal_moves`, trivial-1-move throttled, answers server-side
+  only). Movement geometry is pure (`moves.py`); BFS minimizes piece
+  moves; no route is ever enforced.
+- Validator: `backend/app/modules/pathfinding/validator.py` (exact
+  path replay: correct iff every step is legal geometry AND the path
+  ends on the star; single-step oracle at `POST /api/v1/pathfinding/step`
+  with post-completion rejection).
+- Practice: `POST /api/v1/pathfinding/next` issues fresh random
+  published puzzles (identical rows reused; `exclude_ids` steers variety);
+  the client keeps a current+next prefetch buffer. Answers go through
+  standard `POST /api/v1/attempts`.
+- Speed: `pathfinding/sessions.py` + `router.py` (open → prepare ≥20 →
+  start 60s clock → walk-to-star loop with ~400ms auto-advance, no manual
+  next → server-rebuilt per-puzzle report; per-answer rows reuse
+  `attempts`).
+- Scoring: registered scorer (`optimal×5 − extra×2 − illegal×3`,
+  negatives kept, independent of the CORRECT/WRONG label).
+- Seed: `python -m app.modules.pathfinding.seed` (15 weighted puzzles
+  from the generator with a fixed seed, still served read-only).
+- Note: the older obstacle/enemy-control pathfinding behavior that
+  previously lived under this slug was replaced by this simple version;
+  obstacle concepts move to future Exercise 7 and were not carried over.
+
+## Upcoming: Pathfinding with Obstacles (Exercise 7)
+
+**Pathfinding with Obstacles** — NOT implemented (future). It owns the
+concepts deliberately excluded from Exercise 6: black pieces, attacked
+squares, capture-based obstacle removal, defended-piece logic, dynamic
+attack maps, and path changes caused by captures.
 
 ## Eighth slice
 

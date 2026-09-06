@@ -67,11 +67,10 @@ export const api = {
     selected_at: string;
     from: string;
     to: string;
-    promotion?: string;
   }) =>
     request<PathStepResponse>("/api/v1/pathfinding/step", {
       method: "POST",
-      body: JSON.stringify({ promotion: "q", ...body }),
+      body: JSON.stringify(body),
     }),
   submitAttempt: (body: {
     puzzle_id: number;
@@ -331,6 +330,53 @@ export const api = {
     request<SpeedReport>(`/api/v1/giving-check/sessions/${sessionId}/report`),
   finishGiveCheckSpeedSession: (sessionId: string) =>
     request<SpeedSummary>(`/api/v1/giving-check/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
+  // Pathfinding (Exercise 6): one white piece to the star + speed sessions.
+  // Same contract as above (public puzzle data only — optimal move counts
+  // never leave the server; grading always server-side).
+  nextPathfindingPracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/pathfinding/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startPathfindingSpeedSession: () =>
+    request<SpeedSession>("/api/v1/pathfinding/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  preparePathfindingSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/pathfinding/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startPathfindingSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/pathfinding/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextPathfindingSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/pathfinding/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitPathfindingSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/pathfinding/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getPathfindingSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/pathfinding/sessions/${sessionId}`),
+  getPathfindingSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/pathfinding/sessions/${sessionId}/report`),
+  finishPathfindingSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/pathfinding/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
 };
