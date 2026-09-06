@@ -29,13 +29,13 @@ at grading — the client never supplies the original position.
 ## Memorization budget
 
 ```text
-memorization_ms = piece_count × 400
+memorization_ms = piece_count × 1000
 ```
 
 Every piece (kings included) counts once; empty squares and FEN metadata
 (side to move, castling, en passant, clocks) are ignored. No difficulty
 gate and no piece-count filter: the count is naturally bounded by chess
-(≤ 32 pieces, so ~1.6s–12.8s on real data). Measured on the real
+(≤ 32 pieces, so ~4s–32s on real data). Measured on the real
 `puzzles.db` (5.3M rows, 2000-position sample): counts span 4–32, bulk at
 7–26, median near 18–19. Every real position is servable as-is, so no
 bounded policy beyond the chess maximum was needed.
@@ -142,7 +142,7 @@ in-view, no overflow, no JS errors, both modes).
 ## Files
 
 - `backend/app/modules/chinese_board/pieces.py` — extraction, counting,
-  `MEMORIZE_MS_PER_PIECE = 400` (pure, fully tested).
+  `MEMORIZE_MS_PER_PIECE = 1000` (pure, fully tested).
 - `backend/app/modules/chinese_board/validator.py` — descriptor matching
   (`{pieces}` vs FEN-derived set) + square overlays for the result UI.
 - `backend/app/modules/chinese_board/scoring.py` — +5/−2, negatives kept.

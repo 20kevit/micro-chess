@@ -155,11 +155,11 @@ describe("catalog and i18n", () => {
   });
 
   it("memorize budget comes from the server payload", () => {
-    expect(memorizeMsOf(puzzle(1, FEN_SMALL, 4000))).toBe(4000);
-    expect(memorizeMsOf(puzzle(1, FEN_SMALL, 12800))).toBe(12800);
-    // piece_count fallback matches the backend 0.4s rule: count * 400.
+    expect(memorizeMsOf(puzzle(1, FEN_SMALL, 10000))).toBe(10000);
+    expect(memorizeMsOf(puzzle(1, FEN_SMALL, 32000))).toBe(32000);
+    // piece_count fallback matches the backend 1s rule: count * 1000.
     const noBudget = { ...puzzle(1, FEN_SMALL), position_json: { piece_count: 10 } };
-    expect(memorizeMsOf(noBudget)).toBe(4000);
+    expect(memorizeMsOf(noBudget)).toBe(10000);
   });
 });
 

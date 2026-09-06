@@ -19,7 +19,7 @@ from app.modules.positions import repository as positions
 from app.modules.puzzles.models import Puzzle
 
 # Each entry: fen + hints + rating. 15 positions from tiny (4 pieces) to
-# full (32 pieces) so the study budget (count * 400ms) is exercised across
+# full (32 pieces) so the study budget (count * 1000ms) is exercised across
 # its whole natural range. Explanations are generated from the FEN.
 PUZZLES: list[dict] = [
     {

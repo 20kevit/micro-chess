@@ -4,20 +4,20 @@ Pure functions over FEN strings. Only piece placement matters (piece type
 + color + square); side to move, castling rights, en passant, and clocks
 are ignored — this is a piece-placement memory exercise.
 
-Memorization rule: ``memorization_ms = piece_count * 400``. The count is
+Memorization rule: ``memorization_ms = piece_count * 1000``. The count is
 naturally bounded by chess itself (at most 32 pieces on a legal board, so
-at most 12800 ms); no artificial difficulty filter is applied. Measured on
+at most 32000 ms); no artificial difficulty filter is applied. Measured on
 the real ``puzzles.db`` (5.3M rows, 2000-position sample): piece counts
 span 4-32 with the bulk at 7-26 and a median near 18-19, i.e. roughly
-1.6s-12.8s of study time. Every real position is servable as-is.
+4s-32s of study time. Every real position is servable as-is.
 """
 
 from __future__ import annotations
 
 import chess
 
-# Memorization budget per piece (0.4 seconds, spec section 4).
-MEMORIZE_MS_PER_PIECE = 400
+# Memorization budget per piece (1 second, spec section 4).
+MEMORIZE_MS_PER_PIECE = 1000
 
 # Canonical piece letters (uppercase) accepted in attempts.
 PIECE_LETTERS = ("K", "Q", "R", "B", "N", "P")
@@ -52,7 +52,7 @@ def piece_count(fen: str) -> int:
 
 
 def memorization_ms(fen: str) -> int:
-    """Authoritative study budget: ``piece_count * 400`` ms.
+    """Authoritative study budget: ``piece_count * 1000`` ms.
 
     Raises ValueError on invalid FEN.
     """

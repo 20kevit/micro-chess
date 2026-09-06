@@ -82,8 +82,8 @@ export function memorizeMsOf(puzzle: Puzzle): number {
   if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) return Math.round(raw);
   const count = puzzle.position_json.piece_count;
   if (typeof count === "number" && Number.isFinite(count) && count > 0)
-    return Math.round(count) * 400;
-  return Math.max(1, Object.keys(fenToPieces(puzzle.fen)).length) * 400 || FALLBACK_BUDGET_MS;
+    return Math.round(count) * 1000;
+  return Math.max(1, Object.keys(fenToPieces(puzzle.fen)).length) * 1000 || FALLBACK_BUDGET_MS;
 }
 
 function piecesToAnswer(placed: BoardMap): Array<{ square: string; piece: string; color: string }> {

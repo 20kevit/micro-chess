@@ -4,7 +4,7 @@ Thin wiring only; generation/clock/scoring live in generator/sessions and
 the shared progress service. The authoritative answer is never exposed:
 ``next`` endpoints return ``PuzzleOut`` (no ``answer_json``). The FEN in
 ``position_json`` is the board shown during memorization; the study budget
-(``memorization_ms = piece_count * 400``) is computed server-side.
+(``memorization_ms = piece_count * 1000``) is computed server-side.
 """
 
 from fastapi import APIRouter, Depends, HTTPException

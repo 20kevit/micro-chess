@@ -640,7 +640,7 @@ Full spec: `docs/exercises/13-chinese-board.md`.
   shared `ChessBoard` (fixed White orientation in both phases, SVG pieces
   only): read-only memorize board with a subtle countdown for the
   server-authoritative budget (`position_json.memorization_ms` =
-  `piece_count × 400ms`), a motion-safe fade into an empty rebuild board
+  `piece_count × 1000ms`), a motion-safe fade into an empty rebuild board
   with a 12-piece tap palette + eraser (fixed 44px wrapping tools, free
   placement, replace on tap, no legality rules), and an explicit
   «بررسی صفحه» check; correctness, scoring, and the speed clock stay
@@ -653,7 +653,7 @@ Full spec: `docs/exercises/13-chinese-board.md`.
   (read-only, FEN only, fallback FENs when absent), exactly like
   Exercises 1/4/5/11; per-puzzle budgets built server-side by
   `chinese_board/generator.py` (any valid FEN eligible — counts are
-  naturally bounded by chess at ≤32, ~1.6s–12.8s on measured real data —
+  naturally bounded by chess at ≤32, ~4s–32s on measured real data —
   answers server-side only).
 - Rule: exact `(color, type, square)` reconstruction. Matching is
   exact-first, then same-`(color,type)` wrong-square pairing (ONE error
@@ -677,7 +677,7 @@ Full spec: `docs/exercises/13-chinese-board.md`.
   auto-advance, no manual next → server-rebuilt per-puzzle report;
   per-answer rows reuse `attempts`).
 - Seed: `python -m app.modules.chinese_board.seed` (15 verified positions
-  spanning 4–32 pieces, study budgets 1600–12800ms).
+  spanning 4–32 pieces, study budgets 4000–32000ms).
 - QA: `frontend/qa/chinese-board.cjs` (viewport matrix + place/replace/
   erase/check/next passes, pieces-only payload assertion).
 

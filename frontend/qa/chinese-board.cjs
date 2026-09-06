@@ -14,6 +14,13 @@ const VIEWPORTS = [
   [360, 800],
   [844, 390],
 ];
+// Split long runs: QA_ONLY="1920x1080,1366x768" runs a subset;
+// QA_INTERACT=0 skips the interaction passes.
+const ONLY = process.env.QA_ONLY ? process.env.QA_ONLY.split(",") : null;
+const SIZES = ONLY
+  ? VIEWPORTS.filter(([w, h]) => ONLY.includes(`${w}x${h}`))
+  : VIEWPORTS;
+const WITH_INTERACT = process.env.QA_INTERACT !== "0";
 const EXE = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const APP = "http://localhost:5173";
 
@@ -88,7 +95,7 @@ async function loadMode(browser, w, h, mode) {
 (async () => {
   const browser = await puppeteer.launch({ executablePath: EXE, args: ["--no-sandbox"] });
   try {
-    for (const [w, h] of VIEWPORTS) {
+    for (const [w, h] of SIZES) {
       for (const mode of ["practice", "speed"]) {
         const tag = `${w}x${h} ${mode}`;
         let page;
@@ -111,9 +118,9 @@ async function loadMode(browser, w, h, mode) {
         check(`${tag} board-square`, m.board && Math.abs(m.board.w - m.board.h) <= 1 && m.board.w >= 120, `${m.board && m.board.w}px`);
         check(`${tag} rtl-page-ltr-board`, m.dir === "rtl" && m.boardDir === "ltr", `${m.dir}/${m.boardDir}`);
         check(`${tag} vazirmatn-loaded`, m.vazirmatn === true, String(m.vazirmatn));
-        // Wait out the study budget (max ~12.8s on real data) + fade.
+        // Wait out the study budget (max ~32s on real data) + fade.
         try {
-          await page.waitForSelector('[data-testid="submit-bar"]', { timeout: 25000 });
+          await page.waitForSelector('[data-testid="submit-bar"]', { timeout: 40000 });
         } catch (e) {
           check(`${tag} reaches-rebuild`, false, "submit-bar never appeared");
           await page.close();
@@ -132,14 +139,15 @@ async function loadMode(browser, w, h, mode) {
     }
 
     // Interaction pass: practice at 390x844 — place, replace, erase, check, next.
-    {
+    if (WITH_INTERACT) {
+      {
       const tag = "interact practice 390x844";
       const { page } = await loadMode(browser, 390, 844, "practice");
       const posts = [];
       page.on("response", (r) => {
         if (r.url().includes("/attempts") && r.request().method() === "POST") posts.push(r.status());
       });
-      await page.waitForSelector('[data-testid="submit-bar"]', { timeout: 25000 });
+      await page.waitForSelector('[data-testid="submit-bar"]', { timeout: 40000 });
       // Place white queen on e4, replace with black knight, erase it.
       await page.click('[aria-label="سفید وزیر"]');
       await page.click('[aria-label="e4"]');
@@ -194,7 +202,7 @@ async function loadMode(browser, w, h, mode) {
         if (r.url().includes("/submit") && r.request().method() === "POST") submits.push(r.status());
       });
       await page.waitForSelector('[data-testid="timer"]', { timeout: 45000 });
-      await page.waitForSelector('[data-testid="submit-bar"]', { timeout: 25000 });
+      await page.waitForSelector('[data-testid="submit-bar"]', { timeout: 40000 });
       await page.click('[aria-label="سفید وزیر"]');
       await page.click('[aria-label="d1"]');
       await page.click("button::-p-text(بررسی صفحه)");
@@ -205,6 +213,7 @@ async function loadMode(browser, w, h, mode) {
       check(`${tag} auto-advanced`, true);
       await page.close();
     }
+    } // WITH_INTERACT
   } finally {
     await browser.close();
   }

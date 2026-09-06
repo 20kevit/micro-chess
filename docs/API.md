@@ -287,7 +287,7 @@ Same lifecycle and contract as Exercises 1–7, 10, and 11 (open → prepare
 - `POST /api/v1/chinese-board/next` `{exclude_ids?: []}` → fresh random
   real-position practice `PuzzleOut` (no `answer_json`; the FEN in
   `position_json.fen` is the board shown during memorization, plus the
-  server-computed `piece_count` and `memorization_ms = piece_count × 400`;
+  server-computed `piece_count` and `memorization_ms = piece_count × 1000`;
   the piece set verdict is not).
 - `POST /api/v1/chinese-board/sessions` → `preparing` session (60s default).
 - `POST /api/v1/chinese-board/sessions/{id}/puzzles` `{count}` →
