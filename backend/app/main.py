@@ -9,6 +9,7 @@ from app.db.session import init_db
 from app.modules.auth.router import router as auth_router
 from app.modules.captures.router import router as captures_router
 from app.modules.exercises.router import router as exercises_router
+from app.modules.get_out_of_check.router import router as get_out_of_check_router
 from app.modules.give_check.router import router as give_check_router
 from app.modules.legal_destinations.router import router as legal_destinations_router
 from app.modules.pathfinding.router import router as pathfinding_router
@@ -70,6 +71,7 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(exercises_router, prefix="/api/v1")
 app.include_router(captures_router, prefix="/api/v1")
+app.include_router(get_out_of_check_router, prefix="/api/v1")
 app.include_router(give_check_router, prefix="/api/v1")
 app.include_router(pathfinding_router, prefix="/api/v1")
 app.include_router(obstacle_pathfinding_router, prefix="/api/v1")

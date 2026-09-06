@@ -83,7 +83,17 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
       { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
     ],
   },
-  { slug: "get-out-of-check", titleKey: "exercises.get-out-of-check.title", descKey: "exercises.get-out-of-check.desc", status: "active", route: "/exercises/get-out-of-check" },
+  {
+    slug: "get-out-of-check",
+    titleKey: "exercises.get-out-of-check.title",
+    descKey: "exercises.get-out-of-check.desc",
+    status: "active",
+    route: "/exercises/get-out-of-check",
+    modes: [
+      { id: "practice", labelKey: "play.practice", descKey: "practice.howto", params: "?mode=practice" },
+      { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
+    ],
+  },
   {
     slug: "pathfinding",
     titleKey: "exercises.pathfinding.title",

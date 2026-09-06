@@ -200,15 +200,48 @@ back; Exercises 1–4 are untouched.
 
 ## Sixth slice
 
-**Get Out of Check** — IMPLEMENTED (`get-out-of-check`), currently
-POSTPONED (no numbered roadmap slot; route stays playable).
+**Get Out of Check** — IMPLEMENTED (`get-out-of-check`), official Persian
+title `رفع کیش` (never `فرار از کیش`). Currently POSTPONED as a numbered
+roadmap slot, but fully playable at its catalog position after Giving Check.
 
-- Route: `/exercises/get-out-of-check` (shared `ExercisePlay` move-input loop
-  in drag-only mode: arrows stay off, from/to rings carry the selection).
-- Validator: `backend/app/modules/get_out_of_check/validator.py` (position
-  must start in check; any legal python-chess move leaving the mover's own
-  king safe, tested via `is_attacked_by` after the push; FEN travels in the
-  server-only `answer_json`, never exposed).
+- Route: `/exercises/get-out-of-check` with `?mode=practice` (untimed) and
+  `?mode=speed` (60s session); card renders both entry buttons directly
+  (no intermediate mode screen), same pattern as Exercises 1–5.
+- Play loop: `frontend/src/components/exercise/GetOutOfCheckPlay.tsx`
+  (practice + speed reusing the `PieceGameLayout` shell, timer, hints,
+  feedback; multi-arrow board layer in `components/chess/ChessBoard.tsx`
+  with press-drag-release drawing, per-arrow remove/promotion, toned
+  feedback arrows — the same arrow system as Giving Check, no second
+  implementation); correctness, scoring, and the speed clock stay
+  backend-authoritative. Persian prompt:
+  «تمام حرکت‌هایی را پیدا کن که کیش را رفع می‌کنند.»
+- Position source: dedicated synthetic generator
+  (`get_out_of_check/generator.py` — parametric families with rejection
+  sampling: rook 22 / queen 22 / bishop 16 / knight 16 / pawn 10 /
+  double 14; White king placed first, checker(s) per family, White
+  helpers + Black extras, then verified: White in check, NOT checkmate,
+  ≥1 escape, ≤12 escapes, exactly one checker for single families,
+  king-moves-only escapes for doubles; answers server-side only and
+  always derivable from the stored FEN, never a stored move list).
+- Rule: every legal White move (UCI) after which White's own king is no
+  longer in check — capture the checker, block the line, or move the
+  king; one distinct move is one answer. Genuine double checks accept
+  only king moves (non-king moves leave the second checker attacking).
+  Positions not starting in check are invalid: every submission is WRONG
+  (no zero-target bonus; a valid puzzle always has ≥1 escape).
+- Validator: `backend/app/modules/get_out_of_check/validator.py` (exact
+  UCI set match; direction-sensitive, duplicates/order-insensitive;
+  plain UCI strings and a legacy single-move shape accepted; malformed
+  arrows count as wrong).
+- Practice: `POST /api/v1/get-out-of-check/next` issues fresh random
+  published puzzles (identical FEN rows reused; `exclude_ids` steers
+  variety); the client keeps a current+next prefetch buffer. Answers go
+  through standard `POST /api/v1/attempts`.
+- Speed: `get_out_of_check/sessions.py` + `router.py` (open → prepare ≥20
+  → start 60s clock → submit loop with ~450ms auto-advance, no manual next
+  → server-rebuilt per-puzzle report; per-answer rows reuse `attempts`).
+- Scoring: registered per-move scorer (+5 correct / −2 missed / −3 wrong,
+  negatives kept, independent of the CORRECT/PARTIAL/WRONG label).
 - Seed: `python -m app.modules.get_out_of_check.seed` (15 hand-designed
   puzzles covering king escapes, captures, blocks, knight/pawn checks,
   doubles, pinned and discovered-fail cases, single/multi answers and a
@@ -309,7 +342,8 @@ obstacle/enemy-piece pathfinding). Full spec:
 **Pin** — IMPLEMENTED (`pin`).
 
 - Route: `/exercises/pin` (shared `ExercisePlay` move-input loop in drag-only
-  mode, same pattern as Get Out of Check).
+  mode, the same single-move input Get Out of Check used before its
+  multi-arrow rework).
 - Validator: `backend/app/modules/pin/validator.py` (any legal python-chess
   move whose resulting position contains a classical pin absent before the
   move; ray-based detection independent of side to move; FEN travels in the

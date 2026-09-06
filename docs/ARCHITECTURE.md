@@ -29,6 +29,7 @@ docs/      product + architecture + api + exercises
 | `captures` | exercise 3: validator + scorer + hunter-vs-black generator + speed sessions + router (registers `captures`) |
 | `undefended_pieces` | exercise 4: validator + scorer + shared-position generator + speed sessions + router (registers `undefended-pieces`) |
 | `give_check` | exercise 5: validator + scorer + shared-position generator (in-check rejection) + speed sessions + router (registers `give-check`) |
+| `get_out_of_check` | get out of check: multi-answer validator + per-move 5/−2/−3 scorer + synthetic in-check generator (family mixture incl. doubles) + speed sessions + router (registers `get-out-of-check`) |
 | `pathfinding` | exercise 6: movement geometry + BFS (`moves.py`) + validator + scorer + weighted generator + speed sessions + router (registers `pathfinding`) |
 | `pathfinding_obstacles` | exercise 7: single authoritative transition layer + state-space BFS (`transitions.py`) + stateful validator + scorer + solved quality-gated generator + speed sessions + router (registers `pathfinding-obstacles`) |
 | `assignments` | placeholder |
@@ -106,6 +107,10 @@ Piece Recognition additions (same tables, new columns only):
   (`give_check/sessions.py` mirrors the same lifecycle; random shared
   `puzzles.db` positions evaluated by `checking_moves`, in-check
   positions rejected at generation).
+- `get_out_of_check_speed_sessions` — same shape for Get Out of Check
+  Speed Mode (`get_out_of_check/sessions.py` mirrors the same lifecycle;
+  synthetic in-check puzzles from `get_out_of_check/generator.py`,
+  answers derived from the stored FEN via `escaping_moves`).
 - `pathfinding_speed_sessions` — same shape for Exercise 6 Speed Mode
   (`pathfinding/sessions.py` mirrors the same lifecycle; weighted
   single-piece puzzles from `pathfinding/generator.py`, BFS optimals

@@ -1,26 +1,51 @@
-"""Get Out of Check validator: play any legal move that escapes the check.
+"""Get Out of Check validator: find EVERY legal move that escapes the check.
 
 Puzzle definition (stored in the puzzle row, never exposed to clients):
-- answer_json: {"fen": "...", "example": {"from": "e1", "to": "d1"}}.
-  The FEN must live here because validators only receive answer_json, and
-  correctness is always recomputed from the position — never from a stored
-  move list. Every puzzle starts with the side to move in check.
+- answer_json: {"fen": "..."} (the FEN is the single source of truth; the
+  complete answer set is derived from the position on every submission,
+  never from a stored move list).
+- position_json: {"fen": "..."} (visible to the frontend for rendering).
+- Every puzzle starts with the side to move in check (White in generated
+  puzzles; the validator itself is generic over ``board.turn``).
 
-Attempt model (sent by client):
-    {"from": "e1", "to": "d1", "promotion": "q"}  (promotion optional)
+A move is a correct answer iff:
 
-A submission is CORRECT when the side to move starts in check, the move is
-legal under standard chess rules (python-chess: king moves, captures,
-blocks and pins included) and the moving side's own king is no longer in
-check afterwards. Any legal escaping move counts, so positions with several
-solutions accept them all. Note the asymmetry with Give Check: after the
-push we test the MOVER's king safety via is_attacked_by (is_check() would
-test the opponent instead).
+1. the side to move starts in check, AND
+2. it is a legal chess move for the side to move from the current
+   position (king safety enforced by python-chess, never pseudo-legal
+   moves), AND
+3. after the move, the moving side's own king is no longer in check
+   (tested via ``is_attacked_by`` on the mover's king: ``is_check()``
+   would test the opponent instead).
 
-Result rules: CORRECT or WRONG only (a single move cannot be partial).
-Malformed input fails safely as WRONG and never crashes the API.
+This single rule naturally covers the three conceptual mechanisms
+(capture the checker, block the checking line, move the king) and the
+double-check rule (only king moves can escape a genuine double check:
+any non-king move leaves the second checker attacking). One distinct
+chess move is one answer, regardless of how many mechanisms it uses.
+
+Attempt model (sent by the client):
+    {"moves": [{"from": "e1", "to": "d1"}, {"from": "g7", "to": "g8",
+     "promotion": "q"}]}  (promotion optional; plain UCI strings like
+     "e1d1" are also accepted; a legacy single-move {"from","to"} shape
+     is accepted as one move)
+
+Direction matters ("e1d1" != "d1e1"); duplicates are normalized away.
+A promotion missing its piece letter (e.g. {"from": "g7", "to": "g8"})
+does NOT match "g7g8q": each escaping promotion is a distinct move.
+
+Result rules (same set semantics as Exercises 1-5):
+- CORRECT: every escaping move selected and nothing else (order free).
+- PARTIAL: at least one correct selection, but missed and/or wrong ones exist.
+- WRONG: no correct selections (includes malformed-only answers).
+- Positions not starting in check are invalid puzzles: every submission
+  is WRONG (there is no zero-target bonus in this exercise; a valid
+  puzzle always has at least one escape).
 """
 
+from __future__ import annotations
+
+import re
 from typing import Any
 
 import chess
@@ -29,11 +54,60 @@ from app.modules.rule_engine.base import AttemptResult, ValidationResult, normal
 
 SLUG = "get-out-of-check"
 
-_PROMOTIONS = {"q": chess.QUEEN, "r": chess.ROOK, "b": chess.BISHOP, "n": chess.KNIGHT}
+_PROMOTIONS = frozenset({"q", "r", "b", "n"})
+_PROMOTION_TYPES = {"q": chess.QUEEN, "r": chess.ROOK, "b": chess.BISHOP, "n": chess.KNIGHT}
+_UCI_RE = re.compile(r"^[a-h][1-8][a-h][1-8][qrbn]?$")
+
+
+def normalize_move_uci(raw: Any) -> str | None:
+    """Normalize one submitted move to a canonical UCI string.
+
+    Accepts {"from", "to", "promotion"?} dicts and plain UCI strings.
+    Returns None when malformed (unknown squares, bad promotion letter,
+    wrong shape). Malformed entries count as wrong, never crash.
+    """
+    if isinstance(raw, str):
+        uci = raw.strip().lower()
+        return uci if _UCI_RE.match(uci) else None
+    if isinstance(raw, dict):
+        origin = normalize_square(raw.get("from"))
+        dest = normalize_square(raw.get("to"))
+        if origin is None or dest is None:
+            return None
+        promotion = raw.get("promotion")
+        if promotion is None:
+            return f"{origin}{dest}"
+        if not isinstance(promotion, str):
+            return None
+        promo = promotion.strip().lower()
+        if promo in ("", "none"):
+            return f"{origin}{dest}"
+        if promo not in _PROMOTIONS:
+            return None
+        return f"{origin}{dest}{promo}"
+    return None
+
+
+def split_moves(raw: Any) -> tuple[set[str], list[str]]:
+    """Split raw input into (valid UCI set, malformed entries)."""
+    items = raw if isinstance(raw, list) else []
+    valid: set[str] = set()
+    malformed: list[str] = []
+    for entry in items:
+        uci = normalize_move_uci(entry)
+        if uci is None:
+            malformed.append(str(entry))
+        else:
+            valid.add(uci)
+    return valid, malformed
 
 
 def escaping_moves(fen: str) -> list[str]:
-    """All legal check-escaping moves in UCI form (used by seed verification + tests)."""
+    """All legal check-escaping moves in UCI form (authoritative answer set).
+
+    Raises ValueError on invalid FEN. Returns [] when the side to move
+    is not in check (invalid puzzle for this exercise).
+    """
     board = chess.Board(fen)  # raises on invalid FEN
     if not board.is_check():
         return []
@@ -65,9 +139,9 @@ def is_escaping_move(fen: str, from_sq: str, to_sq: str, promotion: Any = None) 
     dest = chess.parse_square(to_sq.strip().lower())
     promo: chess.PieceType | None = None
     if promotion is not None:
-        if not isinstance(promotion, str) or promotion.strip().lower() not in _PROMOTIONS:
+        if not isinstance(promotion, str) or promotion.strip().lower() not in _PROMOTION_TYPES:
             return False
-        promo = _PROMOTIONS[promotion.strip().lower()]
+        promo = _PROMOTION_TYPES[promotion.strip().lower()]
     candidates = [
         m
         for m in board.legal_moves
@@ -86,33 +160,53 @@ def is_escaping_move(fen: str, from_sq: str, to_sq: str, promotion: Any = None) 
     return False
 
 
+def _selected_moves(answer: dict[str, Any]) -> tuple[set[str], list[str]]:
+    """Extract the client's selected UCI set (+ malformed entries).
+
+    Primary shape is {"moves": [...]}; a legacy single-move
+    {"from","to","promotion"?} shape is accepted as exactly one move so
+    older clients degrade gracefully instead of crashing.
+    """
+    selected, malformed = split_moves(answer.get("moves", []))
+    if "moves" not in answer and (answer.get("from") is not None or answer.get("to") is not None):
+        uci = normalize_move_uci(answer)
+        if uci is None:
+            malformed.append(str(answer))
+        else:
+            selected.add(uci)
+    return selected, malformed
+
+
 def validate(puzzle_answer: dict[str, Any], attempt: dict[str, Any]) -> ValidationResult:
     fen = puzzle_answer.get("fen") if isinstance(puzzle_answer, dict) else None
-    attempt_map = attempt if isinstance(attempt, dict) else {}
-    origin = normalize_square(attempt_map.get("from"))
-    dest = normalize_square(attempt_map.get("to"))
-    promotion = attempt_map.get("promotion")
+    answer = attempt if isinstance(attempt, dict) else {}
+    selected, malformed = _selected_moves(answer)
 
-    squares = sorted(s for s in (origin, dest) if s is not None)
-    # Malformed shape fails safely; unknown promotion letters fail below.
-    if not isinstance(fen, str) or origin is None or dest is None:
+    try:
+        expected = set(escaping_moves(fen)) if isinstance(fen, str) else set()
+        fen_ok = isinstance(fen, str) and chess.Board(fen).is_check()
+    except ValueError:
+        expected = set()
+        fen_ok = False
+
+    if not fen_ok:
+        # Invalid puzzle (not starting in check): nothing can be correct.
+        # There is no zero-target bonus here; a valid puzzle always has
+        # at least one escape, so even an empty submission is WRONG.
+        wrong = sorted(selected) + sorted(malformed)
         return ValidationResult(
             result=AttemptResult.WRONG,
             message_key="feedback.wrong",
-            detail={"correct": [], "missed": [], "wrong": squares},
+            detail={"correct": [], "missed": [], "wrong": wrong},
         )
-    try:
-        correct = is_escaping_move(fen, origin, dest, promotion)
-    except ValueError:
-        correct = False
-    if correct:
-        return ValidationResult(
-            result=AttemptResult.CORRECT,
-            message_key="feedback.correct",
-            detail={"correct": squares, "missed": [], "wrong": []},
-        )
-    return ValidationResult(
-        result=AttemptResult.WRONG,
-        message_key="feedback.wrong",
-        detail={"correct": [], "missed": [], "wrong": squares},
-    )
+
+    correct = sorted(selected & expected)
+    missed = sorted(expected - selected)
+    wrong = sorted(selected - expected) + sorted(malformed)
+
+    detail = {"correct": correct, "missed": missed, "wrong": wrong}
+    if not correct:
+        return ValidationResult(result=AttemptResult.WRONG, message_key="feedback.wrong", detail=detail)
+    if not missed and not wrong:
+        return ValidationResult(result=AttemptResult.CORRECT, message_key="feedback.correct", detail=detail)
+    return ValidationResult(result=AttemptResult.PARTIAL, message_key="feedback.partial", detail=detail)

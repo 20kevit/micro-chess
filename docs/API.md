@@ -51,7 +51,8 @@ Example:
   - `detail` is `{correct: [], missed: [], wrong: []}` for piece-recognition.
   - `score` is authoritative and backend-computed (per-square 5/−1/−2 for
     piece-recognition, legal-destinations, captures, and undefended-pieces,
-    per-move 5/−1/−2 for giving-check, via their registered scorers,
+    per-move 5/−1/−2 for giving-check, per-move 5/−2/−3 for get-out-of-check,
+    via their registered scorers,
     else correct=1.0/partial=0.5/0); never
     trusted from the client; may be negative.
   - `result` in correct/partial/wrong/timeout/skipped/abandoned.
@@ -176,6 +177,30 @@ Same lifecycle and contract as Exercises 1–4 (open → prepare ≥20 → start
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
 - Full spec: `docs/exercises/05-giving-check.md`.
+
+## Get Out of Check
+
+Same lifecycle and contract as Exercises 1–5 (open → prepare ≥20 → start
+60s clock → submit loop → finish/report), under `/api/v1/get-out-of-check`:
+
+- `POST /api/v1/get-out-of-check/next` `{exclude_ids?: []}` → fresh
+  random synthetic practice `PuzzleOut` (no `answer_json`; only
+  the FEN is exposed for rendering, the escape set never is; White to
+  move is always in check and never checkmated).
+- `POST /api/v1/get-out-of-check/sessions` → `preparing` session (60s default).
+- `POST /api/v1/get-out-of-check/sessions/{id}/puzzles` `{count}` →
+  buffer/refill puzzles (cap 60); `POST .../start` requires ≥20.
+- `POST /api/v1/get-out-of-check/sessions/{id}/submit` →
+  `{attempt, feedback_key, detail, session}` with
+  `answer: {moves: [{from, to, promotion?}]}` (plain UCI strings also
+  accepted; direction matters; duplicates normalized); per-move
+  5/−2/−3 scoring (no zero-target bonus: every valid puzzle has ≥1
+  escape); only session-issued puzzles accepted. Correct = every legal
+  White move (UCI) after which White's own king is safe (capture /
+  block / king escape; double checks accept king moves only).
+- `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
+  per-puzzle report rebuilt from stored attempts;
+  `POST .../finish` → final summary. Same error codes as Exercise 1.
 
 ## Pathfinding (Exercise 6)
 

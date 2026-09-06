@@ -332,6 +332,53 @@ export const api = {
     request<SpeedSummary>(`/api/v1/giving-check/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Get Out of Check: White in check, every escaping move as arrows.
+  // Same contract as above (public puzzle data only, grading
+  // always server-side). Prefetch buffers never carry answers.
+  nextGetOutOfCheckPracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/get-out-of-check/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startGetOutOfCheckSpeedSession: () =>
+    request<SpeedSession>("/api/v1/get-out-of-check/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  prepareGetOutOfCheckSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/get-out-of-check/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startGetOutOfCheckSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/get-out-of-check/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextGetOutOfCheckSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/get-out-of-check/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitGetOutOfCheckSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/get-out-of-check/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getGetOutOfCheckSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/get-out-of-check/sessions/${sessionId}`),
+  getGetOutOfCheckSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/get-out-of-check/sessions/${sessionId}/report`),
+  finishGetOutOfCheckSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/get-out-of-check/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
   // Pathfinding (Exercise 6): one white piece to the star + speed sessions.
   // Same contract as above (public puzzle data only — optimal move counts
   // never leave the server; grading always server-side).
