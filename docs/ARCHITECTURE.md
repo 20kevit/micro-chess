@@ -33,6 +33,7 @@ docs/      product + architecture + api + exercises
 | `pathfinding` | exercise 6: movement geometry + BFS (`moves.py`) + validator + scorer + weighted generator + speed sessions + router (registers `pathfinding`) |
 | `pathfinding_obstacles` | exercise 7: single authoritative transition layer + state-space BFS (`transitions.py`) + stateful validator + scorer + solved quality-gated generator + speed sessions + router (registers `pathfinding-obstacles`) |
 | `balance_scale` | exercise 10: DP optimal-piece solver (`solver.py`, no chess rules) + exact-total validator + minimum-count scorer + tier-mixed random generator + speed sessions + router (registers `balance-scale`) |
+| `material_comparison` | exercise 11: isolated material calculator (`material.py`: P=1 N=3 B=3 R=5 Q=9 K=0, classifier, 10% gate) + FEN-shape validator (legacy left/right fallback) + simple +5/−2 scorer + eligible-position generator (bounded category-balanced sampling from `puzzles.db`) + speed sessions + router (registers `heavier-side`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
@@ -125,6 +126,11 @@ Piece Recognition additions (same tables, new columns only):
   (`balance_scale/sessions.py` mirrors the same lifecycle; random
   left-pan puzzles from `balance_scale/generator.py`, DP optimal counts
   stored server-side).
+- `heavier_side_speed_sessions` — same shape for Exercise 11 Speed Mode
+  (`material_comparison/sessions.py` mirrors the same lifecycle;
+  10%-eligible shared `puzzles.db` positions from
+  `material_comparison/generator.py`, verdicts recomputed from the
+  stored FEN).
 
 Notes:
 

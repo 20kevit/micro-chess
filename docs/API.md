@@ -253,3 +253,27 @@ Same lifecycle and contract as Exercises 1–7 (open → prepare ≥20 → start
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
 - Full spec: `docs/exercises/10-balance-scale.md`.
+
+## Heavier Side (Exercise 11)
+
+Same lifecycle and contract as Exercises 1–7 and 10 (open → prepare ≥20
+→ start 60s clock → submit loop → finish/report), under
+`/api/v1/heavier-side`:
+
+- `POST /api/v1/heavier-side/next` `{exclude_ids?: []}` → fresh random
+  10%-eligible shared-position practice `PuzzleOut` (no `answer_json`;
+  only the FEN in `position_json.fen` is public task data, the material
+  verdict is not).
+- `POST /api/v1/heavier-side/sessions` → `preparing` session (60s default).
+- `POST /api/v1/heavier-side/sessions/{id}/puzzles` `{count}` →
+  buffer/refill puzzles (cap 60); `POST .../start` requires ≥20.
+- `POST /api/v1/heavier-side/sessions/{id}/submit` →
+  `{attempt, feedback_key, detail, session}` with
+  `answer: {choice: "white" | "black" | "equal"}`; +5/−2 scoring;
+  only session-issued puzzles accepted; client totals/scores ignored.
+  No Submit button exists client-side: tapping a choice submits;
+  practice auto-advances after ~1500ms, speed after ~450ms.
+- `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
+  per-puzzle report rebuilt from stored attempts;
+  `POST .../finish` → final summary. Same error codes as Exercise 1.
+- Full spec: `docs/exercises/11-heavier-side.md`.

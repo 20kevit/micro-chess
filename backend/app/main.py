@@ -13,6 +13,7 @@ from app.modules.exercises.router import router as exercises_router
 from app.modules.get_out_of_check.router import router as get_out_of_check_router
 from app.modules.give_check.router import router as give_check_router
 from app.modules.legal_destinations.router import router as legal_destinations_router
+from app.modules.material_comparison.router import router as heavier_side_router
 from app.modules.pathfinding.router import router as pathfinding_router
 from app.modules.pathfinding_obstacles.router import router as obstacle_pathfinding_router
 from app.modules.piece_recognition.router import router as piece_recognition_router
@@ -79,6 +80,7 @@ app.include_router(pathfinding_router, prefix="/api/v1")
 app.include_router(obstacle_pathfinding_router, prefix="/api/v1")
 app.include_router(piece_recognition_router, prefix="/api/v1")
 app.include_router(legal_destinations_router, prefix="/api/v1")
+app.include_router(heavier_side_router, prefix="/api/v1")
 app.include_router(reconstruction_router, prefix="/api/v1")
 app.include_router(puzzles_router, prefix="/api/v1")
 app.include_router(attempts_router, prefix="/api/v1")

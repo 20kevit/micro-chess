@@ -391,16 +391,44 @@ earlier bank-to-pan prototype into the dedicated minimum-pieces scale:
 
 ## Tenth slice
 
-**Which Side is Heavier?** — IMPLEMENTED (`heavier-side`).
+**Which Side is Heavier?** — IMPLEMENTED (`heavier-side`, Exercise 11,
+کدام طرف سنگین‌تر؟). Full spec: `docs/exercises/11-heavier-side.md`.
+Rewritten from the earlier scale-pan prototype (piece lists, board hidden)
+into real-board material evaluation:
 
-- Route: `/exercises/heavier-side` (shared `ExercisePlay` options loop with
-  board hidden: three fixed choices, both sides rendered as SVG pieces with
-  no values shown, totals revealed after submit).
-- Validator: `backend/app/modules/material_comparison/validator.py` (no
-  python-chess: choice matched against the relation derived from stored
-  totals; client-supplied totals ignored).
-- Seed: `python -m app.modules.material_comparison.seed` (15 hand-designed
-  puzzles, 6 left / 6 right / 3 equal, with independent total verification).
+- Route: `/exercises/heavier-side` with `?mode=practice` (untimed) and
+  `?mode=speed` (60s session); card renders both entry buttons directly
+  (no intermediate mode screen), same pattern as Exercises 1–7 and 10.
+- Play loop: dedicated `HeavierSidePlay` (practice + speed) over the
+  shared read-only `ChessBoard` (standard coordinates, correct colors, no
+  highlights/arrows/totals); three large touch choices سفید/سیاه/مساوی
+  submit immediately (no Submit button); correctness, scoring, and the
+  speed clock stay backend-authoritative.
+- Position source: shared `puzzles.db` via `positions/repository.py`
+  (read-only, FEN only, fallback FENs when absent), exactly like
+  Exercises 1/4/5; per-puzzle answers built server-side by
+  `material_comparison/generator.py` (bounded 40-candidate sampling with
+  uniform desired-category targeting that enforces the 10% gate
+  `abs(diff)/max <= 0.10` with 0/0 accepted, answers server-side only).
+- Rule: material only (P=1 N=3 B=3 R=5 Q=9 K=0, kings excluded); no
+  engine, themes, ratings, moves, or positional evaluation.
+- Validator: `backend/app/modules/material_comparison/validator.py`
+  (choice matched against the FEN-derived verdict; client totals/scores
+  ignored; legacy left/right rows keep their original rule).
+- Scoring: registered scorer (CORRECT +5 / WRONG −2, negatives kept).
+- Practice: `POST /api/v1/heavier-side/next` issues fresh random eligible
+  published puzzles (identical FEN rows reused; `exclude_ids` steers
+  variety); the client keeps a current+next prefetch buffer. Tapping a
+  choice auto-submits through standard `POST /api/v1/attempts`; feedback
+  shows the correct answer briefly plus sounds, then auto-advances after
+  ~1500ms with a manual «معمای بعدی» also available.
+- Speed: `material_comparison/sessions.py` + `router.py` (open → prepare
+  ≥20 → start 60s clock → submit loop with ~450ms auto-advance, no manual
+  next → server-rebuilt per-puzzle report; per-answer rows reuse
+  `attempts`).
+- Seed: `python -m app.modules.material_comparison.seed` (15 verified
+  FEN seeds, 5 white / 5 black / 5 equal incl. kings-only 0/0, every
+  entry independently verified against the 10% gate).
 
 ## Eleventh slice
 

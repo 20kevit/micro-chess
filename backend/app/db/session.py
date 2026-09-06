@@ -19,6 +19,7 @@ def init_db() -> None:
     from app.modules.balance_scale import models as _bs  # noqa: F401
     from app.modules.exercises import models as _ex  # noqa: F401
     from app.modules.legal_destinations import models as _ld  # noqa: F401
+    from app.modules.material_comparison import models as _hs  # noqa: F401
     from app.modules.piece_recognition import models as _pr1  # noqa: F401
     from app.modules.progress import models as _pr  # noqa: F401
     from app.modules.puzzles import models as _pz  # noqa: F401

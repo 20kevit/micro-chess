@@ -535,4 +535,52 @@ export const api = {
     request<SpeedSummary>(`/api/v1/balance-scale/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Heavier Side: real board positions, three material choices + speed sessions.
+  // Same contract as above (public puzzle data only — the FEN is visible for
+  // rendering, the material verdict never leaves the server; grading always
+  // server-side). Prefetch buffers never carry answers.
+  nextHeavierPracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/heavier-side/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startHeavierSpeedSession: () =>
+    request<SpeedSession>("/api/v1/heavier-side/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  prepareHeavierSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/heavier-side/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startHeavierSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/heavier-side/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextHeavierSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/heavier-side/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitHeavierSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/heavier-side/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getHeavierSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/heavier-side/sessions/${sessionId}`),
+  getHeavierSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/heavier-side/sessions/${sessionId}/report`),
+  finishHeavierSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/heavier-side/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
 };
