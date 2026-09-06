@@ -11,6 +11,9 @@ The one rule that defines this exercise:
 > A move is a correct answer iff it is a legal chess move, made by a
 > non-King piece, and after the move the opponent's King is in check.
 
+This exercise evaluates checking moves for both White and Black,
+regardless of the side to move in the FEN.
+
 Tactical quality is irrelevant: any legal checking move counts, even an
 objectively terrible one. No engine evaluation is used — legality plus
 the resulting check status (both from python-chess) is the whole rule.
@@ -139,12 +142,36 @@ Session-loss recovery mirrors Exercises 1–4 (404 `session_not_found` /
 A move is correct iff ALL of these hold:
 
 ```text
-1. the move is legal from the current position (python-chess legal_moves:
-   pins, blockers, self-check, pawn rules, castling rights, en passant)
+1. the move is legal for its own color from the current position
+   (python-chess legal_moves: pins, blockers, self-check, pawn rules,
+   castling rights, en passant)
 2. the moving piece is NOT the King (kings can never legally give check,
    so castling and king-discovered lines are never answers)
 3. after the move, the opponent's King is in check (board.is_check())
 ```
+
+Both sides are evaluated independently and the answer is the union:
+
+```text
+expected = white_checking_moves ∪ black_checking_moves
+```
+
+Why `board.turn` is not used to restrict the answer set:
+
+- `board.legal_moves` only generates moves for the side to move, so the
+  implementation evaluates each color on a temporary copy with the turn
+  flipped to it (`checking_moves_for`). The original board is never
+  mutated.
+- Flipping the turn preserves proper king-safety rules: python-chess
+  still rejects any move that would leave the moving side's own king in
+  check. No pseudo-legal moves are ever accepted.
+- En-passant rights belong to the side to move, so a stale `ep_square`
+  is cleared when evaluating the counterfactual side (it could
+  otherwise describe a capture that was only ever available to the
+  FEN's side to move). Genuine en passant for the side to move is kept.
+- The generator only issues positions where neither king is in check,
+  so both colors always start king-safe and evaluate under identical
+  legality conditions.
 
 This naturally covers:
 
@@ -189,7 +216,10 @@ database:
   infinite loop). The exercise asks which moves GIVE check, not how to
   answer one.
 - The authoritative answer is computed server-side with
-  `checking_moves()` (legal non-King moves + resulting check).
+  `checking_moves()` (legal non-King moves + resulting check, White and
+  Black independently — see above). The frontend never distinguishes
+  colors: arrows are compared against the complete set, with no
+  White/Black selector and no side labels.
 - Bounded selection: up to 25 candidate FENs are sampled and evaluated;
   a position with at least one checking move is preferred, but ~15% of
   puzzles keep the first valid FEN immediately so zero-target ("no
@@ -344,17 +374,22 @@ Errors: `session_not_found` (404), `session_not_started` (409),
 
 ## Tests
 
-- `tests/test_give_check.py` (54 tests) — checking-move computation
+- `tests/test_give_check.py` (62 tests) — checking-move computation
   (all five piece types, single/multiple/zero, capture, discovered with
   moving-piece identity, double-check single-answer, pins,
   blocked/self-check legality, king exclusion incl. castling and
   king-uncovered lines, pawn/promotion distinctness, en passant
-  check/no-check, in-check detection both colors), generator rejection
-  of in-check positions, set semantics (order/duplicates/direction/
-  plain-UCI/malformed), zero-target, exact scoring formula + bonus,
-  registry, security (client fields ignored), practice next + full
-  speed lifecycle (20-buffer, 60s, no-leak, report, pre-start refusal,
-  unknown-session 404).
+  check/no-check, in-check detection both colors), both-side evaluation
+  regressions (white-to-move/black-only-promotions, black-to-move/
+  white-only-push, both-sides union with one-side partial, neither-side
+  zero, black king-uncover exclusion, genuine black en passant, stale
+  ep-square rejection, mixed both-side scoring — every expected UCI
+  hand-derived and verified with raw python-chess only), generator
+  rejection of in-check positions, set semantics
+  (order/duplicates/direction/plain-UCI/malformed), zero-target, exact
+  scoring formula + bonus, registry, security (client fields ignored),
+  practice next + full speed lifecycle (20-buffer, 60s, no-leak,
+  report, pre-start refusal, unknown-session 404).
 - Frontend (`npm test`, vitest): catalog practice/speed entries + URLs,
   roadmap order (no hanging/equal, give-check 5th, castling last),
   direct mode entry, mouse + touch arrow drawing, duplicates/direction,

@@ -1,8 +1,15 @@
 """Giving Check validator: find EVERY legal move that checks the enemy king.
 
+This exercise evaluates checking moves for BOTH White and Black,
+regardless of the side to move encoded in the FEN. ``board.turn`` is
+never used to restrict the answer set: each color's legal moves are
+evaluated independently and the union is the answer.
+
 A move is a correct answer iff:
 
-1. it is a legal chess move from the current position, AND
+1. it is a legal chess move for its own color from the current
+   position (king safety enforced for the moving side, never
+   pseudo-legal moves), AND
 2. it is made by a non-King piece (kings can never legally give check,
    because the two kings may not stand on mutually attacking squares), AND
 3. after the move, the opponent's king is in check.
@@ -111,25 +118,49 @@ def either_king_in_check(fen: str) -> bool:
     return False
 
 
-def checking_moves(fen: str) -> list[str]:
-    """Every legal non-King move (UCI) that leaves the opponent in check.
+def checking_moves_for(board: chess.Board, color: chess.Color) -> list[str]:
+    """Legal non-King checking moves (UCI) for one color.
 
-    Raises ValueError on invalid FEN. King moves are excluded by rule:
-    a king can never legally give check. Castling is therefore never an
-    answer; en passant and promotions are included when they check.
+    The color is evaluated on a temporary copy with the turn flipped to
+    it, so ``legal_moves`` enforces that color's king safety exactly as
+    python-chess does for a real position — never pseudo-legal moves.
+    The original board is never mutated. En-passant rights belong to the
+    side to move, so a stale ``ep_square`` is cleared when evaluating the
+    counterfactual side (it could otherwise describe a capture that was
+    only ever available to the FEN's side to move). King moves are
+    excluded by rule for both colors: a king can never legally give
+    check, so castling is never an answer either.
     """
-    board = chess.Board(fen)  # raises on invalid FEN
+    position = board.copy()
+    position.turn = color
+    if color != board.turn:
+        position.ep_square = None
     found: list[str] = []
-    for move in board.legal_moves:
-        piece = board.piece_at(move.from_square)
+    for move in position.legal_moves:
+        piece = position.piece_at(move.from_square)
         if piece is None or piece.piece_type == chess.KING:
             continue
-        board.push(move)
+        position.push(move)
         try:
-            if board.is_check():
+            if position.is_check():
                 found.append(move.uci())
         finally:
-            board.pop()
+            position.pop()
+    return sorted(found)
+
+
+def checking_moves(fen: str) -> list[str]:
+    """Every legal non-King move (UCI) that leaves the opponent in check,
+    evaluated for White AND Black independently of ``board.turn``.
+
+    Raises ValueError on invalid FEN. Promotions contribute one answer
+    per checking promotion choice; en passant is included when it
+    genuinely checks (rights belong to the side to move).
+    """
+    board = chess.Board(fen)  # raises on invalid FEN
+    found: set[str] = set()
+    for color in (chess.WHITE, chess.BLACK):
+        found.update(checking_moves_for(board, color))
     return sorted(found)
 
 

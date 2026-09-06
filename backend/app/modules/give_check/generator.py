@@ -2,18 +2,22 @@
 
 Like Exercise 4, every puzzle comes from the shared ``puzzles.db`` (FEN
 only; Moves/Rating/Themes ignored) via ``positions.repository``. The
-authoritative answer is computed server-side with ``checking_moves``
-(every legal non-King move that leaves the opponent in check).
+authoritative answer is computed server-side with ``checking_moves``:
+every legal non-King move that leaves the opponent in check, evaluated
+for White AND Black independently of the FEN's side to move
+(``board.turn`` never restricts the answer set).
 
 Selection policy (bounded, never an infinite loop):
 
 1. Sample candidate FENs (up to ``MAX_CANDIDATES``).
 2. Reject positions where either king is already in check (the exercise
-   asks which moves *give* check, not how to answer one).
-3. Prefer a position with at least one checking move, but keep
-   zero-target positions possible (``ZERO_TARGET_PROBABILITY`` accepts
-   the first valid FEN immediately, so "no checks available" stays a
-   real question).
+   asks which moves *give* check, not how to answer one; this also
+   guarantees both colors start king-safe, so the counterfactual side
+   evaluates under the same legality conditions as the side to move).
+3. Prefer a position with at least one checking move from either color,
+   but keep zero-target positions possible (``ZERO_TARGET_PROBABILITY``
+   accepts the first valid FEN immediately, so "no checks available"
+   stays a real question).
 4. Fall back to the first valid random position when no non-empty
    candidate appears.
 

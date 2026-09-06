@@ -169,7 +169,8 @@ Same lifecycle and contract as Exercises 1–4 (open → prepare ≥20 → start
   accepted; direction matters; duplicates normalized); per-move
   5/−1/−2 scoring with the +5 zero-target bonus; only session-issued
   puzzles accepted. Correct = every legal non-King move (UCI) that
-  leaves the opponent king in check (direct/capture/discovered/double/
+  leaves the opponent king in check, for White AND Black regardless of
+  the FEN's side to move (direct/capture/discovered/double/
   promotion/en-passant; kings and castling never answers).
 - `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
   per-puzzle report rebuilt from stored attempts;

@@ -162,11 +162,18 @@ def test_pinned_piece_cannot_leave_its_line():
 
 
 def test_move_must_not_expose_own_king():
-    # A random checking-looking move that leaves the mover in check is
-    # simply absent from the legal checking set.
+    # Every answer is legal for its OWN side: a checking-looking move
+    # that leaves the mover in check is simply absent from the set.
+    # (This position also has a black answer, Re8xe2+.)
+    board = chess.Board("3kr3/8/8/8/8/8/4Q3/4K3 w - - 0 1")
+    assert "e8e2" in moveset("3kr3/8/8/8/8/8/4Q3/4K3 w - - 0 1")
     for uci in moveset("3kr3/8/8/8/8/8/4Q3/4K3 w - - 0 1"):
-        board = chess.Board("3kr3/8/8/8/8/8/4Q3/4K3 w - - 0 1")
-        assert chess.Move.from_uci(uci) in board.legal_moves
+        move = chess.Move.from_uci(uci)
+        piece = board.piece_at(move.from_square)
+        assert piece is not None
+        probe = board.copy()
+        probe.turn = piece.color
+        assert move in probe.legal_moves, uci
 
 
 def test_illegal_move_is_wrong():
@@ -557,3 +564,122 @@ def test_speed_requires_full_buffer(client):
 
 def test_speed_unknown_session_404(client):
     assert client.get("/api/v1/giving-check/sessions/nope").status_code == 404
+
+
+# --- Both-side evaluation (board.turn must not restrict the answer set) ---
+
+
+def _independently_checks(fen: str, uci: str) -> None:
+    """Verify one hand-derived UCI with raw python-chess only.
+
+    Never calls the implementation: the mover's own color is flipped to
+    move, legality (incl. king safety) is checked by python-chess, and
+    the resulting check is asserted. Every regression position below
+    lists its expected UCIs as literals derived by hand.
+    """
+    board = chess.Board(fen)
+    move = chess.Move.from_uci(uci)
+    piece = board.piece_at(move.from_square)
+    assert piece is not None and piece.piece_type != chess.KING, (fen, uci)
+    probe = board.copy()
+    probe.turn = piece.color
+    assert move in probe.legal_moves, (fen, uci)
+    probe.push(move)
+    try:
+        assert probe.is_check(), (fen, uci)
+    finally:
+        probe.pop()
+
+
+def test_white_to_move_black_promotion_checks():
+    # Case A: White to move, but only Black has checking moves
+    # (pawn promotions e2e1q/e2e1r checking the white king on g1).
+    fen = "4k3/8/8/8/8/8/4p1P1/6K1 w - - 0 1"
+    expected = {"e2e1q", "e2e1r"}
+    for uci in expected:
+        _independently_checks(fen, uci)
+    assert set(checking_moves(fen)) == expected
+    out = validate(
+        {"moves": sorted(expected)},
+        {"moves": [{"from": "e2", "to": "e1", "promotion": "q"}]},
+    )
+    assert out.result == AttemptResult.PARTIAL
+    assert out.detail["correct"] == ["e2e1q"]
+    assert out.detail["missed"] == ["e2e1r"]
+
+
+def test_black_to_move_white_pawn_check():
+    # Case B: Black to move, but only White has a checking move
+    # (d6d7 checking the black king on e8; the black e2 pawn is
+    # blocked by the white king on e1).
+    fen = "4k3/8/3P4/8/8/8/4p3/4K3 b - - 0 1"
+    expected = {"d6d7"}
+    for uci in expected:
+        _independently_checks(fen, uci)
+    assert set(checking_moves(fen)) == expected
+    out = validate({"moves": ["d6d7"]}, {"moves": [{"from": "d6", "to": "d7"}]})
+    assert out.result == AttemptResult.CORRECT
+
+
+def test_both_sides_have_checks():
+    # Case C: White to move; d6d7 (White) and e3e2 (Black) both check.
+    fen = "4k3/8/3P4/8/8/4p3/8/5K2 w - - 0 1"
+    expected = {"d6d7", "e3e2"}
+    for uci in expected:
+        _independently_checks(fen, uci)
+    assert set(checking_moves(fen)) == expected
+    # Selecting only one side's move is incomplete.
+    out = validate(
+        {"moves": sorted(expected)}, {"moves": [{"from": "d6", "to": "d7"}]}
+    )
+    assert out.result == AttemptResult.PARTIAL
+    assert out.detail == {"correct": ["d6d7"], "missed": ["e3e2"], "wrong": []}
+    out = validate(
+        {"moves": sorted(expected)},
+        {"moves": [{"from": "d6", "to": "d7"}, {"from": "e3", "to": "e2"}]},
+    )
+    assert out.result == AttemptResult.CORRECT
+
+
+def test_neither_side_has_checks():
+    # Case D: no checking move for either color stays zero-target (+5).
+    fen = "4k3/8/8/8/8/5N2/5P2/4K3 w - - 0 1"
+    assert checking_moves(fen) == []
+    out = validate({"moves": []}, {"moves": []})
+    assert out.result == AttemptResult.CORRECT
+    assert score_moves(out) == 5.0
+
+
+def test_black_king_uncover_is_still_excluded():
+    # Black Ka7 could legally step aside (a7b6) uncovering Ra8 against
+    # the white Ka2, but king-origin arrows are never answers.
+    fen = "r7/k7/8/8/8/8/K7/8 b - - 0 1"
+    assert "a7b6" not in checking_moves(fen)
+    assert checking_moves(fen) == []
+    out = validate({"moves": []}, {"moves": [{"from": "a7", "to": "b6"}]})
+    assert out.result == AttemptResult.WRONG
+
+
+def test_black_en_passant_check_with_black_to_move():
+    # Genuine black en passant (exd3, checking the white Ke2) counts.
+    fen = "4k3/8/8/8/3Pp3/8/4K3/8 b - d3 0 1"
+    _independently_checks(fen, "e4d3")
+    assert checking_moves(fen) == ["e4d3"]
+
+
+def test_stale_en_passant_not_offered_to_counterfactual_side():
+    # White to move with ep=d6 (set by Black's ...d7-d5): the black e5
+    # pawn must not gain a phantom e5xd6 capture of its own d5 pawn.
+    fen = "k7/2K5/8/3pPp2/8/8/8/8 w - d6 0 1"
+    assert "e5d6" not in checking_moves(fen)
+    assert checking_moves(fen) == []
+
+
+def test_both_side_scoring_mixed():
+    # Expected {d6d7, e3e2}: one correct, one missed, one wrong = 5-1-2.
+    out = validate(
+        {"moves": ["d6d7", "e3e2"]},
+        {"moves": [{"from": "d6", "to": "d7"}, {"from": "a2", "to": "a4"}]},
+    )
+    assert out.result == AttemptResult.PARTIAL
+    assert score_moves(out) == 2.0

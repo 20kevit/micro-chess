@@ -83,7 +83,8 @@ npm run build
 - Exercise 5 (Giving Check «کیش دادن»): same practice+speed architecture
   with a shared-`puzzles.db` position source (FEN only, bounded sampling
   that rejects positions with either King already in check), answer as a
-  SET of arrows (every legal non-King checking move as from→to UCI:
+  SET of arrows (every legal non-King checking move as from→to UCI for
+  White AND Black regardless of side to move:
   direct/capture/discovered/double/promotion/en-passant, Kings and
   castling never answers), reusable multi-arrow board layer
   (press-drag-release for mouse + touch, per-arrow remove/promotion,

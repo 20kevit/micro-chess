@@ -176,7 +176,8 @@ back; Exercises 1–4 are untouched.
   positions with either king in check and prefers non-empty answers
   while keeping zero-target valid, answers server-side only).
 - Rule: every legal non-King move (UCI) that leaves the opponent king
-  in check — direct, capture, discovered (moving piece's from→to),
+  in check, evaluated for White AND Black regardless of side to move —
+  direct, capture, discovered (moving piece's from→to),
   double (one arrow), promotion (distinct choices), en passant;
   kings/castling never answers.
 - Validator: `backend/app/modules/give_check/validator.py` (exact UCI
