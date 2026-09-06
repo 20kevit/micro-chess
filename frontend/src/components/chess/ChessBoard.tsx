@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ChessPiece, type PieceSymbol } from "./ChessPiece";
 
 // Board is always LTR: a-file on the left in White orientation.
@@ -54,6 +54,70 @@ export function uciToArrow(uci: string): { from: string; to: string; promotion?:
 export function arrowToUci(from: string, to: string, promotion?: string): string {
   const promo = (promotion ?? "").trim().toLowerCase();
   return `${from.toLowerCase()}${to.toLowerCase()}${"qrbn".includes(promo) && promo.length === 1 ? promo : ""}`;
+}
+
+export interface ArrowPoint {
+  x: number;
+  y: number;
+}
+
+// Arrow proportions in board units (1 unit = 1 square; the overlay SVG
+// uses viewBox "0 0 8 8", so geometry scales with board size by
+// construction). Tuned to resemble modern Lichess/Chess.com arrows:
+// a slim shaft with a chunky triangular head.
+export const ARROW_GEOMETRY = {
+  /** Full shaft width. */
+  shaftWidth: 0.18,
+  /** Arrowhead length (tip to base) for normal-length arrows. */
+  headLength: 0.45,
+  /** Arrowhead full width at the base. */
+  headWidth: 0.42,
+} as const;
+
+export interface ComputedArrow {
+  /** Shaft tail (origin square center). */
+  start: ArrowPoint;
+  /** Shaft tip: the CENTER of the arrowhead base. Always strictly before
+   * the destination along the arrow direction. */
+  shaftEnd: ArrowPoint;
+  /** Arrowhead tip (destination square center). */
+  tip: ArrowPoint;
+  /** Arrowhead base corners. */
+  baseLeft: ArrowPoint;
+  baseRight: ArrowPoint;
+  shaftWidth: number;
+}
+
+/** Lichess-style arrow geometry: the shaft is shortened along the
+ * direction vector so it terminates at the arrowhead BASE, and the
+ * triangular head (tip = destination) is rendered independently on top.
+ * Returns null for zero-length arrows. Pure and deterministic. */
+export function computeArrowGeometry(p1: ArrowPoint, p2: ArrowPoint): ComputedArrow | null {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const len = Math.hypot(dx, dy);
+  if (!(len > 0)) return null;
+  const ux = dx / len;
+  const uy = dy / len;
+  // Short arrows keep an intentional look: the head never swallows the
+  // whole shaft (adjacent squares are length 1.0, well above the clamp).
+  const headLength = Math.min(ARROW_GEOMETRY.headLength, len * 0.6);
+  // Base center, plus a hair of overlap tucked UNDER the opaque head so
+  // no antialiasing seam can appear between shaft and triangle.
+  const overlap = 0.02;
+  const base = { x: p2.x - ux * headLength, y: p2.y - uy * headLength };
+  const shaftEnd = { x: base.x + ux * overlap, y: base.y + uy * overlap };
+  const px = -uy;
+  const py = ux;
+  const halfWidth = ARROW_GEOMETRY.headWidth / 2;
+  return {
+    start: { x: p1.x, y: p1.y },
+    shaftEnd,
+    tip: { x: p2.x, y: p2.y },
+    baseLeft: { x: base.x + px * halfWidth, y: base.y + py * halfWidth },
+    baseRight: { x: base.x - px * halfWidth, y: base.y - py * halfWidth },
+    shaftWidth: ARROW_GEOMETRY.shaftWidth,
+  };
 }
 
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
@@ -145,8 +209,6 @@ export function ChessBoard({
   const gesturesOn = draggablePieces || arrowsEnabled;
 
   const gridRef = useRef<HTMLDivElement | null>(null);
-  // useId() contains colons which break SVG url(#…) references; strip them.
-  const markerId = `mc-arrow-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const gesture = useRef({
     mode: "idle" as GestureMode,
     pointerId: -1,
@@ -329,17 +391,24 @@ export function ChessBoard({
     const p1 = centerOf(a.from);
     const p2 = centerOf(a.to);
     if (p1.x < 0.5 || p2.x < 0.5 || p1.y < 0.5 || p2.y < 0.5) return null;
+    const geo = computeArrowGeometry(p1, p2);
+    if (!geo) return null;
+    const pt = (p: ArrowPoint) => `${p.x},${p.y}`;
     return (
       <g key={key} opacity={preview ? 0.55 : 0.9}>
         <line
-          x1={p1.x}
-          y1={p1.y}
-          x2={p2.x}
-          y2={p2.y}
+          x1={geo.start.x}
+          y1={geo.start.y}
+          x2={geo.shaftEnd.x}
+          y2={geo.shaftEnd.y}
           stroke={color}
-          strokeWidth={0.3}
-          strokeLinecap="round"
-          markerEnd={preview ? `url(#${markerId}-user)` : `url(#${markerId}-${tone})`}
+          strokeWidth={geo.shaftWidth}
+          strokeLinecap="butt"
+        />
+        <polygon
+          points={`${pt(geo.tip)} ${pt(geo.baseLeft)} ${pt(geo.baseRight)}`}
+          fill={color}
+          stroke="none"
         />
       </g>
     );
@@ -436,22 +505,6 @@ export function ChessBoard({
             viewBox="0 0 8 8"
             aria-hidden="true"
           >
-            <defs>
-              {(Object.keys(ARROW_COLORS) as ArrowTone[]).map((tone) => (
-                <marker
-                  key={tone}
-                  id={`${markerId}-${tone}`}
-                  markerWidth={1.6}
-                  markerHeight={1.6}
-                  refX={1.1}
-                  refY={0.8}
-                  orient="auto"
-                  markerUnits="strokeWidth"
-                >
-                  <path d="M0,0 L1.6,0.8 L0,1.6 Z" fill={ARROW_COLORS[tone]} />
-                </marker>
-              ))}
-            </defs>
             {arrowPreview
               ? renderArrow(arrowPreview, "arrow-preview", true)
               : allArrows.map((a, i) => renderArrow(a, `arrow-${arrowKey(a)}-${i}`, false))}

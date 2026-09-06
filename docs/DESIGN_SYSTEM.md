@@ -60,6 +60,12 @@ Board squares: light amber-100 / dark emerald-600 (unchanged legacy).
 - `ChessBoard` — SVG pieces only (never Unicode glyphs); square states:
   `selected` (violet ring), `correct` (green), `missed` (amber dashed),
   `wrong` (red), `target` (sky, task piece only — never answer data).
+- Board arrows (Giving Check) — SVG overlay in board units (`viewBox`
+  `0 0 8 8`, scales with board size): slim shaft + independent filled
+  triangular head; the shaft is shortened to terminate at the arrowhead
+  base (tip = destination center), same violet/green/amber/red tones as
+  the rings; preview (55% opacity) and committed (90%) arrows share one
+  geometry helper (`computeArrowGeometry`).
 - Gameplay shell (`PieceGameLayout`, reusable): fixed overlay + compact top
   bar (back link, title, mode badge, optional tally); prominent centered
   question (`text-lg/xl font-black`); compact circular `؟` hint button

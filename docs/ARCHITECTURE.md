@@ -115,7 +115,7 @@ Notes:
 
 - Routes: `/`, `/exercises`, `/exercises/<slug>` (practice/speed via `?mode=`), `*` → NotFound.
 - `api/client.ts` transports data only. `i18n/` holds Persian strings (`fa.ts`).
-- `components/ui/` design system; `components/chess/` SVG board + pieces + reusable multi-arrow layer (`BoardArrow`, toned feedback arrows, `arrowDrawMode`).
+- `components/ui/` design system; `components/chess/` SVG board + pieces + reusable multi-arrow layer (`BoardArrow`, toned feedback arrows, `arrowDrawMode`, shaft-shortened `computeArrowGeometry` in board units).
 - `components/exercise/` play loops (shared `ExercisePlay` + dedicated loops
   like `PieceRecognitionPlay`); `exercises/catalog.ts` is the central registry
   (entries may declare explicit `modes`, e.g. practice/speed).

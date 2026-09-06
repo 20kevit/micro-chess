@@ -212,7 +212,18 @@ New reusable layer on the existing board (`components/chess/`):
   alongside the legacy single `arrow`; tones map to violet (user),
   green (correct), amber (missed), red (wrong) — same semantics as the
   square rings. Pure helpers (`arrowKey`, `normalizeArrows`,
-  `uciToArrow`, `arrowToUci`) are exported and unit-tested.
+  `uciToArrow`, `arrowToUci`, `computeArrowGeometry`) are exported and
+  unit-tested.
+- Arrow rendering model (SVG-based, Lichess-style): each arrow is a slim
+  shaft (`<line>`, 0.18 square units wide) plus an independent filled
+  triangular head (`<polygon>`, 0.45 long × 0.42 wide in square units).
+  The shaft is shortened along the direction vector so it terminates at
+  the CENTER of the arrowhead base (tip = destination square center);
+  a 0.02-unit overlap tucked under the opaque head prevents
+  antialiasing seams, so no shaft is ever visible inside the triangle.
+  Short arrows clamp the head to 60% of their length. All geometry lives
+  in board units (`viewBox="0 0 8 8"`), so it scales with board size by
+  construction — no pixel constants, no CSS triangles, no marker hacks.
 - `arrowDrawMode="any-drag"` turns every press-drag-release (left mouse
   button or touch) into an arrow — no right-button or long-press needed
   — while the default mode keeps the legacy behavior for older
