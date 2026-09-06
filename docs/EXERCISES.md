@@ -11,7 +11,7 @@ Roadmap (final numbering; Exercises 1–6 are production vertical slices):
 4. Undefended Pieces (`undefended-pieces`)
 5. Giving Check (`give-check`)
 6. Pathfinding (`pathfinding`)
-7. Pathfinding with Obstacles (future; obstacle/enemy-piece pathfinding)
+7. Pathfinding with Obstacles (`pathfinding-obstacles`)
 8. Pin (`pin`)
 9. Balance Scale (`balance-scale`)
 10. Which Side is Heavier? (`heavier-side`)
@@ -256,12 +256,53 @@ POSTPONED (no numbered roadmap slot; route stays playable).
   previously lived under this slug was replaced by this simple version;
   obstacle concepts move to future Exercise 7 and were not carried over.
 
-## Upcoming: Pathfinding with Obstacles (Exercise 7)
+## Eighth slice (Exercise 7 spec-track)
 
-**Pathfinding with Obstacles** — NOT implemented (future). It owns the
-concepts deliberately excluded from Exercise 6: black pieces, attacked
-squares, capture-based obstacle removal, defended-piece logic, dynamic
-attack maps, and path changes caused by captures.
+**Pathfinding with Obstacles** — IMPLEMENTED (`pathfinding-obstacles`,
+obstacle/enemy-piece pathfinding). Full spec:
+`docs/exercises/07-pathfinding-obstacles.md`.
+
+- Route: `/exercises/pathfinding-obstacles` with `?mode=practice`
+  (untimed) and `?mode=speed` (60s session); card renders both entry
+  buttons directly (no intermediate mode screen), same pattern as
+  Exercises 1–6.
+- Play loop: `frontend/src/components/exercise/PathfindingObstaclesPlay.tsx`
+  (practice + speed reusing the `PieceGameLayout` shell, timer, hints,
+  feedback; one white knight/bishop/rook/queen walks to a star among
+  1–5 black enemies — no kings at all; drag primary, click-to-move
+  supported, piece stays selected, 220ms practice / 110ms speed glide,
+  illegal buzz + 700ms red flash; arrival auto-submits
+  `{path, illegal_attempts}`); correctness, optimal counts, scoring,
+  and the speed clock stay backend-authoritative.
+- Position source: dynamic solved generator
+  (`pathfinding_obstacles/generator.py` — knight 50 / bishop 20 /
+  rook 20 / queen 10 with per-kind retries, 2–10 optimal moves,
+  capture-or-detour meaningfulness gate, BFS-verified reachable with
+  stored `optimal_moves`, answers server-side only). Rules live in one
+  authoritative layer (`transitions.py`: movement + blocking +
+  destination safety + undefended-only captures, safety evaluated on
+  the post-move board so uncoverings are illegal); BFS searches
+  complete board states, never white squares alone.
+- Validator: `backend/app/modules/pathfinding_obstacles/validator.py`
+  (stateful path replay with capture updates; correct iff every step
+  is a legal transition AND the path ends on the star; single-step
+  oracle at `POST /api/v1/pathfinding-obstacles/step` rebuilds the
+  live state from the client FEN with server-stored kind/target and
+  returns updated FEN + `reached` + `captured`, with post-completion
+  rejection).
+- Practice: `POST /api/v1/pathfinding-obstacles/next` issues fresh
+  solved puzzles (identical rows reused; `exclude_ids` steers
+  variety); the client keeps a current+next prefetch buffer. Answers
+  go through standard `POST /api/v1/attempts`.
+- Speed: `pathfinding_obstacles/sessions.py` + `router.py` (open →
+  prepare ≥20 → start 60s clock → walk-to-star loop with ~400ms
+  auto-advance, no manual next → server-rebuilt per-puzzle report;
+  per-answer rows reuse `attempts`).
+- Scoring: registered scorer (`optimal×5 − extra×2 − illegal×3`,
+  negatives kept, independent of the CORRECT/WRONG label).
+- Seed: `python -m app.modules.pathfinding_obstacles.seed` (15 solved
+  puzzles from the generator with a fixed seed, still served
+  read-only).
 
 ## Eighth slice
 

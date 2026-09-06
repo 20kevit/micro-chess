@@ -20,6 +20,7 @@ import { OpeningTrapsPage } from "./pages/OpeningTrapsPage";
 import { RuleOfTheSquarePage } from "./pages/RuleOfTheSquarePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PathfindingPage } from "./pages/PathfindingPage";
+import { PathfindingObstaclesPage } from "./pages/PathfindingObstaclesPage";
 import { PieceRecognitionPage } from "./pages/PieceRecognitionPage";
 import { PinPage } from "./pages/PinPage";
 import { TrappedPiecesPage } from "./pages/TrappedPiecesPage";
@@ -50,6 +51,7 @@ const router = createBrowserRouter([
       { path: "/exercises/blindfold-square-vision", element: <BlindfoldSquareVisionPage /> },
       { path: "/exercises/blindfold-calculation", element: <BlindfoldCalculationPage /> },
       { path: "/exercises/pathfinding", element: <PathfindingPage /> },
+      { path: "/exercises/pathfinding-obstacles", element: <PathfindingObstaclesPage /> },
       { path: "/exercises/pin", element: <PinPage /> },
       { path: "/exercises/trapped-pieces", element: <TrappedPiecesPage /> },
       { path: "/exercises/castling-rights", element: <CastlingRightsPage /> },

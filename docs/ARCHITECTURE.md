@@ -30,6 +30,7 @@ docs/      product + architecture + api + exercises
 | `undefended_pieces` | exercise 4: validator + scorer + shared-position generator + speed sessions + router (registers `undefended-pieces`) |
 | `give_check` | exercise 5: validator + scorer + shared-position generator (in-check rejection) + speed sessions + router (registers `give-check`) |
 | `pathfinding` | exercise 6: movement geometry + BFS (`moves.py`) + validator + scorer + weighted generator + speed sessions + router (registers `pathfinding`) |
+| `pathfinding_obstacles` | exercise 7: single authoritative transition layer + state-space BFS (`transitions.py`) + stateful validator + scorer + solved quality-gated generator + speed sessions + router (registers `pathfinding-obstacles`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
@@ -108,6 +109,11 @@ Piece Recognition additions (same tables, new columns only):
 - `pathfinding_speed_sessions` — same shape for Exercise 6 Speed Mode
   (`pathfinding/sessions.py` mirrors the same lifecycle; weighted
   single-piece puzzles from `pathfinding/generator.py`, BFS optimals
+  stored server-side).
+- `pathfinding_obstacles_speed_sessions` — same shape for Exercise 7
+  Speed Mode (`pathfinding_obstacles/sessions.py` mirrors the same
+  lifecycle; solved enemy puzzles from
+  `pathfinding_obstacles/generator.py`, state-space BFS optimals
   stored server-side).
 
 Notes:

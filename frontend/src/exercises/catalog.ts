@@ -95,6 +95,17 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
       { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
     ],
   },
+  {
+    slug: "pathfinding-obstacles",
+    titleKey: "exercises.pathfinding-obstacles.title",
+    descKey: "exercises.pathfinding-obstacles.desc",
+    status: "active",
+    route: "/exercises/pathfinding-obstacles",
+    modes: [
+      { id: "practice", labelKey: "play.practice", descKey: "practice.howto", params: "?mode=practice" },
+      { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
+    ],
+  },
   { slug: "pin", titleKey: "exercises.pin.title", descKey: "exercises.pin.desc", status: "active", route: "/exercises/pin" },
   { slug: "balance-scale", titleKey: "exercises.balance-scale.title", descKey: "exercises.balance-scale.desc", status: "active", route: "/exercises/balance-scale" },
   { slug: "heavier-side", titleKey: "exercises.heavier-side.title", descKey: "exercises.heavier-side.desc", status: "active", route: "/exercises/heavier-side" },

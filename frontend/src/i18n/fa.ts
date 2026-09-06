@@ -202,6 +202,8 @@ export const fa = {
   "exercises.get-out-of-check.desc": "شاه را از کیش نجات بده.",
   "exercises.pathfinding.title": "مسیر یابی",
   "exercises.pathfinding.desc": "مهره را با کمترین حرکت به ستاره برسان.",
+  "exercises.pathfinding-obstacles.title": "مسیر یابی با مانع",
+  "exercises.pathfinding-obstacles.desc": "مهره را با کمترین حرکت، با عبور از موانع، به ستاره برسان.",
   "exercises.pin.title": "آچمز",
   "exercises.pin.desc": "مهره‌ای که نمی‌تواند تکان بخورد.",
   "exercises.balance-scale.title": "ترازو",

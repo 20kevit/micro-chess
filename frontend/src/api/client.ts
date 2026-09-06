@@ -379,4 +379,64 @@ export const api = {
     request<SpeedSummary>(`/api/v1/pathfinding/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Pathfinding with Obstacles (Exercise 7): one white piece to the star
+  // around/through black enemies + speed sessions. Same contract as above
+  // (public puzzle data only — optimal move counts never leave the
+  // server; grading always server-side). Prefetch buffers never carry
+  // answers.
+  validateObstacleStep: (body: {
+    puzzle_id: number;
+    fen: string;
+    selected_at: string;
+    from: string;
+    to: string;
+  }) =>
+    request<PathStepResponse>("/api/v1/pathfinding-obstacles/step", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  nextObstaclePracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/pathfinding-obstacles/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startObstacleSpeedSession: () =>
+    request<SpeedSession>("/api/v1/pathfinding-obstacles/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  prepareObstacleSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/pathfinding-obstacles/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startObstacleSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/pathfinding-obstacles/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextObstacleSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/pathfinding-obstacles/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitObstacleSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/pathfinding-obstacles/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getObstacleSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/pathfinding-obstacles/sessions/${sessionId}`),
+  getObstacleSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/pathfinding-obstacles/sessions/${sessionId}/report`),
+  finishObstacleSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/pathfinding-obstacles/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
 };

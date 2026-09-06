@@ -12,6 +12,7 @@ from app.modules.exercises.router import router as exercises_router
 from app.modules.give_check.router import router as give_check_router
 from app.modules.legal_destinations.router import router as legal_destinations_router
 from app.modules.pathfinding.router import router as pathfinding_router
+from app.modules.pathfinding_obstacles.router import router as obstacle_pathfinding_router
 from app.modules.piece_recognition.router import router as piece_recognition_router
 from app.modules.progress.router import router as attempts_router
 from app.modules.puzzles.router import router as puzzles_router
@@ -33,6 +34,7 @@ import app.modules.opening_move_reconstruction as _opening_move_reconstruction  
 import app.modules.opening_traps as _opening_traps  # noqa: F401
 from app.modules.opening_move_reconstruction.router import router as reconstruction_router
 import app.modules.pathfinding as _pathfinding  # noqa: F401
+import app.modules.pathfinding_obstacles as _pathfinding_obstacles  # noqa: F401
 import app.modules.piece_recognition as _piece_recognition  # noqa: F401
 import app.modules.pin as _pin  # noqa: F401
 import app.modules.rule_of_the_square as _rule_of_the_square  # noqa: F401
@@ -70,6 +72,7 @@ app.include_router(exercises_router, prefix="/api/v1")
 app.include_router(captures_router, prefix="/api/v1")
 app.include_router(give_check_router, prefix="/api/v1")
 app.include_router(pathfinding_router, prefix="/api/v1")
+app.include_router(obstacle_pathfinding_router, prefix="/api/v1")
 app.include_router(piece_recognition_router, prefix="/api/v1")
 app.include_router(legal_destinations_router, prefix="/api/v1")
 app.include_router(reconstruction_router, prefix="/api/v1")
