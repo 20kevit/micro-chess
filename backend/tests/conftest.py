@@ -12,6 +12,7 @@ from app.db.base import Base
 
 @pytest.fixture()
 def db_session():
+    from app.modules.balance_scale import models as _bs  # noqa: F401
     from app.modules.captures import models as _cap  # noqa: F401
     from app.modules.exercises import models as _ex  # noqa: F401
     from app.modules.get_out_of_check import models as _goc  # noqa: F401

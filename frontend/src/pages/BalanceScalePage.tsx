@@ -1,13 +1,14 @@
-import { BalanceScalePlay } from "../components/exercise/BalanceScalePlay";
+import { useSearchParams } from "react-router-dom";
+import { BalanceScalePlay, type BalanceScaleMode } from "../components/exercise/BalanceScalePlay";
 
-// Balance Scale gameplay page. No chessboard here: pieces are dragged
-// between the bank and the left pan until both sides balance.
+// Balance Scale gameplay page (Exercise 10, ترازو). The home card's
+// Practice/Speed buttons link here with ?mode= and enter their loop
+// directly (no intermediate screen); totals, optimal counts, scoring,
+// and the speed clock stay backend-authoritative. No chessboard: a
+// dedicated tilting scale with black target pieces on one pan and the
+// child's white pieces on the other; balance auto-submits server-side.
 export function BalanceScalePage() {
-  return (
-    <BalanceScalePlay
-      slug="balance-scale"
-      titleKey="exercises.balance-scale.title"
-      introKey="balance.intro"
-    />
-  );
+  const [params] = useSearchParams();
+  const mode: BalanceScaleMode = params.get("mode") === "speed" ? "speed" : "practice";
+  return <BalanceScalePlay key={mode} mode={mode} />;
 }

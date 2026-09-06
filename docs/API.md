@@ -229,3 +229,27 @@ Same lifecycle and contract as Exercises 1–5 (open → prepare ≥20 → start
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
 - Full spec: `docs/exercises/06-pathfinding.md`.
+
+## Balance Scale (Exercise 10)
+
+Same lifecycle and contract as Exercises 1–7 (open → prepare ≥20 → start
+60s clock → submit loop → finish/report), under `/api/v1/balance-scale`:
+
+- `POST /api/v1/balance-scale/next` `{exclude_ids?: []}` → fresh
+  random practice `PuzzleOut` (no `answer_json`; only the black left
+  pieces in `position_json.left` are public task data, the target and
+  optimal count are not).
+- `POST /api/v1/balance-scale/sessions` → `preparing` session (60s default).
+- `POST /api/v1/balance-scale/sessions/{id}/puzzles` `{count}` →
+  buffer/refill puzzles (cap 60); `POST .../start` requires ≥20.
+- `POST /api/v1/balance-scale/sessions/{id}/submit` →
+  `{attempt, feedback_key, detail, session}` with
+  `answer: {pieces: [...]}` (the placed white pieces);
+  `max(0, 10 − extra)` scoring where extra = used − server-side optimal;
+  only session-issued puzzles accepted; client score/optimal/target
+  fields ignored. No Submit button exists client-side: exact balance
+  auto-submits; practice waits for «معمای بعدی», speed auto-advances.
+- `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
+  per-puzzle report rebuilt from stored attempts;
+  `POST .../finish` → final summary. Same error codes as Exercise 1.
+- Full spec: `docs/exercises/10-balance-scale.md`.

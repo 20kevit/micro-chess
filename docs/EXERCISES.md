@@ -355,17 +355,39 @@ obstacle/enemy-piece pathfinding). Full spec:
 
 ## Ninth slice
 
-**Balance Scale** — IMPLEMENTED (`balance-scale`).
+**Balance Scale** — IMPLEMENTED (`balance-scale`, Exercise 10, ترازو).
+Full spec: `docs/exercises/10-balance-scale.md`. Rewritten from the
+earlier bank-to-pan prototype into the dedicated minimum-pieces scale:
 
-- Route: `/exercises/balance-scale` (dedicated `BalanceScalePlay` loop reusing
-  design-system/api/i18n/hint/feedback primitives and SVG pieces; no
-  chessboard — bank-to-pan drag plus tap fallback, tilting beam, live totals).
-- Validator: `backend/app/modules/balance_scale/validator.py` (no
-  python-chess: multiset bank check plus submitted total against the stored
-  right-pan total; any valid combination accepted).
-- Seed: `python -m app.modules.balance_scale.seed` (15 hand-designed puzzles
-  of rising difficulty with independent subset-sum verification; 15 persisted
-  puzzles).
+- Route: `/exercises/balance-scale` with `?mode=practice` (untimed) and
+  `?mode=speed` (60s session); card renders both entry buttons directly
+  (no intermediate mode screen), same pattern as Exercises 1–7.
+- Play loop: dedicated `BalanceScalePlay` (practice + speed) over the
+  `BalanceScaleView` scale (tilting beam + hanging pyramid pans + unlimited
+  inventory, SVG pieces, no chessboard); correctness, optimal counts,
+  scoring, and the speed clock stay backend-authoritative.
+- Position source: dynamic random generator
+  (`balance_scale/generator.py` — 4–10 black pieces, tier-mixed targets,
+  DP-verified solvable within 10 pieces, answers server-side only).
+- Rule: exact material equality; no Submit button — balance auto-submits
+  `{pieces}` once. Any exact combination solves; fewer pieces score more.
+- Validator: `backend/app/modules/balance_scale/validator.py` (exact total
+  match, ≤10 pieces, no kings; client score/optimal/target ignored;
+  legacy bank/right rows keep their original rule).
+- Optimal count: exact DP over [1, 3, 5, 9] (`balance_scale/solver.py`,
+  no lookup tables); scoring is a registered scorer
+  (`max(0, 10 - extra)`, 0 when wrong).
+- Practice: `POST /api/v1/balance-scale/next` issues fresh random
+  published puzzles (identical rows reused; `exclude_ids` steers variety);
+  the client keeps a current+next prefetch buffer. Balance auto-submits
+  through standard `POST /api/v1/attempts`; success shows the score plus
+  «معمای بعدی» with NO auto-advance.
+- Speed: `balance_scale/sessions.py` + `router.py` (open → prepare ≥20 →
+  start 60s clock → submit loop with ~500ms auto-advance, no manual next
+  → server-rebuilt per-puzzle report; per-answer rows reuse `attempts`).
+- Seed: `python -m app.modules.balance_scale.seed` (15 hand-designed left
+  pans of rising difficulty incl. targets 4/6/8/10/18/90, every entry
+  independently verified solvable within 10 pieces).
 
 ## Tenth slice
 

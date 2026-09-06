@@ -1,28 +1,37 @@
-"""Balance Scale validator: match the right pan's material value.
+"""Balance Scale validator: match the left pan's material value exactly.
 
-This exercise is intentionally independent of chess rules: no python-chess,
-no board, no kings. Only piece type and its configured value matter; color
-is irrelevant.
+New spec (Exercise 10, ترازو): the left pan holds 4–10 black pieces with
+total value X. The user adds unlimited white pieces (pawn/knight/bishop/
+rook/queen, max 10 on the pan) until both sides are exactly equal. ANY
+exact combination solves the puzzle; fewer pieces score higher (see
+``scoring.py``). No chess rules, no board, no kings — only material totals.
 
-Puzzle definition (stored in the puzzle row, never fully exposed):
-- answer_json: {"bank": [...], "right": [...]} (server-side source of truth).
-- position_json: {"bank": [...], "right": [...]} (visible; the bank and the
-  right pan are displayed, never the solution).
+Puzzle definition (stored in the puzzle row, server-side only):
+- answer_json: {"left": [...], "target": int, "optimal_count": int}
+- position_json: {"left": [...]} (visible: the black target pieces only;
+  the optimal count is NEVER exposed).
 
 Attempt model (sent by client):
-    {"pieces": ["R", "R", "B", "P"]}
+    {"pieces": ["q", "r", "p", ...]}
 
-A submission is CORRECT when every submitted piece exists in the bank
-(counting duplicates), and the submitted total equals the right-pan total.
-Any valid combination with the right total counts; the validator never
-compares against one hardcoded answer.
+Server authority: the target and optimal count are ALWAYS recomputed
+from the stored left pieces. Client-supplied score/optimal_count/
+target_value fields are ignored.
 
-Result rules: CORRECT or WRONG only. Malformed input fails safely as WRONG
-and never crashes the API.
+Result rules: CORRECT iff every submitted piece is valid, at most 10
+pieces were submitted, and the submitted total equals the stored target.
+Anything else (under/over target, invalid piece, >10 pieces, malformed
+input) is WRONG and never crashes the API.
+
+Legacy rows (bank/right subset-sum shape from the earlier prototype) are
+still graded by their original rule so existing databases keep working;
+all newly generated puzzles use the left-target shape.
 """
 
 from typing import Any
 
+from app.modules.balance_scale import solver
+from app.modules.balance_scale.solver import MAX_PIECES
 from app.modules.rule_engine.base import AttemptResult, ValidationResult
 
 SLUG = "balance-scale"
@@ -69,9 +78,35 @@ def counts(pieces: list[str]) -> dict[str, int]:
     return result
 
 
-def validate(puzzle_answer: dict[str, Any], attempt: dict[str, Any]) -> ValidationResult:
-    bank, bank_bad = split_pieces(puzzle_answer.get("bank") if isinstance(puzzle_answer, dict) else None)
-    right, right_bad = split_pieces(puzzle_answer.get("right") if isinstance(puzzle_answer, dict) else None)
+def _wrong(
+    submitted_value: int,
+    target_value: int,
+    used: int,
+    optimal: int | None,
+    submitted: list[str],
+    malformed: list[str],
+) -> ValidationResult:
+    return ValidationResult(
+        result=AttemptResult.WRONG,
+        message_key="feedback.wrong",
+        detail={
+            "correct": [],
+            "missed": [],
+            "wrong": submitted + malformed,
+            "submitted_value": submitted_value,
+            "target_value": target_value,
+            "used_count": used,
+            "optimal_count": optimal,
+        },
+    )
+
+
+def _validate_legacy(
+    puzzle_answer: dict[str, Any], attempt: dict[str, Any]
+) -> ValidationResult:
+    """Original bank/right subset-sum rule (pre-Exercise-10 prototype)."""
+    bank, bank_bad = split_pieces(puzzle_answer.get("bank"))
+    right, right_bad = split_pieces(puzzle_answer.get("right"))
     submitted, malformed = split_pieces(attempt.get("pieces") if isinstance(attempt, dict) else None)
 
     target_value = total_value(right)
@@ -94,3 +129,41 @@ def validate(puzzle_answer: dict[str, Any], attempt: dict[str, Any]) -> Validati
         detail["wrong"] = []
         return ValidationResult(result=AttemptResult.CORRECT, message_key="feedback.correct", detail=detail)
     return ValidationResult(result=AttemptResult.WRONG, message_key="feedback.wrong", detail=detail)
+
+
+def validate(puzzle_answer: dict[str, Any], attempt: dict[str, Any]) -> ValidationResult:
+    answer = puzzle_answer if isinstance(puzzle_answer, dict) else {}
+    # Legacy rows have no "left" key; grade them by the original rule.
+    if "left" not in answer and ("bank" in answer or "right" in answer):
+        return _validate_legacy(answer, attempt)
+
+    left, left_bad = split_pieces(answer.get("left"))
+    submitted, malformed = split_pieces(attempt.get("pieces") if isinstance(attempt, dict) else None)
+
+    target_value = total_value(left)
+    submitted_value = total_value(submitted)
+    optimal = solver.optimal_count(target_value)
+    used = len(submitted)
+
+    if left_bad or not left or target_value <= 0 or optimal is None:
+        return _wrong(submitted_value, target_value, used, optimal, submitted, malformed)
+    if malformed:
+        return _wrong(submitted_value, target_value, used, optimal, submitted, malformed)
+    if used > MAX_PIECES:
+        return _wrong(submitted_value, target_value, used, optimal, submitted, malformed)
+    if submitted_value != target_value:
+        return _wrong(submitted_value, target_value, used, optimal, submitted, malformed)
+
+    return ValidationResult(
+        result=AttemptResult.CORRECT,
+        message_key="feedback.correct",
+        detail={
+            "correct": submitted,
+            "missed": [],
+            "wrong": [],
+            "submitted_value": submitted_value,
+            "target_value": target_value,
+            "used_count": used,
+            "optimal_count": optimal,
+        },
+    )

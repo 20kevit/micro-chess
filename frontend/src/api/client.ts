@@ -486,4 +486,53 @@ export const api = {
     request<SpeedSummary>(`/api/v1/pathfinding-obstacles/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Balance Scale (Exercise 10): match the black left pan with the
+  // fewest white pieces + speed sessions. Same contract as above
+  // (public puzzle data only — target/optimal counts never leave the
+  // server; grading always server-side). Prefetch buffers never carry
+  // answers.
+  nextBalancePracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/balance-scale/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startBalanceSpeedSession: () =>
+    request<SpeedSession>("/api/v1/balance-scale/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  prepareBalanceSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/balance-scale/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startBalanceSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/balance-scale/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextBalanceSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/balance-scale/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitBalanceSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/balance-scale/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getBalanceSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/balance-scale/sessions/${sessionId}`),
+  getBalanceSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/balance-scale/sessions/${sessionId}/report`),
+  finishBalanceSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/balance-scale/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
 };

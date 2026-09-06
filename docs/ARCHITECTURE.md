@@ -32,6 +32,7 @@ docs/      product + architecture + api + exercises
 | `get_out_of_check` | get out of check: multi-answer validator + per-move 5/−2/−3 scorer + synthetic in-check generator (family mixture incl. doubles) + speed sessions + router (registers `get-out-of-check`) |
 | `pathfinding` | exercise 6: movement geometry + BFS (`moves.py`) + validator + scorer + weighted generator + speed sessions + router (registers `pathfinding`) |
 | `pathfinding_obstacles` | exercise 7: single authoritative transition layer + state-space BFS (`transitions.py`) + stateful validator + scorer + solved quality-gated generator + speed sessions + router (registers `pathfinding-obstacles`) |
+| `balance_scale` | exercise 10: DP optimal-piece solver (`solver.py`, no chess rules) + exact-total validator + minimum-count scorer + tier-mixed random generator + speed sessions + router (registers `balance-scale`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
@@ -119,6 +120,10 @@ Piece Recognition additions (same tables, new columns only):
   Speed Mode (`pathfinding_obstacles/sessions.py` mirrors the same
   lifecycle; solved enemy puzzles from
   `pathfinding_obstacles/generator.py`, state-space BFS optimals
+  stored server-side).
+- `balance_scale_speed_sessions` — same shape for Exercise 10 Speed Mode
+  (`balance_scale/sessions.py` mirrors the same lifecycle; random
+  left-pan puzzles from `balance_scale/generator.py`, DP optimal counts
   stored server-side).
 
 Notes:
