@@ -143,6 +143,11 @@ export interface ExercisePlayConfig {
   arrowsEnabled?: boolean;
   /** Minimum selected items before submit is enabled. Default: always enabled. */
   requiredSelection?: number;
+  /** Direct play: skip the entry screen (no practice/rated selector) and
+   * start the board immediately in practice mode. The in-loop mode
+   * switcher is replaced by a static practice badge. For exercises with
+   * no modes (e.g. Pin). */
+  directPlay?: boolean;
   /** Ordered square selection: the answer array order matters (e.g. Pin
    * [pinner, pinned, behind]). Shows per-step progress instead of a count. */
   orderedSelection?: boolean;
@@ -166,7 +171,7 @@ export interface ExercisePlayConfig {
 // exercises. Renders and transports answers only; the backend decides
 // correctness, scoring, and rating.
 export function ExercisePlay({ config }: { config: ExercisePlayConfig }) {
-  const [started, setStarted] = useState(false);
+  const [started, setStarted] = useState(config.directPlay === true);
   const [mode, setMode] = useState<AttemptMode>("practice");
   const [exMode, setExMode] = useState(config.exerciseModes?.[0]?.id ?? "");
 
@@ -382,12 +387,16 @@ function PlayLoop({
         <Badge>
           {faNum(index + 1)} / {faNum(shownPuzzles?.length ?? 0)}
         </Badge>
-        <button
-          className="min-h-[44px] rounded-full bg-violet-100 px-4 text-sm font-bold text-violet-700"
-          onClick={() => onChangeMode(mode === "practice" ? "rated" : "practice")}
-        >
-          {mode === "practice" ? t("play.practice") : t("play.rated")}
-        </button>
+        {config.directPlay ? (
+          <Badge>{t("play.practice")}</Badge>
+        ) : (
+          <button
+            className="min-h-[44px] rounded-full bg-violet-100 px-4 text-sm font-bold text-violet-700"
+            onClick={() => onChangeMode(mode === "practice" ? "rated" : "practice")}
+          >
+            {mode === "practice" ? t("play.practice") : t("play.rated")}
+          </button>
+        )}
       </div>
 
       {config.hideBoard ? (
