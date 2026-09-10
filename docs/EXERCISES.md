@@ -343,17 +343,22 @@ obstacle/enemy-piece pathfinding). Full spec:
 
 **Pin** — IMPLEMENTED (`pin`, Exercise 11, آچمز).
 
-- Route: `/exercises/pin` (shared `ExercisePlay` move-input loop in drag-only
-  mode, the same single-move input Get Out of Check used before its
-  multi-arrow rework).
-- Validator: `backend/app/modules/pin/validator.py` (any legal python-chess
-  move whose resulting position contains a classical pin absent before the
-  move; ray-based detection independent of side to move; FEN travels in the
-  server-only `answer_json`, never exposed).
-- Seed: `python -m app.modules.pin.seed` (15 hand-designed puzzles covering
-  absolute/relative pins with all three sliders, all six pinned types,
-  pawn/knight/king-created pins, multi-answer, existing-pin and decoy cases;
-  every example independently verified at seed time).
+- Route: `/exercises/pin` (shared `ExercisePlay` square-selection loop with
+  `requiredSelection: 3` + `orderedSelection`: the user taps the three
+  pieces forming the pin in [pinner, pinned, behind] order — no move, no
+  arrows, no pin-type question).
+- Validator: `backend/app/modules/pin/validator.py` (value-gated classical
+  pins recomputed from the stored FEN: absolute when behind is the King,
+  relative only when behind is strictly more valuable P=1 N=3 B=3 R=5 Q=9;
+  skewers and equal-value lines rejected; kings never pinned; CORRECT only
+  for the exact ordered triplet; FEN travels in the server-only
+  `answer_json`, never exposed).
+- Seed: `python -m app.modules.pin.seed` (15 hand-designed positions that
+  already contain exactly one pin — absolute/relative, all three sliders,
+  queen/pawn/knight pinned, both colors pinning; every entry verified for
+  uniqueness with an independent re-scan; legacy move-based rows archived,
+  never hard-deleted).
+- Scoring: shared default (correct=1.0, else 0); no speed sessions.
 
 ## Ninth slice
 

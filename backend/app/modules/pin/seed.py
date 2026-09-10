@@ -1,12 +1,19 @@
-"""Seed/demo puzzles for Pin.
+"""Seed/demo puzzles for Pin (Exercise 11, آچمز).
 
 Run:  python -m app.modules.pin.seed
-Idempotent: skips when puzzles for the slug already exist.
-Each entry carries an example move that creates a pin, independently
-verified with raw python-chess (move legal, new pin present afterwards)
-before insert; invalid entries fail loudly instead of seeding a broken
-puzzle. Validation itself never depends on the example: any legal move
-that creates a new pin is accepted.
+Idempotent: skips when current-shape puzzles for the slug already exist.
+
+Each entry is a position that ALREADY contains exactly one classical pin.
+The user identifies the three pieces in [pinner, pinned, behind] order;
+no move is played. Every entry is verified before insert: the position
+must contain exactly one pin under the validator's value-gated definition
+(absolute = behind is the King; relative = behind strictly more valuable
+than the pinned piece; skewers rejected), and the stored triplet must
+match an independent re-scan. Invalid entries fail loudly instead of
+seeding a broken puzzle.
+
+Migration: legacy move-based rows (answer_json with "example" and no
+"pin") are archived, never hard-deleted, before the new rows go in.
 """
 
 from sqlalchemy.orm import Session
@@ -17,207 +24,202 @@ from app.db.session import SessionLocal, init_db
 from app.modules.exercises.models import Exercise
 from app.modules.pin.validator import SLUG, find_pins
 from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.service import archive
 
-PROMOTIONS = {"q": chess.QUEEN, "r": chess.ROOK, "b": chess.BISHOP, "n": chess.KNIGHT}
+PROMPT_FA = "سه مهره آچمز را به ترتیب انتخاب کن: اول مهره آچمزکننده، بعد مهره آچمزشده، بعد مهره پشتی."
 
-PROMPT_FA = "با یک حرکت قانونی، یک آچمز کلاسیک بساز."
-
-# Each entry: fen, example from/to (+promotion), explanation (which piece is
-# pinned, what is behind it, which slider pins it, absolute or relative),
-# hints, rating.
+# Each entry: fen, pin [pinner, pinned, behind], explanation (names the
+# triplet in order), hints, rating.
 PUZZLES: list[dict] = [
     {
-        "fen": "4k3/8/4n3/8/8/8/8/R4K2 w - - 0 1",
-        "example": {"from": "a1", "to": "e1"},
+        "fen": "4k3/8/4n3/8/8/8/8/4RK2 w - - 0 1",
+        "pin": ["e1", "e6", "e8"],
         "prompt_fa": PROMPT_FA,
-        "explanation": "رخ به e1 می‌رود و اسب e6 را به شاه e8 میخکوب می‌کند؛ چون پشت مهره شاه است، آچمز مطلق است.",
-        "hints": [{"id": "h1", "text_fa": "رخ را به ستونی ببر که مهره دشمن و شاه پشت آن باشند.", "rating_cost": 5}],
+        "explanation": "رخ e1 اسب e6 را به شاه e8 میخکوب کرده؛ چون پشت مهره شاه است، آچمز مطلق است.",
+        "hints": [{"id": "h1", "text_fa": "رخ را پیدا کن که در یک ستون با دو مهره دشمن ایستاده.", "rating_cost": 5}],
         "rating": 800.0,
     },
     {
-        "fen": "7k/6p1/8/8/8/8/8/2B1K3 w - - 0 1",
-        "example": {"from": "c1", "to": "b2"},
+        "fen": "7k/6p1/8/8/8/8/1B6/4K3 w - - 0 1",
+        "pin": ["b2", "g7", "h8"],
         "prompt_fa": PROMPT_FA,
-        "explanation": "فیل به b2 می‌رود و سرباز g7 را به شاه h8 میخکوب می‌کند؛ آچمز مطلق.",
-        "hints": [{"id": "h1", "text_fa": "قطر فیل تا شاه حریف را پیدا کن.", "rating_cost": 5}],
+        "explanation": "فیل b2 سرباز g7 را به شاه h8 میخکوب کرده؛ آچمز مطلق.",
+        "hints": [{"id": "h1", "text_fa": "قطر فیل تا شاه حریف را دنبال کن.", "rating_cost": 5}],
         "rating": 850.0,
     },
     {
-        "fen": "4k3/8/4b3/8/8/8/8/3QK3 w - - 0 1",
-        "example": {"from": "d1", "to": "e2"},
+        "fen": "4k3/8/4b3/8/8/8/4Q3/4K3 w - - 0 1",
+        "pin": ["e2", "e6", "e8"],
         "prompt_fa": PROMPT_FA,
-        "explanation": "وزیر به e2 می‌رود و فیل e6 را به شاه e8 میخکوب می‌کند؛ آچمز مطلق.",
+        "explanation": "وزیر e2 فیل e6 را به شاه e8 میخکوب کرده؛ آچمز مطلق.",
         "hints": [{"id": "h1", "text_fa": "وزیر هم در ستون و هم در قطر آچمز می‌کند.", "rating_cost": 5}],
         "rating": 850.0,
     },
     {
-        "fen": "k3q3/8/4r3/8/8/8/8/R4K2 w - - 0 1",
-        "example": {"from": "a1", "to": "e1"},
+        "fen": "k3q3/8/4r3/8/8/8/8/4RK2 w - - 0 1",
+        "pin": ["e1", "e6", "e8"],
         "prompt_fa": PROMPT_FA,
-        "explanation": "رخ به e1 می‌رود و رخ e6 را به وزیر e8 میخکوب می‌کند؛ چون پشت مهره وزیر است نه شاه، آچمز نسبی است.",
+        "explanation": "رخ e1 رخ e6 را به وزیر e8 میخکوب کرده؛ چون پشت مهره وزیر است نه شاه، آچمز نسبی است.",
         "hints": [{"id": "h1", "text_fa": "پشت مهره هم می‌تواند وزیر باشد، نه فقط شاه.", "rating_cost": 10}],
         "rating": 950.0,
     },
     {
-        "fen": "k7/8/8/2q5/1n6/8/8/2B1K3 w - - 0 1",
-        "example": {"from": "c1", "to": "a3"},
+        "fen": "k7/8/8/2q5/1n6/B7/8/4K3 w - - 0 1",
+        "pin": ["a3", "b4", "c5"],
         "prompt_fa": PROMPT_FA,
-        "explanation": "فیل به a3 می‌رود و اسب b4 را به وزیر c5 میخکوب می‌کند؛ آچمز نسبی.",
-        "hints": [{"id": "h1", "text_fa": "دو قطر فیل را بررسی کن.", "rating_cost": 5}],
+        "explanation": "فیل a3 اسب b4 را به وزیر c5 میخکوب کرده؛ آچمز نسبی.",
+        "hints": [{"id": "h1", "text_fa": "هر دو قطر فیل را بررسی کن.", "rating_cost": 5}],
         "rating": 900.0,
     },
     {
-        "fen": "k7/4q3/8/4n3/8/8/8/3QK3 w - - 0 1",
-        "example": {"from": "d1", "to": "e2"},
+        "fen": "k7/4q3/8/4n3/8/8/4Q3/4K3 w - - 0 1",
+        "pin": ["e2", "e5", "e7"],
         "prompt_fa": PROMPT_FA,
-        "explanation": "وزیر به e2 می‌رود و اسب e5 را به وزیر e7 میخکوب می‌کند؛ آچمز نسبی.",
-        "hints": [{"id": "h1", "text_fa": "مهره ارزشمند پشت هم جزو جواب است.", "rating_cost": 5}],
+        "explanation": "وزیر e2 اسب e5 را به وزیر e7 میخکوب کرده؛ آچمز نسبی.",
+        "hints": [{"id": "h1", "text_fa": "مهره ارزشمند پشتی هم جزو جواب است.", "rating_cost": 5}],
         "rating": 900.0,
     },
     {
-        "fen": "2k5/8/8/8/2q5/8/8/R3K3 w - - 0 1",
-        "example": {"from": "a1", "to": "c1"},
+        "fen": "2k5/8/8/8/2q5/8/8/2R1K3 w - - 0 1",
+        "pin": ["c1", "c4", "c8"],
         "prompt_fa": PROMPT_FA,
-        "explanation": "رخ به c1 می‌رود و وزیر c4 را به شاه c8 میخکوب می‌کند؛ حتی وزیر هم می‌تواند آچمز شود.",
+        "explanation": "رخ c1 وزیر c4 را به شاه c8 میخکوب کرده؛ حتی وزیر هم می‌تواند آچمز شود.",
         "hints": [{"id": "h1", "text_fa": "هر مهره‌ای، حتی وزیر، می‌تواند آچمز شود.", "rating_cost": 10}],
         "rating": 1000.0,
     },
     {
-        "fen": "8/8/7k/8/5n2/8/3P4/2B1K3 w - - 0 1",
-        "example": {"from": "d2", "to": "d4"},
+        "fen": "4k3/8/2p5/8/B7/8/8/4K3 w - - 0 1",
+        "pin": ["a4", "c6", "e8"],
         "prompt_fa": PROMPT_FA,
-        "explanation": "سرباز از قطر فیل کنار می‌رود و فیل c1 اسب f4 را به شاه h6 میخکوب می‌کند؛ آچمز را سرباز با حرکت خودش ساخت.",
-        "hints": [{"id": "h1", "text_fa": "گاهی کنار رفتن یک سرباز، خط حمله را باز می‌کند.", "rating_cost": 10}],
+        "explanation": "فیل a4 سرباز c6 را به شاه e8 میخکوب کرده؛ آچمز مطلق.",
+        "hints": [{"id": "h1", "text_fa": "قطر بلند فیل را تا شاه دنبال کن.", "rating_cost": 5}],
+        "rating": 900.0,
+    },
+    {
+        "fen": "8/7k/8/5n2/8/3B4/8/4K3 w - - 0 1",
+        "pin": ["d3", "f5", "h7"],
+        "prompt_fa": PROMPT_FA,
+        "explanation": "فیل d3 اسب f5 را به شاه h7 میخکوب کرده؛ آچمز مطلق.",
+        "hints": [{"id": "h1", "text_fa": "مهره میانی و شاه پشتی در یک قطرند.", "rating_cost": 5}],
+        "rating": 900.0,
+    },
+    {
+        "fen": "7k/8/r7/8/b7/8/8/R3K3 w - - 0 1",
+        "pin": ["a1", "a4", "a6"],
+        "prompt_fa": PROMPT_FA,
+        "explanation": "رخ a1 فیل a4 را به رخ a6 میخکوب کرده؛ چون رخ از فیل ارزشمندتر است، آچمز نسبی است.",
+        "hints": [{"id": "h1", "text_fa": "ارزش مهره پشتی را با مهره میانی مقایسه کن.", "rating_cost": 10}],
         "rating": 1000.0,
     },
     {
-        "fen": "7k/8/5n2/8/3N4/8/1B6/4K3 w - - 0 1",
-        "example": {"from": "d4", "to": "e6"},
+        "fen": "k6q/8/5r2/8/8/8/1B6/4K3 w - - 0 1",
+        "pin": ["b2", "f6", "h8"],
         "prompt_fa": PROMPT_FA,
-        "explanation": "اسب از قطر فیل کنار می‌رود و فیل b2 اسب f6 را به شاه h8 میخکوب می‌کند.",
-        "hints": [{"id": "h1", "text_fa": "مهره‌ای که راه را بسته، خودش حرکت کند.", "rating_cost": 5}],
-        "rating": 900.0,
+        "explanation": "فیل b2 رخ f6 را به وزیر h8 میخکوب کرده؛ آچمز نسبی.",
+        "hints": [{"id": "h1", "text_fa": "رخ هم می‌تواند قربانی آچمز شود.", "rating_cost": 5}],
+        "rating": 950.0,
     },
     {
-        "fen": "k7/8/8/8/6q1/5n2/4K3/3Q4 w - - 0 1",
-        "example": {"from": "e2", "to": "f1"},
+        "fen": "4k3/8/8/8/1b6/2N5/8/4K3 w - - 0 1",
+        "pin": ["b4", "c3", "e1"],
         "prompt_fa": PROMPT_FA,
-        "explanation": "شاه از قطر وزیر کنار می‌رود و وزیر d1 اسب f3 را به وزیر g4 میخکوب می‌کند؛ حتی حرکت شاه هم می‌تواند آچمز بسازد.",
-        "hints": [{"id": "h1", "text_fa": "شاه هم می‌تواند با حرکتش خط را باز کند.", "rating_cost": 10}],
+        "explanation": "فیل سیاه b4 اسب c3 را به شاه سفید e1 میخکوب کرده؛ آچمزکننده همیشه سفید نیست.",
+        "hints": [{"id": "h1", "text_fa": "به رنگ مهره‌ها هم دقت کن.", "rating_cost": 5}],
+        "rating": 950.0,
+    },
+    {
+        "fen": "3r1k2/8/8/3B4/8/8/8/3K4 w - - 0 1",
+        "pin": ["d8", "d5", "d1"],
+        "prompt_fa": PROMPT_FA,
+        "explanation": "رخ سیاه d8 فیل d5 را به شاه سفید d1 میخکوب کرده؛ آچمز مطلق.",
+        "hints": [{"id": "h1", "text_fa": "ستون d را از بالا تا پایین نگاه کن.", "rating_cost": 5}],
+        "rating": 950.0,
+    },
+    {
+        "fen": "8/4k3/8/2r5/8/Q7/8/4K3 w - - 0 1",
+        "pin": ["a3", "c5", "e7"],
+        "prompt_fa": PROMPT_FA,
+        "explanation": "وزیر a3 رخ c5 را به شاه e7 میخکوب کرده؛ آچمز مطلق روی قطر.",
+        "hints": [{"id": "h1", "text_fa": "قطر a3 تا e7 را دنبال کن.", "rating_cost": 10}],
         "rating": 1050.0,
     },
     {
-        "fen": "k7/4q3/8/4n3/n7/8/3Q4/1R4K1 w - - 0 1",
-        "example": {"from": "b1", "to": "a1"},
+        "fen": "k7/7r/8/8/7n/8/8/4K2R w - - 0 1",
+        "pin": ["h1", "h4", "h7"],
         "prompt_fa": PROMPT_FA,
-        "explanation": "هم رخ با a1 اسب a4 را به شاه a8 میخکوب می‌کند، هم وزیر با e2 اسب e5 را به وزیر e7؛ هر دو حرکت درست است.",
-        "hints": [{"id": "h1", "text_fa": "گاهی بیش از یک آچمز ممکن است؛ یکی کافی است.", "rating_cost": 5}],
-        "rating": 950.0,
-    },
-    {
-        "fen": "7k/4q3/4nn2/8/8/8/1B6/R5K1 w - - 0 1",
-        "example": {"from": "a1", "to": "e1"},
-        "prompt_fa": PROMPT_FA,
-        "explanation": "فیل b2 از قبل اسب f6 را به شاه h8 میخکوب کرده؛ رخ با e1 یک آچمز تازه روی اسب e6 به وزیر e7 می‌سازد. آچمز قبلی به‌تنهایی کافی نیست.",
-        "hints": [{"id": "h1", "text_fa": "آچمزی که از قبل هست حساب نیست؛ یکی تازه بساز.", "rating_cost": 10}],
-        "rating": 1100.0,
-    },
-    {
-        "fen": "4k3/8/4n3/8/3Q4/8/8/R5K1 w - - 0 1",
-        "example": {"from": "a1", "to": "e1"},
-        "prompt_fa": PROMPT_FA,
-        "explanation": "گرفتن اسب با وزیر وسوسه‌انگیز است ولی آچمزی نمی‌سازد؛ رخ با e1 اسب را به شاه میخکوب می‌کند.",
-        "hints": [{"id": "h1", "text_fa": "زدن مهره همیشه آچمز نیست.", "rating_cost": 10}],
-        "rating": 950.0,
-    },
-    {
-        "fen": "3qk3/8/8/8/8/8/3P4/4K3 b - - 0 1",
-        "example": {"from": "d8", "to": "a5"},
-        "prompt_fa": PROMPT_FA,
-        "explanation": "نوبت با سیاه است؛ وزیر به a5 می‌رود و سرباز d2 را به شاه e1 میخکوب می‌کند.",
-        "hints": [{"id": "h1", "text_fa": "به نوبت حرکت دقت کن.", "rating_cost": 5}],
-        "rating": 900.0,
-    },
-    {
-        "fen": "k6q/8/5r2/8/8/8/8/2B1K3 w - - 0 1",
-        "example": {"from": "c1", "to": "b2"},
-        "prompt_fa": PROMPT_FA,
-        "explanation": "فیل به b2 می‌رود و رخ f6 را به وزیر h8 میخکوب می‌کند؛ آچمز نسبی.",
-        "hints": [{"id": "h1", "text_fa": "رخ هم می‌تواند قربانی آچمز شود.", "rating_cost": 5}],
-        "rating": 900.0,
+        "explanation": "رخ h1 اسب h4 را به رخ h7 میخکوب کرده؛ چون رخ از اسب ارزشمندتر است، آچمز نسبی است.",
+        "hints": [{"id": "h1", "text_fa": "ستون h را از پایین تا بالا نگاه کن.", "rating_cost": 5}],
+        "rating": 1000.0,
     },
 ]
 
 
-def _pin_key(pin: dict) -> tuple[str, str, str]:
-    return (pin["pinned"], pin["behind"], pin["pinner"])
+def _independent_pins(fen: str) -> set[tuple[str, str, str]]:
+    """Independent pin scan (slider's perspective, no shared code)."""
+    board = chess.Board(fen)  # raises on invalid FEN
+    values = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
+    rays = {
+        chess.ROOK: [(1, 0), (-1, 0), (0, 1), (0, -1)],
+        chess.BISHOP: [(1, 1), (1, -1), (-1, 1), (-1, -1)],
+        chess.QUEEN: [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)],
+    }
+    found = set()
+    for slider_sq in chess.SQUARES:
+        slider = board.piece_at(slider_sq)
+        if slider is None or slider.piece_type not in rays:
+            continue
+        fx, rk = chess.square_file(slider_sq), chess.square_rank(slider_sq)
+        for dx, dy in rays[slider.piece_type]:
+            seen: list = []
+            f, r = fx + dx, rk + dy
+            while 0 <= f < 8 and 0 <= r < 8:
+                occ = chess.square(f, r)
+                if board.piece_at(occ) is not None:
+                    seen.append(occ)
+                    if len(seen) == 2:
+                        break
+                f += dx
+                r += dy
+            if len(seen) == 2:
+                middle, behind = seen
+                mid_piece = board.piece_at(middle)
+                behind_piece = board.piece_at(behind)
+                if mid_piece is None or behind_piece is None:
+                    continue
+                if mid_piece.piece_type == chess.KING:
+                    continue
+                if mid_piece.color == slider.color or behind_piece.color == slider.color:
+                    continue
+                if behind_piece.piece_type == chess.KING or values[behind_piece.piece_type] > values[
+                    mid_piece.piece_type
+                ]:
+                    found.add((chess.square_name(slider_sq), chess.square_name(middle), chess.square_name(behind)))
+    return found
 
 
 def verify_puzzle(item: dict) -> None:
-    """Independently verify one puzzle definition with raw python-chess.
+    """Independently verify one puzzle definition.
 
     Raises ValueError on any problem so seeding fails loudly instead of
-    inserting a broken puzzle. Uses direct move generation plus an
-    independent pin scan, not the validator.
+    inserting a broken puzzle. The position must contain exactly one pin
+    (no ambiguity, no skewer-only lines), and the stored triplet must
+    equal it in [pinner, pinned, behind] order.
     """
     board = chess.Board(item["fen"])  # raises on invalid FEN
-    example = item["example"]
-    move = chess.Move(
-        chess.parse_square(example["from"]),
-        chess.parse_square(example["to"]),
-        promotion=PROMOTIONS.get(example.get("promotion")) if example.get("promotion") else None,
-    )
-    if move not in board.legal_moves:
-        raise ValueError(f"example move not legal: {item['fen']} {example}")
+    if board.piece_at(chess.parse_square(item["pin"][0])) is None:
+        raise ValueError(f"pinner square empty: {item['fen']} {item['pin']}")
+    pins = find_pins(item["fen"])
+    if len(pins) != 1:
+        raise ValueError(f"need exactly one pin, found {len(pins)}: {item['fen']} {pins}")
+    actual = [pins[0]["pinner"], pins[0]["pinned"], pins[0]["behind"]]
+    if actual != list(item["pin"]):
+        raise ValueError(f"stored pin {item['pin']} != detected {actual}: {item['fen']}")
+    if _independent_pins(item["fen"]) != {(item["pin"][0], item["pin"][1], item["pin"][2])}:
+        raise ValueError(f"independent scan disagrees: {item['fen']}")
 
-    def scan(fen: str) -> set[tuple[str, str, str]]:
-        # Independent pin scan: walk each enemy slider's rays directly.
-        b = chess.Board(fen)
-        found = set()
-        rays = {
-            chess.ROOK: [(1, 0), (-1, 0), (0, 1), (0, -1)],
-            chess.BISHOP: [(1, 1), (1, -1), (-1, 1), (-1, -1)],
-            chess.QUEEN: [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)],
-        }
-        for sq in chess.SQUARES:
-            piece = b.piece_at(sq)
-            if piece is None or piece.piece_type not in rays:
-                continue
-            fx, rk = chess.square_file(sq), chess.square_rank(sq)
-            for dx, dy in rays[piece.piece_type]:
-                seen: list = []
-                f, r = fx + dx, rk + dy
-                while 0 <= f < 8 and 0 <= r < 8:
-                    occ = chess.square(f, r)
-                    if b.piece_at(occ) is not None:
-                        seen.append(occ)
-                        if len(seen) == 2:
-                            break
-                    f += dx
-                    r += dy
-                if len(seen) == 2:
-                    middle, behind = seen
-                    mid_piece = b.piece_at(middle)
-                    behind_piece = b.piece_at(behind)
-                    if (
-                        mid_piece is not None
-                        and behind_piece is not None
-                        and mid_piece.color != piece.color
-                        and behind_piece.color != piece.color
-                    ):
-                        found.add(
-                            (chess.square_name(middle), chess.square_name(behind), chess.square_name(sq))
-                        )
-        return found
 
-    before = scan(item["fen"])
-    board.push(move)
-    try:
-        after = scan(board.fen())
-    finally:
-        board.pop()
-    if not (after - before):
-        raise ValueError(f"example move creates no pin: {item['fen']} {example}")
+def _is_legacy(row_answer: dict) -> bool:
+    return isinstance(row_answer, dict) and "example" in row_answer and "pin" not in row_answer
 
 
 def seed_db(db: Session) -> int:
@@ -231,20 +233,40 @@ def seed_db(db: Session) -> int:
             slug=SLUG,
             title_fa="آچمز",
             title_en="Pin",
-            description="با یک حرکت قانونی، یک آچمز کلاسیک بساز.",
+            description="سه مهره آچمز را به ترتیب پیدا کن.",
             is_active=True,
             sort_order=10,
         )
         db.add(exercise)
         db.commit()
 
-    existing = db.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).count()
+    # Archive legacy move-based rows (answer_json with "example"): the
+    # contract changed from move-finding to triplet identification, so the
+    # old rows are no longer answerable. Never hard-delete (history).
+    legacy = (
+        db.query(Puzzle)
+        .filter(Puzzle.exercise_slug == SLUG, Puzzle.is_archived == False)  # noqa: E712
+        .all()
+    )
+    for row in legacy:
+        if _is_legacy(row.answer_json or {}):
+            archive(db, row)
+
+    existing = (
+        db.query(Puzzle)
+        .filter(
+            Puzzle.exercise_slug == SLUG,
+            Puzzle.is_published == True,  # noqa: E712
+            Puzzle.is_archived == False,  # noqa: E712
+        )
+        .count()
+    )
     if existing:
         return 0
 
     created = 0
     for item in PUZZLES:
-        answer = {"fen": item["fen"], "example": item["example"]}
+        answer = {"fen": item["fen"], "pin": list(item["pin"])}
         puzzle = Puzzle(
             exercise_slug=SLUG,
             fen=item["fen"],

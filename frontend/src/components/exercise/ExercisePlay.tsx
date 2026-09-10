@@ -65,6 +65,22 @@ function MoveStatus({
   );
 }
 
+const ORDERED_STEP_KEYS: FaKey[] = ["pin.stepPinner", "pin.stepPinned", "pin.stepBehind"];
+
+// Ordered pick progress (e.g. Pin [pinner, pinned, behind]). Display only;
+// the backend decides whether the submitted triplet is correct.
+function OrderedSelectionStatus({ selected }: { selected: string[] }) {
+  return (
+    <div className="mt-3 grid gap-1">
+      {ORDERED_STEP_KEYS.map((key, i) => (
+        <p key={key} className="text-sm font-bold text-stone-600">
+          {t(key)}: <span dir="ltr">{selected[i] ?? "؟"}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function OptionResultRow({
   item,
   result,
@@ -127,6 +143,9 @@ export interface ExercisePlayConfig {
   arrowsEnabled?: boolean;
   /** Minimum selected items before submit is enabled. Default: always enabled. */
   requiredSelection?: number;
+  /** Ordered square selection: the answer array order matters (e.g. Pin
+   * [pinner, pinned, behind]). Shows per-step progress instead of a count. */
+  orderedSelection?: boolean;
   /** Single-choice options: selecting replaces the previous choice. */
   singleChoice?: boolean;
   /** Exercise variants (e.g. all-checks vs appropriate-checks) chosen at entry.
@@ -446,7 +465,9 @@ function PlayLoop({
               ))}
             </div>
           ) : null}
-          {config.moveInput ? null : (
+          {config.moveInput ? null : config.orderedSelection ? (
+            <OrderedSelectionStatus selected={selected} />
+          ) : (
             <p className="mt-3 text-sm font-bold text-stone-600">
               {t("play.selected")}: {faNum(selected.length)}
             </p>

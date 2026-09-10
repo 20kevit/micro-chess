@@ -1,26 +1,30 @@
-"""Pin validator: play any legal move that creates a classical pin.
+"""Pin validator: identify the three pieces forming a pin, in order.
 
 A classical pin has an enemy Rook, Bishop or Queen as the pinning piece:
-enemy slider → pinned piece → valuable piece behind it. The piece behind
-is the King (absolute pin) or a non-King piece (relative pin). Only pins
-created by the submitted move count: pins already present before the move
-are subtracted.
+
+    pinner (enemy slider) -> pinned piece -> valuable piece behind it
+
+The piece behind is the King (absolute pin) or a strictly more valuable
+piece (relative pin, material values P=1 N=3 B=3 R=5 Q=9). An alignment
+where the front piece is more valuable than the rear piece is a skewer,
+NOT a pin, and is rejected.
 
 Puzzle definition (stored in the puzzle row, never exposed to clients):
-- answer_json: {"fen": "...", "example": {"from": "e2", "to": "e4"}}.
+- answer_json: {"fen": "...", "pin": ["e1", "e6", "e8"]}.
   The FEN must live here because validators only receive answer_json, and
   correctness is always recomputed from the position — never from a stored
-  move list.
+  triplet and never from client data.
 
-Attempt model (sent by client):
-    {"from": "e2", "to": "e4", "promotion": "q"}  (promotion optional)
+Attempt model (sent by client, order matters):
+    {"squares": ["<pinner>", "<pinned>", "<behind>"]}
 
-A submission is CORRECT when the move is legal under standard chess rules
-and the resulting position contains at least one pin that did not exist
-before the move. Any such move counts, so positions with several solutions
-accept them all.
+A submission is CORRECT only when the three squares exactly equal the
+single pin triplet of the stored position, in [pinner, pinned, behind]
+order. Positions are seeded with exactly one pin, so there is exactly one
+intended answer. Anything else (wrong squares, wrong order, skewer order,
+missing/extra squares) is WRONG.
 
-Result rules: CORRECT or WRONG only (a single move cannot be partial).
+Result rules: CORRECT or WRONG only (a triplet is atomic, never partial).
 Malformed input fails safely as WRONG and never crashes the API.
 """
 
@@ -32,7 +36,15 @@ from app.modules.rule_engine.base import AttemptResult, ValidationResult, normal
 
 SLUG = "pin"
 
-_PROMOTIONS = {"q": chess.QUEEN, "r": chess.ROOK, "b": chess.BISHOP, "n": chess.KNIGHT}
+# Material values for the relative-pin gate: the rear piece must be
+# strictly more valuable than the pinned piece (king = absolute pin).
+_PIECE_VALUES = {
+    chess.PAWN: 1,
+    chess.KNIGHT: 3,
+    chess.BISHOP: 3,
+    chess.ROOK: 5,
+    chess.QUEEN: 9,
+}
 
 # The four axes, each as a pair of opposite unit steps (file delta, rank delta).
 _AXES = (
@@ -67,16 +79,21 @@ def _slider_attacks_along(piece: chess.Piece, axis: tuple[tuple[int, int], tuple
 
 
 def find_pins(fen: str) -> list[dict[str, Any]]:
-    """All classical pins on the board, each as a dict with pinned, behind,
-    pinner (square names) and absolute (bool). Used by seed verification.
+    """All classical pins on the board, each as a dict with pinner, pinned,
+    behind (square names, in answer order) and absolute (bool).
+
+    Absolute = behind is the King. Relative = behind is strictly more
+    valuable than the pinned piece. Skewers (equal/lower-value behind)
+    are NOT pins and are excluded. Kings can never be the pinned piece.
 
     Raises ValueError on invalid FEN.
     """
     board = chess.Board(fen)  # raises on invalid FEN
     pins: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
     for middle in chess.SQUARES:
         piece = board.piece_at(middle)
-        if piece is None:
+        if piece is None or piece.piece_type == chess.KING:
             continue
         for axis in _AXES:
             first = _ray_first(board, middle, axis[0])
@@ -88,88 +105,96 @@ def find_pins(fen: str) -> list[dict[str, Any]]:
             if first_piece is None or second_piece is None:
                 continue
             if first_piece.color != piece.color and second_piece.color == piece.color:
-                slider, behind = first_piece, second_piece
+                slider, behind_sq = first_piece, second
             elif second_piece.color != piece.color and first_piece.color == piece.color:
-                slider, behind = second_piece, first_piece
+                slider, behind_sq = second_piece, first
             else:
+                continue
+            if slider.piece_type not in (chess.ROOK, chess.BISHOP, chess.QUEEN):
                 continue
             if not _slider_attacks_along(slider, axis):
                 continue
+            behind = board.piece_at(behind_sq)
+            if behind is None:
+                continue
+            if behind.piece_type == chess.KING:
+                absolute = True
+            elif _PIECE_VALUES.get(behind.piece_type, 0) > _PIECE_VALUES.get(piece.piece_type, 0):
+                absolute = False
+            else:
+                # Equal or lower value behind: skewer, not a pin.
+                continue
+            slider_sq = first if slider is first_piece else second
+            key = (
+                chess.square_name(slider_sq),
+                chess.square_name(middle),
+                chess.square_name(behind_sq),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
             pins.append(
                 {
-                    "pinned": chess.square_name(middle),
-                    "behind": chess.square_name(second if slider is first_piece else first),
-                    "pinner": chess.square_name(first if slider is first_piece else second),
-                    "absolute": behind.piece_type == chess.KING,
+                    "pinner": key[0],
+                    "pinned": key[1],
+                    "behind": key[2],
+                    "absolute": absolute,
                 }
             )
-    return sorted(pins, key=lambda p: (p["pinned"], p["behind"], p["pinner"]))
+    return sorted(pins, key=lambda p: (p["pinner"], p["pinned"], p["behind"]))
 
 
-def _pin_key(pin: dict[str, Any]) -> tuple[str, str, str]:
-    return (pin["pinned"], pin["behind"], pin["pinner"])
-
-
-def creates_pin(fen: str, from_sq: str, to_sq: str, promotion: Any = None) -> bool:
-    """True when from→to is legal and creates at least one new pin.
-
-    Raises ValueError on invalid FEN or squares. An explicit promotion
-    restricts to that choice; without one, any pinning promotion counts.
-    """
-    board = chess.Board(fen)  # raises on invalid FEN
-    origin = chess.parse_square(from_sq.strip().lower())
-    dest = chess.parse_square(to_sq.strip().lower())
-    before = {_pin_key(p) for p in find_pins(fen)}
-    promo: chess.PieceType | None = None
-    if promotion is not None:
-        if not isinstance(promotion, str) or promotion.strip().lower() not in _PROMOTIONS:
-            return False
-        promo = _PROMOTIONS[promotion.strip().lower()]
-    candidates = [
-        m
-        for m in board.legal_moves
-        if m.from_square == origin and m.to_square == dest and (promo is None or m.promotion == promo)
-    ]
-    if not candidates:
-        return False
-    for move in candidates:
-        board.push(move)
-        try:
-            after = {_pin_key(p) for p in find_pins(board.fen())}
-            if after - before:
-                return True
-        finally:
-            board.pop()
-    return False
+def _pin_triplet(pin: dict[str, Any]) -> list[str]:
+    return [pin["pinner"], pin["pinned"], pin["behind"]]
 
 
 def validate(puzzle_answer: dict[str, Any], attempt: dict[str, Any]) -> ValidationResult:
     fen = puzzle_answer.get("fen") if isinstance(puzzle_answer, dict) else None
     attempt_map = attempt if isinstance(attempt, dict) else {}
-    origin = normalize_square(attempt_map.get("from"))
-    dest = normalize_square(attempt_map.get("to"))
-    promotion = attempt_map.get("promotion")
+    raw = attempt_map.get("squares", attempt_map.get("selected_squares"))
 
-    squares = sorted(s for s in (origin, dest) if s is not None)
-    # Malformed shape fails safely; unknown promotion letters fail below.
-    if not isinstance(fen, str) or origin is None or dest is None:
+    if not isinstance(fen, str):
+        submitted = [str(s) for s in raw] if isinstance(raw, list) else []
         return ValidationResult(
             result=AttemptResult.WRONG,
             message_key="feedback.wrong",
-            detail={"correct": [], "missed": [], "wrong": squares},
+            detail={"correct": [], "missed": [], "wrong": submitted},
         )
     try:
-        correct = creates_pin(fen, origin, dest, promotion)
+        pins = find_pins(fen)
     except ValueError:
-        correct = False
-    if correct:
+        submitted = [str(s) for s in raw] if isinstance(raw, list) else []
+        return ValidationResult(
+            result=AttemptResult.WRONG,
+            message_key="feedback.wrong",
+            detail={"correct": [], "missed": [], "wrong": submitted},
+        )
+    if not pins:
+        # Broken puzzle (no pin on the board): nothing can be correct.
+        submitted = [str(s) for s in raw] if isinstance(raw, list) else []
+        return ValidationResult(
+            result=AttemptResult.WRONG,
+            message_key="feedback.wrong",
+            detail={"correct": [], "missed": [], "wrong": submitted},
+        )
+    triplets = [_pin_triplet(p) for p in pins]
+    expected = triplets[0]
+
+    squares: list[str] = []
+    if isinstance(raw, list) and len(raw) == 3:
+        normalized = [normalize_square(s) for s in raw]
+        if all(s is not None for s in normalized):
+            squares = [s for s in normalized if s is not None]
+
+    if squares in triplets:
         return ValidationResult(
             result=AttemptResult.CORRECT,
             message_key="feedback.correct",
             detail={"correct": squares, "missed": [], "wrong": []},
         )
+    submitted = [str(s) for s in raw] if isinstance(raw, list) else []
     return ValidationResult(
         result=AttemptResult.WRONG,
         message_key="feedback.wrong",
-        detail={"correct": [], "missed": [], "wrong": squares},
+        detail={"correct": [], "missed": expected, "wrong": submitted},
     )

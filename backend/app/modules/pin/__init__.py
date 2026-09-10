@@ -1,4 +1,4 @@
-"""Pin exercise: play any legal move that creates a classical pin."""
+"""Pin exercise: identify the three pieces forming a pin, in order."""
 
 from app.modules.exercises import registry
 from app.modules.pin.validator import SLUG, validate

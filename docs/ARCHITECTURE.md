@@ -34,7 +34,7 @@ docs/      product + architecture + api + exercises
 | `pathfinding_obstacles` | exercise 8: single authoritative transition layer + state-space BFS (`transitions.py`) + stateful validator + scorer + solved quality-gated generator + speed sessions + router (registers `pathfinding-obstacles`) |
 | `balance_scale` | exercise 9: DP optimal-piece solver (`solver.py`, no chess rules) + exact-total validator + minimum-count scorer + tier-mixed random generator + speed sessions + router (registers `balance-scale`) |
 | `material_comparison` | exercise 10: isolated material calculator (`material.py`: P=1 N=3 B=3 R=5 Q=9 K=0, classifier, 10% gate) + FEN-shape validator (legacy left/right fallback) + simple +5/−2 scorer + eligible-position generator (bounded category-balanced sampling from `puzzles.db`) + speed sessions + router (registers `heavier-side`) |
-| `pin` | exercise 11: validator + seed (registers `pin`) |
+| `pin` | exercise 11: value-gated ordered-triplet validator + single-pin seed (registers `pin`) |
 | `chinese_board` | exercise 12 (Memorization Board, صفحه‌ی حفظی): pure piece helpers (`pieces.py`: extraction/count/`count×1000ms` budget) + descriptor validator (`validator.py`: exact-first, same-kind wrong-square pairing without double-counting, CORRECT-only-when-perfect) + per-piece +5/−2 scorer (negatives kept, no floor) + any-valid-FEN generator (bounded sampling from `puzzles.db`, server-side budget) + speed sessions + router (registers `chinese-board`; slug kept for routes/API/DB) |
 | `checkmate` | exercise 13 (ADMIN-BLOCKED): validator + seed (registers `is-checkmate`) |
 | `blindfold_square_vision` | exercise 14: validator + seed (registers `blindfold-square-vision`) |

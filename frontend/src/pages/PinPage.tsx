@@ -1,7 +1,8 @@
 import { ExercisePlay } from "../components/exercise/ExercisePlay";
 
-// Pin gameplay page. Drag-only move input: arrows stay off and the from/to
-// rings plus the move status line carry the selection.
+// Pin gameplay page. No move input: the user taps the three pieces forming
+// the pin in order — pinner, pinned piece, piece behind — and the backend
+// decides whether the ordered triplet is correct.
 export function PinPage() {
   return (
     <ExercisePlay
@@ -10,14 +11,9 @@ export function PinPage() {
         titleKey: "exercises.pin.title",
         introKey: "pin.intro",
         targetOf: () => null,
-        moveInput: true,
-        arrowsEnabled: false,
-        requiredSelection: 2,
-        answerOf: (selected, extra) => ({
-          from: selected[0] ?? "",
-          to: selected[1] ?? "",
-          promotion: extra?.promotion ?? "q",
-        }),
+        requiredSelection: 3,
+        orderedSelection: true,
+        answerOf: (selected) => ({ squares: selected.slice(0, 3) }),
       }}
     />
   );
