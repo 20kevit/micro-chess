@@ -96,21 +96,21 @@ def ensure_exercise(db: Session) -> None:
         db.add(
             Exercise(
                 slug=SLUG,
-                title_fa="صفحه چینی",
-                title_en="Chinese Board",
+                title_fa="صفحه‌ی حفظی",
+                title_en="Memorization Board",
                 description="صفحه را حفظ کن و از نو بچین.",
                 is_active=True,
-                sort_order=13,
+                sort_order=11,
             )
         )
         db.commit()
     else:
         changed = False
-        if exercise.title_fa != "صفحه چینی":
-            exercise.title_fa = "صفحه چینی"
+        if exercise.title_fa != "صفحه‌ی حفظی":
+            exercise.title_fa = "صفحه‌ی حفظی"
             changed = True
-        if exercise.title_en != "Chinese Board":
-            exercise.title_en = "Chinese Board"
+        if exercise.title_en != "Memorization Board":
+            exercise.title_en = "Memorization Board"
             changed = True
         if changed:
             db.commit()

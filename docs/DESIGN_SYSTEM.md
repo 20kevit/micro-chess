@@ -148,8 +148,8 @@ Tailwind scale; convention: `gap-2/mt-2` between related controls,
    glances (≤600ms) show counts + score only, no board.
 8. Landscape control columns are sized by arithmetic, not feel: the
    column must fit its tallest stack (question + timer + palette rows +
-   check) inside short heights (346px at 844×390). The Chinese Board
-   column is 368px (`w-92`) because 13 tools × 44px need 332px for two
+  check) inside short heights (346px at 844×390). The Memorization Board
+  column is 368px (`w-92`) because 13 tools × 44px need 332px for two
    rows and the question needs ~256px to stay single-line — while the
    board stays height-capped and loses nothing.
 

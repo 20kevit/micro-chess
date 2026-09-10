@@ -3,7 +3,10 @@ import type { FaKey } from "../i18n/fa";
 // Central exercise catalog: every exercise has one entry with its slug,
 // translation keys, availability status, and route (when playable).
 // Pages render from status — never from per-slug conditionals — so adding
-// Exercise 2 means appending one entry here, not touching components.
+// an exercise means appending one entry here, not touching components.
+//
+// Order follows the official MicroChess roadmap (Exercises 1–18 + 21;
+// 19 avoid-stalemate and 20 rule-of-the-square were removed).
 
 export type ExerciseStatus = "active" | "coming_soon";
 
@@ -116,7 +119,6 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
       { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
     ],
   },
-  { slug: "pin", titleKey: "exercises.pin.title", descKey: "exercises.pin.desc", status: "active", route: "/exercises/pin" },
   { slug: "balance-scale", titleKey: "exercises.balance-scale.title", descKey: "exercises.balance-scale.desc", status: "active", route: "/exercises/balance-scale",
     modes: [
       { id: "practice", labelKey: "play.practice", descKey: "practice.howto", params: "?mode=practice" },
@@ -129,6 +131,7 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
       { id: "speed", labelKey: "play.speed", descKey: "speed.howto", params: "?mode=speed" },
     ],
   },
+  { slug: "pin", titleKey: "exercises.pin.title", descKey: "exercises.pin.desc", status: "active", route: "/exercises/pin" },
   { slug: "chinese-board", titleKey: "exercises.chinese-board.title", descKey: "exercises.chinese-board.desc", status: "active", route: "/exercises/chinese-board",
     modes: [
       { id: "practice", labelKey: "play.practice", descKey: "practice.howto", params: "?mode=practice" },
@@ -136,15 +139,11 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
     ],
   },
   { slug: "is-checkmate", titleKey: "exercises.is-checkmate.title", descKey: "exercises.is-checkmate.desc", status: "active", route: "/exercises/is-checkmate" },
-  { slug: "memory-board", titleKey: "exercises.memory-board.title", descKey: "exercises.memory-board.desc", status: "active", route: "/exercises/memory-board" },
   { slug: "blindfold-square-vision", titleKey: "exercises.blindfold-square-vision.title", descKey: "exercises.blindfold-square-vision.desc", status: "active", route: "/exercises/blindfold-square-vision" },
   { slug: "blindfold-calculation", titleKey: "exercises.blindfold-calculation.title", descKey: "exercises.blindfold-calculation.desc", status: "active", route: "/exercises/blindfold-calculation" },
   { slug: "opening-traps", titleKey: "exercises.opening-traps.title", descKey: "exercises.opening-traps.desc", status: "active", route: "/exercises/opening-traps" },
-  { slug: "opening-move-reconstruction", titleKey: "exercises.opening-move-reconstruction.title", descKey: "exercises.opening-move-reconstruction.desc", status: "active", route: "/exercises/opening-move-reconstruction" },
-  { slug: "reverse-opening", titleKey: "exercises.reverse-opening.title", descKey: "exercises.reverse-opening.desc", status: "coming_soon", route: null },
+  { slug: "reverse-opening", titleKey: "exercises.reverse-opening.title", descKey: "exercises.reverse-opening.desc", status: "active", route: "/exercises/reverse-opening" },
   { slug: "trapped-pieces", titleKey: "exercises.trapped-pieces.title", descKey: "exercises.trapped-pieces.desc", status: "active", route: "/exercises/trapped-pieces" },
-  { slug: "avoid-stalemate", titleKey: "exercises.avoid-stalemate.title", descKey: "exercises.avoid-stalemate.desc", status: "coming_soon", route: null },
-  { slug: "rule-of-the-square", titleKey: "exercises.rule-of-the-square.title", descKey: "exercises.rule-of-the-square.desc", status: "active", route: "/exercises/rule-of-the-square" },
   { slug: "castling-rights", titleKey: "exercises.castling-rights.title", descKey: "exercises.castling-rights.desc", status: "active", route: "/exercises/castling-rights" },
 ];
 

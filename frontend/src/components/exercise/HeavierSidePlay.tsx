@@ -23,7 +23,7 @@ export type HeavierSideMode = "practice" | "speed";
 export const HEAVIER_CHOICES = ["white", "black", "equal"] as const;
 export type HeavierChoice = (typeof HEAVIER_CHOICES)[number];
 
-// Dedicated Practice + Speed loop for Heavier Side (کدام طرف سنگین‌تر؟).
+// Dedicated Practice + Speed loop for Heavier Side (کدام طرف سنگین‌تر است؟).
 // A real board position is shown read-only; the child mentally totals
 // material (P=1 N=3 B=3 R=5 Q=9, K=0) and taps one of three large choices.
 // Renders and transports answers only; the material verdict, scoring, and

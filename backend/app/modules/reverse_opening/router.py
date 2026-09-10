@@ -1,12 +1,12 @@
-"""Reconstruction step route: thin wiring, logic lives in validator."""
+"""Reverse Opening step route: thin wiring, logic lives in validator."""
 
 import chess
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db
-from app.modules.opening_move_reconstruction import schemas
-from app.modules.opening_move_reconstruction.validator import (
+from app.modules.reverse_opening import schemas
+from app.modules.reverse_opening.validator import (
     SLUG,
     matched_plies,
     position_key,
@@ -14,7 +14,7 @@ from app.modules.opening_move_reconstruction.validator import (
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import normalize_square
 
-router = APIRouter(prefix="/reconstruction", tags=["reconstruction"])
+router = APIRouter(prefix="/reverse-opening", tags=["reverse-opening"])
 
 _PROMOTIONS = {"q": chess.QUEEN, "r": chess.ROOK, "b": chess.BISHOP, "n": chess.KNIGHT}
 

@@ -281,7 +281,7 @@ def seed_db(db: Session) -> int:
             title_en="Blindfold Square Vision",
             description="کمترین حرکت لازم برای رسیدن به خانه هدف را حدس بزن.",
             is_active=True,
-            sort_order=12,
+            sort_order=13,
         )
         db.add(exercise)
         db.commit()

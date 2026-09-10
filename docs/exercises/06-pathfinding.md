@@ -1,4 +1,4 @@
-# Exercise 6 — Pathfinding (مسیر یابی)
+# Exercise 7 — Pathfinding (مسیریابی)
 
 Production v1 status. The user sees ONE white piece plus a star square on
 an otherwise empty board and must walk the piece to the star with legal
@@ -10,15 +10,15 @@ This is intentionally the SIMPLE pathfinding version:
 > One white piece + one star + empty board.
 
 No black pieces, no attacked squares, no captures, no king-safety. Those
-belong to **Exercise 7 — Pathfinding with Obstacles** (future, separate).
-Get Out of Check is postponed and is not part of this exercise.
+belong to **Exercise 8 — Pathfinding with Obstacles**.
+Get Out of Check is Exercise 6 and is not part of this exercise.
 
 ## Roadmap note (renumbering)
 
-Get Out of Check was postponed, so Pathfinding moved up: the former
-Exercise 7 (Pathfinding) is now **Exercise 6**, and Pathfinding with
-Obstacles will land separately as **Exercise 7**. Exercises 1–5 are
-unchanged. Castling Rights stays at the end (Exercise 19).
+Official roadmap (`docs/EXERCISES.md` is the single source of truth):
+Pathfinding is **Exercise 7**, Pathfinding with Obstacles is
+**Exercise 8**. Exercises 1–6 are unchanged. Castling Rights is
+Exercise 21.
 
 The previous obstacle/enemy-control pathfinding implementation that lived
 under the `pathfinding` slug was replaced by this simple version; its
@@ -90,7 +90,7 @@ count matters for scoring.
   `answer_json = {fen, from, target, piece, optimal_moves}` (server-only).
   Identical `(piece, from, target)` rows are reused, not duplicated;
   `exclude_ids` steers variety with bounded re-rolls.
-- Exercise row: title «مسیر یابی», `sort_order = 6`.
+- Exercise row: title «مسیریابی», `sort_order = 6`.
 
 ## Validation (`validator.py`)
 
@@ -133,7 +133,7 @@ score = optimal_moves × 5
 
 ```text
 Main Page (/)
-   ↓  مسیر یابی card
+   ↓  مسیریابی card
    ├── تمرینی (?mode=practice)      └── سرعتی (?mode=speed)
    ↓                                     ↓
 full-viewport game screen           prepare ≥20 puzzles (no clock)
@@ -196,7 +196,7 @@ Design-system typography (Vazirmatn, `lang="fa"` `dir="rtl"`). Page RTL;
 board island `dir="ltr"`, white orientation, a-file left. Star marker is
 a gold SVG (55% of the square, pointer-transparent so dragging works),
 visible during movement, scales with board size. New strings:
-`exercises.pathfinding.title/desc` («مسیر یابی»),
+`exercises.pathfinding.title/desc` («مسیریابی»),
 `pathfinding.intro/invalid/moves/illegal/arrived/score`.
 
 ## Audio

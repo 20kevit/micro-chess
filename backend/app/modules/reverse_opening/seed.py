@@ -1,6 +1,6 @@
-"""Seed/demo puzzles for Opening Move Reconstruction.
+"""Seed/demo puzzles for Reverse Opening.
 
-Run:  python -m app.modules.opening_move_reconstruction.seed
+Run:  python -m app.modules.reverse_opening.seed
 Idempotent: skips when puzzles for the slug already exist.
 
 Target positions are GENERATED from the move sequences (never hand-typed),
@@ -19,8 +19,8 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal, init_db
 from app.modules.exercises.models import Exercise
-from app.modules.opening_move_reconstruction.description import describe_opening
-from app.modules.opening_move_reconstruction.validator import (
+from app.modules.reverse_opening.description import describe_opening
+from app.modules.reverse_opening.validator import (
     SLUG,
     START_FEN,
     play_sequence,
@@ -228,9 +228,9 @@ def seed_db(db: Session) -> int:
     if exercise is None:
         exercise = Exercise(
             slug=SLUG,
-            title_fa="بازسازی گشایش",
-            title_en="Opening Reconstruction",
-            description="حرکت‌های ابتدای بازی را بازسازی کن.",
+            title_fa="گشایش معکوس",
+            title_en="Reverse Opening",
+            description="ترتیب حرکت‌های گشایش را برعکس بچین.",
             is_active=True,
             sort_order=16,
         )
@@ -277,6 +277,6 @@ if __name__ == "__main__":
     db = SessionLocal()
     try:
         n = seed_db(db)
-        print(f"seeded {n} opening-move-reconstruction puzzles")
+        print(f"seeded {n} reverse-opening puzzles")
     finally:
         db.close()

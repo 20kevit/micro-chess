@@ -1,12 +1,12 @@
-"""Opening Move Reconstruction: sequences, positions, seed, step API."""
+"""Reverse Opening: sequences, positions, seed, step API."""
 
 import chess
 import pytest
 
 from app.modules.exercises import registry
-from app.modules.opening_move_reconstruction import seed as seed_mod
-from app.modules.opening_move_reconstruction.description import describe_opening
-from app.modules.opening_move_reconstruction.validator import (
+from app.modules.reverse_opening import seed as seed_mod
+from app.modules.reverse_opening.description import describe_opening
+from app.modules.reverse_opening.validator import (
     SLUG,
     START_FEN,
     matched_plies,
@@ -225,7 +225,7 @@ def _step(client, db_session, puzzle, fen, moves, frm, to, promotion=None):
     body = {"puzzle_id": puzzle.id, "fen": fen, "moves": moves, "from": frm, "to": to}
     if promotion:
         body["promotion"] = promotion
-    return client.post("/api/v1/reconstruction/step", json=body)
+    return client.post("/api/v1/reverse-opening/step", json=body)
 
 
 def _seeded(db_session) -> Puzzle:
@@ -268,7 +268,7 @@ def test_step_reports_divergence_without_revealing_solution(client, db_session):
 
 def test_step_unknown_puzzle_404(client, db_session):
     res = client.post(
-        "/api/v1/reconstruction/step",
+        "/api/v1/reverse-opening/step",
         json={"puzzle_id": 999999, "fen": START_FEN, "moves": [], "from": "e2", "to": "e4"},
     )
     assert res.status_code == 404

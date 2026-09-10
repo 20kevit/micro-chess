@@ -117,7 +117,7 @@ def ensure_exercise(db: Session) -> None:
         db.add(
             Exercise(
                 slug=SLUG,
-                title_fa="کدام طرف سنگین‌تر؟",
+                title_fa="کدام طرف سنگین‌تر است؟",
                 title_en="Heavier Side",
                 description="بگو کدام طرف مهره‌های ارزشمندتری دارد.",
                 is_active=True,
@@ -127,8 +127,8 @@ def ensure_exercise(db: Session) -> None:
         db.commit()
     else:
         changed = False
-        if exercise.title_fa != "کدام طرف سنگین‌تر؟":
-            exercise.title_fa = "کدام طرف سنگین‌تر؟"
+        if exercise.title_fa != "کدام طرف سنگین‌تر است؟":
+            exercise.title_fa = "کدام طرف سنگین‌تر است؟"
             changed = True
         if exercise.title_en != "Heavier Side":
             exercise.title_en = "Heavier Side"

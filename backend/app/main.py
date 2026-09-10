@@ -34,15 +34,13 @@ import app.modules.get_out_of_check as _get_out_of_check  # noqa: F401
 import app.modules.give_check as _give_check  # noqa: F401
 import app.modules.legal_destinations as _legal_destinations  # noqa: F401
 import app.modules.material_comparison as _material_comparison  # noqa: F401
-import app.modules.memory_board as _memory_board  # noqa: F401
-import app.modules.opening_move_reconstruction as _opening_move_reconstruction  # noqa: F401
+import app.modules.reverse_opening as _reverse_opening  # noqa: F401
 import app.modules.opening_traps as _opening_traps  # noqa: F401
-from app.modules.opening_move_reconstruction.router import router as reconstruction_router
+from app.modules.reverse_opening.router import router as reconstruction_router
 import app.modules.pathfinding as _pathfinding  # noqa: F401
 import app.modules.pathfinding_obstacles as _pathfinding_obstacles  # noqa: F401
 import app.modules.piece_recognition as _piece_recognition  # noqa: F401
 import app.modules.pin as _pin  # noqa: F401
-import app.modules.rule_of_the_square as _rule_of_the_square  # noqa: F401
 import app.modules.trapped_pieces as _trapped_pieces  # noqa: F401
 import app.modules.undefended_pieces as _undefended_pieces  # noqa: F401
 # Castling Rights sits at the end of the exercise roadmap (see docs/EXERCISES.md).

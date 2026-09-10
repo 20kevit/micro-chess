@@ -29,12 +29,20 @@ docs/      product + architecture + api + exercises
 | `captures` | exercise 3: validator + scorer + hunter-vs-black generator + speed sessions + router (registers `captures`) |
 | `undefended_pieces` | exercise 4: validator + scorer + shared-position generator + speed sessions + router (registers `undefended-pieces`) |
 | `give_check` | exercise 5: validator + scorer + shared-position generator (in-check rejection) + speed sessions + router (registers `give-check`) |
-| `get_out_of_check` | get out of check: multi-answer validator + per-move 5/−2/−3 scorer + synthetic in-check generator (family mixture incl. doubles) + speed sessions + router (registers `get-out-of-check`) |
-| `pathfinding` | exercise 6: movement geometry + BFS (`moves.py`) + validator + scorer + weighted generator + speed sessions + router (registers `pathfinding`) |
-| `pathfinding_obstacles` | exercise 7: single authoritative transition layer + state-space BFS (`transitions.py`) + stateful validator + scorer + solved quality-gated generator + speed sessions + router (registers `pathfinding-obstacles`) |
-| `balance_scale` | exercise 10: DP optimal-piece solver (`solver.py`, no chess rules) + exact-total validator + minimum-count scorer + tier-mixed random generator + speed sessions + router (registers `balance-scale`) |
-| `material_comparison` | exercise 11: isolated material calculator (`material.py`: P=1 N=3 B=3 R=5 Q=9 K=0, classifier, 10% gate) + FEN-shape validator (legacy left/right fallback) + simple +5/−2 scorer + eligible-position generator (bounded category-balanced sampling from `puzzles.db`) + speed sessions + router (registers `heavier-side`) |
-| `chinese_board` | exercise 13: pure piece helpers (`pieces.py`: extraction/count/`count×1000ms` budget) + descriptor validator (`validator.py`: exact-first, same-kind wrong-square pairing without double-counting, CORRECT-only-when-perfect) + per-piece +5/−2 scorer (negatives kept, no floor) + any-valid-FEN generator (bounded sampling from `puzzles.db`, server-side budget) + speed sessions + router (registers `chinese-board`) |
+| `get_out_of_check` | exercise 6: multi-answer validator + per-move 5/−2/−3 scorer + synthetic in-check generator (family mixture incl. doubles) + speed sessions + router (registers `get-out-of-check`) |
+| `pathfinding` | exercise 7: movement geometry + BFS (`moves.py`) + validator + scorer + weighted generator + speed sessions + router (registers `pathfinding`) |
+| `pathfinding_obstacles` | exercise 8: single authoritative transition layer + state-space BFS (`transitions.py`) + stateful validator + scorer + solved quality-gated generator + speed sessions + router (registers `pathfinding-obstacles`) |
+| `balance_scale` | exercise 9: DP optimal-piece solver (`solver.py`, no chess rules) + exact-total validator + minimum-count scorer + tier-mixed random generator + speed sessions + router (registers `balance-scale`) |
+| `material_comparison` | exercise 10: isolated material calculator (`material.py`: P=1 N=3 B=3 R=5 Q=9 K=0, classifier, 10% gate) + FEN-shape validator (legacy left/right fallback) + simple +5/−2 scorer + eligible-position generator (bounded category-balanced sampling from `puzzles.db`) + speed sessions + router (registers `heavier-side`) |
+| `pin` | exercise 11: validator + seed (registers `pin`) |
+| `chinese_board` | exercise 12 (Memorization Board, صفحه‌ی حفظی): pure piece helpers (`pieces.py`: extraction/count/`count×1000ms` budget) + descriptor validator (`validator.py`: exact-first, same-kind wrong-square pairing without double-counting, CORRECT-only-when-perfect) + per-piece +5/−2 scorer (negatives kept, no floor) + any-valid-FEN generator (bounded sampling from `puzzles.db`, server-side budget) + speed sessions + router (registers `chinese-board`; slug kept for routes/API/DB) |
+| `checkmate` | exercise 13 (ADMIN-BLOCKED): validator + seed (registers `is-checkmate`) |
+| `blindfold_square_vision` | exercise 14: validator + seed (registers `blindfold-square-vision`) |
+| `blindfold_calculation` | exercise 15: validator + seed (registers `blindfold-calculation`) |
+| `opening_traps` | exercise 16 (ADMIN-BLOCKED): validator + seed (registers `opening-traps`) |
+| `reverse_opening` | exercise 17 (ADMIN-BLOCKED): validator + step oracle + seed (registers `reverse-opening`) |
+| `trapped_pieces` | exercise 18: validator + seed (registers `trapped-pieces`) |
+| `castling_rights` | exercise 21 (ADMIN-BLOCKED): validator + seed (registers `castling-rights`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |

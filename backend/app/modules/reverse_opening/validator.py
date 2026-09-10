@@ -1,4 +1,4 @@
-"""Opening Move Reconstruction validator: rebuild the opening, eyes on boards.
+"""Reverse Opening validator: rebuild the opening, eyes on boards.
 
 The user sees the TARGET position and replays the opening from the START
 position on a second board. Correctness is positional, never textual: the
@@ -33,7 +33,7 @@ import chess
 
 from app.modules.rule_engine.base import AttemptResult, ValidationResult
 
-SLUG = "opening-move-reconstruction"
+SLUG = "reverse-opening"
 
 START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 

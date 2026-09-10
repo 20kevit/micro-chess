@@ -1,4 +1,4 @@
-# Exercise 13 — Chinese Board (صفحه چینی)
+# Exercise 12 — Memorization Board (صفحه‌ی حفظی)
 
 Train visual memory: study a real chess position briefly, then rebuild the
 exact position from memory. Unlike tactical exercises there are no moves,
@@ -8,7 +8,7 @@ type + color + square for every original piece.
 ## The loop
 
 ```text
-memorize (piece_count × 0.3s, read-only board)
+memorize (piece_count × 1s, read-only board)
 ↓ fade (skipped under prefers-reduced-motion)
 reconstruct (empty board + tap palette)
 ↓ بررسی صفحه

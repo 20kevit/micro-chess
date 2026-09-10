@@ -1,41 +1,44 @@
-# Exercises (catalog of future work)
+# Exercises (official roadmap — single source of truth)
 
-No exercise is implemented in the foundation. Each gets its own spec from the user
-before implementation. New exercise = catalog row + validator + tests + UI.
+Roadmap (final numbering):
 
-Roadmap (final numbering; Exercises 1–6 are production vertical slices):
-
-1. Piece Recognition (`piece-recognition`)
-2. Legal Destinations (`legal-destinations`)
-3. Captures (`captures`)
-4. Undefended Pieces (`undefended-pieces`)
-5. Giving Check (`give-check`)
-6. Pathfinding (`pathfinding`)
-7. Pathfinding with Obstacles (`pathfinding-obstacles`)
-8. Pin (`pin`)
-9. Balance Scale (`balance-scale`)
-10. Which Side is Heavier? (`heavier-side`)
-11. Is it Checkmate? (`is-checkmate`)
-12. Memory Board (`memory-board`)
-13. Blindfold Square Vision (`blindfold-square-vision`)
-14. Blindfold Calculation (`blindfold-calculation`)
-15. Opening Traps Blindfold (`opening-traps`)
-16. Opening Move Reconstruction (`opening-move-reconstruction`)
-17. Trapped Pieces (`trapped-pieces`)
-18. Rule of the Square (`rule-of-the-square`)
-19. Castling Rights (`castling-rights`, moved to the end of the roadmap)
-
-Get Out of Check (`get-out-of-check`) is postponed: the implementation
-remains in the repo and playable, but it holds no numbered roadmap slot
-until it returns to active development.
-
-Coming soon (no number yet): Reverse Opening, Avoid Stalemate.
+1. Piece Recognition (`piece-recognition`, تشخیص مهره)
+2. Legal Destinations (`legal-destinations`, مقصدهای قانونی)
+3. Captures (`captures`, گرفتن مهره‌ها)
+4. Undefended Pieces (`undefended-pieces`, مهره‌های بی‌دفاع)
+5. Giving Check (`give-check`, کیش دادن)
+6. Get Out of Check (`get-out-of-check`, رفع کیش)
+7. Pathfinding (`pathfinding`, مسیریابی)
+8. Pathfinding with Obstacles (`pathfinding-obstacles`, مسیریابی با مانع)
+9. Balance Scale (`balance-scale`, ترازو)
+10. Which Side is Heavier? (`heavier-side`, کدام طرف سنگین‌تر است؟)
+11. Pin (`pin`, آچمز)
+12. Memorization Board (`chinese-board`, صفحه‌ی حفظی — displayed as
+    صفحه‌ی حفظی; the `chinese-board` slug is kept for routes/API/DB only)
+13. Is it Checkmate? (`is-checkmate`, آیا مات است؟) — ADMIN-BLOCKED:
+    needs an Admin workflow for entering/managing positions; do not
+    continue development for now.
+14. Blindfold Square Vision (`blindfold-square-vision`, خانه‌یابی ذهنی)
+15. Blindfold Calculation (`blindfold-calculation`, محاسبه‌ی ذهنی)
+16. Mental Opening (`opening-traps`, گشایش ذهنی) — ADMIN-BLOCKED:
+    needs Admin-entered positions; do not continue development for now.
+17. Reverse Opening (`reverse-opening`, گشایش معکوس) — ADMIN-BLOCKED:
+    needs Admin-entered positions; do not continue development for now.
+    The former `opening-move-reconstruction` implementation was
+    consolidated under this slug; do not keep two exercises.
+18. Trapped Piece (`trapped-pieces`, مهره‌ی گرفتار)
+19. REMOVED — `avoid-stalemate` (deleted from the project, no placeholder)
+20. REMOVED — `rule-of-the-square` (deleted from the project, no placeholder)
+21. Castling Rights (`castling-rights`, حقوق قلعه‌رفتن) — ADMIN-BLOCKED:
+    needs Admin-entered positions; do not continue development for now.
 
 Removed (no placeholders left): the former Exercises 5 (Hanging
 Pieces, `hanging-pieces`) and 6 (Equal Attackers & Defenders,
-`equal-attackers-defenders`) were deleted from the project — backend
-modules, frontend pages, routes, catalog entries, tests, and docs.
-Everything after them moved two numbers back.
+`equal-attackers-defenders`); `memory-board` (superseded by the
+Memorization Board, Exercise 12); `opening-move-reconstruction`
+(renamed to `reverse-opening`); `avoid-stalemate`; `rule-of-the-square`.
+Removed means removed: backend modules, frontend pages, routes, catalog
+entries, tests, seeds, and docs are all gone.
 
 ## How to add an exercise (later)
 
@@ -200,9 +203,8 @@ back; Exercises 1–4 are untouched.
 
 ## Sixth slice
 
-**Get Out of Check** — IMPLEMENTED (`get-out-of-check`), official Persian
-title `رفع کیش` (never `فرار از کیش`). Currently POSTPONED as a numbered
-roadmap slot, but fully playable at its catalog position after Giving Check.
+**Get Out of Check** — IMPLEMENTED (`get-out-of-check`, Exercise 6),
+official Persian title `رفع کیش` (never `فرار از کیش`).
 
 - Route: `/exercises/get-out-of-check` with `?mode=practice` (untimed) and
   `?mode=speed` (60s session); card renders both entry buttons directly
@@ -247,7 +249,7 @@ roadmap slot, but fully playable at its catalog position after Giving Check.
   doubles, pinned and discovered-fail cases, single/multi answers and a
   black-to-move position; every example independently verified at seed time).
 
-## Seventh slice (Exercise 6 spec-track)
+## Seventh slice (Exercise 7)
 
 **Pathfinding** — IMPLEMENTED (`pathfinding`, simple version). Full spec:
 `docs/exercises/06-pathfinding.md`.
@@ -289,7 +291,7 @@ roadmap slot, but fully playable at its catalog position after Giving Check.
   previously lived under this slug was replaced by this simple version;
   obstacle concepts move to future Exercise 7 and were not carried over.
 
-## Eighth slice (Exercise 7 spec-track)
+## Eighth slice (Exercise 8)
 
 **Pathfinding with Obstacles** — IMPLEMENTED (`pathfinding-obstacles`,
 obstacle/enemy-piece pathfinding). Full spec:
@@ -337,9 +339,9 @@ obstacle/enemy-piece pathfinding). Full spec:
   puzzles from the generator with a fixed seed, still served
   read-only).
 
-## Eighth slice
+## Pin (Exercise 11)
 
-**Pin** — IMPLEMENTED (`pin`).
+**Pin** — IMPLEMENTED (`pin`, Exercise 11, آچمز).
 
 - Route: `/exercises/pin` (shared `ExercisePlay` move-input loop in drag-only
   mode, the same single-move input Get Out of Check used before its
@@ -355,8 +357,8 @@ obstacle/enemy-piece pathfinding). Full spec:
 
 ## Ninth slice
 
-**Balance Scale** — IMPLEMENTED (`balance-scale`, Exercise 10, ترازو).
-Full spec: `docs/exercises/10-balance-scale.md`. Rewritten from the
+**Balance Scale** — IMPLEMENTED (`balance-scale`, Exercise 9, ترازو).
+Full spec: `docs/exercises/09-balance-scale.md`. Rewritten from the
 earlier bank-to-pan prototype into the dedicated minimum-pieces scale:
 
 - Route: `/exercises/balance-scale` with `?mode=practice` (untimed) and
@@ -391,8 +393,8 @@ earlier bank-to-pan prototype into the dedicated minimum-pieces scale:
 
 ## Tenth slice
 
-**Which Side is Heavier?** — IMPLEMENTED (`heavier-side`, Exercise 11,
-کدام طرف سنگین‌تر؟). Full spec: `docs/exercises/11-heavier-side.md`.
+**Which Side is Heavier?** — IMPLEMENTED (`heavier-side`, Exercise 10,
+کدام طرف سنگین‌تر است؟). Full spec: `docs/exercises/10-heavier-side.md`.
 Rewritten from the earlier scale-pan prototype (piece lists, board hidden)
 into real-board material evaluation:
 
@@ -432,7 +434,9 @@ into real-board material evaluation:
 
 ## Eleventh slice
 
-**Is it Checkmate?** — IMPLEMENTED (`is-checkmate`).
+**Is it Checkmate?** — IMPLEMENTED (`is-checkmate`, Exercise 13, آیا مات است؟).
+ADMIN-BLOCKED: needs an Admin workflow for entering/managing positions;
+do not continue development for now.
 
 - Route: `/exercises/is-checkmate` (shared `ExercisePlay` options loop with
   read-only board: three fixed choices مات/کیش/بدون کیش, no hints of the
@@ -444,22 +448,6 @@ into real-board material evaluation:
   5 checkmate / 5 check / 5 not_check incl. stalemate, double checks,
   blockable/capturable/king-escape and decoy cases; every classification
   independently verified at seed time).
-
-## Twelfth slice
-
-**Memory Board** — IMPLEMENTED (`memory-board`).
-
-- Route: `/exercises/memory-board` (dedicated `MemoryBoardPlay` loop reusing
-  board/attempt/timing/hint/feedback primitives: memorize phase with
-  countdown, rebuild phase with palette + turn selector on an empty board,
-  full reconstruction auto-compared server-side).
-- Validator: `backend/app/modules/memory_board/validator.py` (submitted
-  placement must equal the stored FEN placement exactly, plus side to move;
-  castling/en-passant metadata ignored; FEN travels in the server-only
-  `answer_json`, never exposed).
-- Seed: `python -m app.modules.memory_board.seed` (15 hand-designed puzzles
-  of rising difficulty, 8s/6s/4s memorize durations, every FEN independently
-  verified at seed time).
 
 ## Thirteenth slice
 
@@ -506,7 +494,9 @@ into real-board material evaluation:
 
 ## Fifteenth slice
 
-**Opening Traps Blindfold** — IMPLEMENTED (`opening-traps`).
+**Mental Opening** — IMPLEMENTED (`opening-traps`, Exercise 16, گشایش ذهنی).
+ADMIN-BLOCKED: needs Admin-entered positions; do not continue
+development for now.
 
 - MVP is one tactical move from a genuine opening-trap position.
   Checkmate is NOT required; correctness is membership of the parsed move
@@ -539,21 +529,24 @@ into real-board material evaluation:
 
 ## Sixteenth slice
 
-**Opening Move Reconstruction** — IMPLEMENTED (`opening-move-reconstruction`).
+**Reverse Opening** — IMPLEMENTED (`reverse-opening`, Exercise 17,
+گشایش معکوس). ADMIN-BLOCKED: needs Admin-entered positions; do not
+continue development for now. (Consolidated from the former
+`opening-move-reconstruction` slug; there is only one exercise.)
 
-- Route: `/exercises/opening-move-reconstruction` (dedicated
-  `OpeningReconstructionPlay` loop with two boards: the read-only TARGET
+- Route: `/exercises/reverse-opening` (dedicated
+  `ReverseOpeningPlay` loop with two boards: the read-only TARGET
   board on top, the user-driven reconstruction board below starting from
   the standard initial position; tap or drag to move, server-generated
   SAN move list, undo/reset, promotion picker).
-- Validator: `backend/app/modules/opening_move_reconstruction/validator.py`
+- Validator: `backend/app/modules/reverse_opening/validator.py`
   (submitted UCIs replayed with python-chess from the stored start;
   CORRECT only when placement + side to move + castling rights +
   en-passant square equal the stored target; clocks ignored; any line
   reaching the target counts, so transpositions are accepted; CORRECT or
   WRONG only; detail carries both sequences plus matched/expected plies
   as move-by-move feedback).
-- Step oracle: `POST /api/v1/reconstruction/step` (legality-only move
+- Step oracle: `POST /api/v1/reverse-opening/step` (legality-only move
   assistance following the pathfinding-step precedent: replays the
   claimed history from the stored start, applies one legal move, returns
   the new FEN plus server-generated SAN and an on-track flag; reveals no
@@ -561,7 +554,7 @@ into real-board material evaluation:
 - Security: `answer_json` (start/target/solutions) is server-only;
   `position_json` exposes start/target FENs for rendering plus opening
   context, never the sequence; client FENs/solutions are ignored.
-- Seed: `python -m app.modules.opening_move_reconstruction.seed` (15
+- Seed: `python -m app.modules.reverse_opening.seed` (15
   real opening lines of 5-10 plies from the standard start — Italian,
   Ruy Lopez, Sicilian Najdorf, French Winawer, Caro-Kann, QGD, KID,
   Scotch, Four Knights, London, Petrov, Vienna, Alapin, Caro Advance,
@@ -572,7 +565,7 @@ into real-board material evaluation:
 
 ## Seventeenth slice
 
-**Trapped Pieces** — IMPLEMENTED (`trapped-pieces`).
+**Trapped Piece** — IMPLEMENTED (`trapped-pieces`, Exercise 18, مهره‌ی گرفتار).
 
 - Route: `/exercises/trapped-pieces` (shared `ExercisePlay` loop with no
   pre-highlight; only the user's selections are shown).
@@ -583,41 +576,11 @@ into real-board material evaluation:
   covering all five trappable kinds, pawn mutual blocks, pinned-not-trapped,
   king-excluded and empty cases; every answer independently verified).
 
-## Eighteenth slice
-
-**Rule of the Square** — IMPLEMENTED (`rule-of-the-square`).
-
-- Route: `/exercises/rule-of-the-square` (dedicated `RuleOfTheSquarePlay`
-  loop: visible board, two large touch choices شاه می‌رسد / شاه نمی‌رسد,
-  no piece movement; the square corners are marked only after submission).
-- Validator: `backend/app/modules/rule_of_the_square/validator.py`.
-  The verdict is exact optimal race play for the lone king-versus-pawn
-  race (exhaustive solving, no engine/tablebase/heuristics), which
-  coincides with the classical square on every teachable position and
-  additionally adjudicates tempo corners exactly (attacker-to-move edge
-  cases where the naive drawing misleads). The classical square geometry
-  is still computed per puzzle and drives the post-submit visualization
-  and the generated Persian explanations.
-- Seed: `python -m app.modules.rule_of_the_square.seed` (15 generated
-  minimum-material positions, 8 CAN_CATCH / 7 CANNOT_CATCH, White and
-  Black pawns, edge/central files, starting-rank double-steps, inside /
-  just-outside boundaries, both sides to move; every FEN generated from
-  structured data and independently verified legal; the drawn square is
-  tested to agree with the verdict on all seeds).
-- Security: `answer_json` holds only the FEN; the visible board renders
-  from the `Puzzle.fen` column, `position_json` carries just the mode;
-  the verdict is recomputed from the stored FEN on every submission and
-  client-supplied FENs are ignored.
-- Known limitation: MVP is the simplified single-pawn race only; no
-  opposition, zugzwang subtleties beyond the race, or multi-pawn
-  endgames.
-
 ## Nineteenth slice (end of the roadmap)
 
-**Castling Rights** — IMPLEMENTED (`castling-rights`).
-
-- Moved here from the former Exercise 6 slot; it is parked at the end
-  of the roadmap and is not under active development.
+**Castling Rights** — IMPLEMENTED (`castling-rights`, Exercise 21).
+ADMIN-BLOCKED: needs Admin-entered positions; do not continue
+development for now.
 - Route: `/exercises/castling-rights` (shared `ExercisePlay` loop extended
   with a fixed four-option mode; board shows the position as context only).
 - Validator: `backend/app/modules/castling_rights/validator.py` (each option
@@ -627,16 +590,18 @@ into real-board material evaluation:
   four options, single-option cases, absent rights, blocked paths incl. b-file,
   check, transit/destination attacks, stale rook/king flags, partial subsets).
 
-## Chinese Board (Exercise 13)
+## Memorization Board (Exercise 12)
 
-**Chinese Board** — IMPLEMENTED (`chinese-board`, Exercise 13,
-صفحه چینی — never `صفحه حفظی`, which stays the Memory Board title).
-Full spec: `docs/exercises/13-chinese-board.md`.
+**Memorization Board** — IMPLEMENTED (`chinese-board`, Exercise 12,
+صفحه‌ی حفظی. The `chinese-board` slug is kept for routes, API, and DB;
+user-facing text always says صفحه‌ی حفظی).
+Full spec: `docs/exercises/12-memorization-board.md`.
 
 - Route: `/exercises/chinese-board` with `?mode=practice` (untimed) and
   `?mode=speed` (60s session); card renders both entry buttons directly
-  (no intermediate mode screen), same pattern as Exercises 1–7 and 10–11.
-- Play loop: dedicated `ChineseBoardPlay` (practice + speed) over the
+  (no intermediate mode screen), same pattern as Exercises 1–10.
+- Play loop: dedicated `ChineseBoardPlay` (practice + speed; the component
+  keeps its historic name, user-facing text is صفحه‌ی حفظی) over the
   shared `ChessBoard` (fixed White orientation in both phases, SVG pieces
   only): read-only memorize board with a subtle countdown for the
   server-authoritative budget (`position_json.memorization_ms` =

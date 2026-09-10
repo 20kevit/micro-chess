@@ -28,7 +28,7 @@ const PALETTE: PieceSymbol[] = ["K", "Q", "R", "B", "N", "P", "k", "q", "r", "b"
 
 const FALLBACK_BUDGET_MS = 3000;
 
-// Dedicated Practice + Speed loop for Chinese Board (صفحه چینی).
+// Dedicated Practice + Speed loop for the Memorization Board (صفحه‌ی حفظی).
 // Each puzzle is first shown read-only for a server-authoritative study
 // budget (piece_count * 400ms in position_json.memorization_ms), then the
 // board fades to empty and the child rebuilds the whole position with a

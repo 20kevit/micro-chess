@@ -148,9 +148,9 @@ describe("catalog and i18n", () => {
     expect(meta?.modes?.map((m) => m.id)).toEqual(["practice", "speed"]);
   });
 
-  it("uses the صفحه چینی title, never صفحه حفظی", () => {
-    expect(fa["chineseBoard.title"]).toBe("صفحه چینی");
-    expect(fa["exercises.chinese-board.title"]).toBe("صفحه چینی");
+  it("uses the صفحه‌ی حفظی title", () => {
+    expect(fa["chineseBoard.title"]).toBe("صفحه‌ی حفظی");
+    expect(fa["exercises.chinese-board.title"]).toBe("صفحه‌ی حفظی");
     expect(fa["chineseBoard.check"]).toBe("بررسی صفحه");
   });
 

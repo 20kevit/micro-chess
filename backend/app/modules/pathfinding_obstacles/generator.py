@@ -53,12 +53,12 @@ HINTS: dict[str, str] = {
     "queen": "وزیر هم مثل رخ و هم مثل فیل حرکت می‌کند؛ مقصد باید امن باشد.",
 }
 
-# Roadmap position: Exercise 7 (direct evolution of Exercise 6 Pathfinding).
+# Roadmap position: Exercise 8 (direct evolution of Exercise 7 مسیریابی).
 SORT_ORDER = 7
 
-TITLE_FA = "مسیر یابی با مانع"
+TITLE_FA = "مسیریابی با مانع"
 
-# Same piece-target mix as Exercise 6 (continuity, not assumed).
+# Same piece-target mix as Exercise 7 (continuity, not assumed).
 PIECE_WEIGHTS: dict[str, float] = {
     "knight": 0.50,
     "bishop": 0.20,

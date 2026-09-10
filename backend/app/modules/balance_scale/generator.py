@@ -1,4 +1,4 @@
-"""Balance Scale puzzle generator (Exercise 10, ترازو).
+"""Balance Scale puzzle generator (Exercise 9, ترازو).
 
 Every puzzle: 4–10 random black pieces on the left pan (pawn/knight/
 bishop/rook/queen — never a king). The user must match the total with

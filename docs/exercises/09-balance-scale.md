@@ -1,4 +1,4 @@
-# Exercise 10 — Balance Scale (ترازو)
+# Exercise 9 — Balance Scale (ترازو)
 
 A dedicated visual exercise with NO chessboard, NO FEN, NO legal moves,
 NO kings, and NO captures. The child sees a large tilting balance scale:

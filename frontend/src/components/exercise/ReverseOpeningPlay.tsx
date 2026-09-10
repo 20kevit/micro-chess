@@ -42,7 +42,7 @@ function detailNumber(result: AttemptResponse, key: "matched_plies" | "expected_
 // the second board. Every played move is validated by the backend step
 // endpoint (legality only); grading happens at submit and compares full
 // positions. The frontend never decides correctness.
-export function OpeningReconstructionPlay() {
+export function ReverseOpeningPlay() {
   const [started, setStarted] = useState(false);
   const [mode, setMode] = useState<AttemptMode>("practice");
 
@@ -50,7 +50,7 @@ export function OpeningReconstructionPlay() {
     return (
       <div>
         <PageHeader
-          title={t("exercises.opening-move-reconstruction.title")}
+          title={t("exercises.reverse-opening.title")}
           subtitle={t("reconstruction.intro")}
         />
         <Card>
@@ -110,7 +110,7 @@ function ReconstructionLoop({
   const load = useCallback(async () => {
     setError(null);
     try {
-      setPuzzles(await api.listPuzzles("opening-move-reconstruction"));
+      setPuzzles(await api.listPuzzles("reverse-opening"));
     } catch {
       setError(t("common.error"));
     }
@@ -183,7 +183,7 @@ function ReconstructionLoop({
     setStepBusy(true);
     setNotice(null);
     try {
-      const res = await api.validateReconstructionStep({
+      const res = await api.validateReverseOpeningStep({
         puzzle_id: puzzle.id,
         fen,
         moves,
@@ -292,7 +292,7 @@ function ReconstructionLoop({
   return (
     <div>
       <PageHeader
-        title={t("exercises.opening-move-reconstruction.title")}
+        title={t("exercises.reverse-opening.title")}
         subtitle={puzzle.prompt_fa}
       />
       <div className="mb-3 flex flex-wrap items-center gap-2">

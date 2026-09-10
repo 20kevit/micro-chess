@@ -90,7 +90,7 @@ npm run build
   (press-drag-release for mouse + touch, per-arrow remove/promotion,
   green/amber/red feedback), identical per-move scoring; full spec in
   `docs/exercises/05-giving-check.md`.
-- Exercise 6 (Pathfinding «مسیر یابی», simple version): same
+- Exercise 7 (Pathfinding «مسیریابی», simple version): same
   practice+speed architecture with a dynamic weighted generator (one
   white knight/bishop/rook/queen at 50/20/20/10, one star, empty board —
   no king, no enemies, no captures), pure movement geometry + BFS
@@ -99,12 +99,15 @@ npm run build
   glide, illegal buzz + red flash), arrival auto-submits
   `{path, illegal_attempts}` for `optimal×5 − extra×2 − illegal×3`
   scoring; full spec in `docs/exercises/06-pathfinding.md`.
-  Obstacle/enemy-piece pathfinding is NOT included — it lands separately
-  as Exercise 7; Get Out of Check is postponed (no roadmap number).
+  Obstacle/enemy-piece pathfinding is Exercise 8; Get Out of Check is
+  Exercise 6 (رفع کیش).
 - Former Exercises 5 (Hanging Pieces) and 6 (Attacker/Defender Equality)
-  were removed from the project; later exercises renumbered accordingly
-  and Castling Rights moved to the end of the roadmap
-  (see `docs/EXERCISES.md`).
+  were removed from the project; `memory-board` (superseded by Exercise 12),
+  `opening-move-reconstruction` (renamed to `reverse-opening`), `avoid-stalemate`,
+  and `rule-of-the-square` were removed as well. Official numbering and
+  roadmap: see `docs/EXERCISES.md` (single source of truth). Exercises 13
+  (is-checkmate), 16 (opening-traps), 17 (reverse-opening), and 21
+  (castling-rights) are ADMIN-BLOCKED pending an Admin position-entry workflow.
 - Tables now: `users`, `exercises`, `puzzles`, `attempts`, `piece_speed_sessions`,
   `legal_speed_sessions`, `capture_speed_sessions`,
   `undefended_speed_sessions`, `giving_check_speed_sessions`,

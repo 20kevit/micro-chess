@@ -1,4 +1,4 @@
-# Exercise 11 — Heavier Side (کدام طرف سنگین‌تر؟)
+# Exercise 10 — Heavier Side (کدام طرف سنگین‌تر است؟)
 
 Train quick material evaluation on real chess positions.
 

@@ -137,7 +137,7 @@ def seed_db(db: Session) -> int:
             title_en="Castling Rights",
             description="مشخص کن کدام قلعه‌ها در وضعیت فعلی قانونی هستند.",
             is_active=True,
-            sort_order=18,
+            sort_order=20,
         )
         db.add(exercise)
         db.commit()

@@ -315,9 +315,9 @@ def seed_db(db: Session) -> int:
     if exercise is None:
         exercise = Exercise(
             slug=SLUG,
-            title_fa="تله‌های گشایشی",
+            title_fa="گشایش ذهنی",
             title_en="Opening Traps",
-            description="تاکتیک تله‌های گشایشی را ذهنی پیدا کن.",
+            description="حرکت تاکتیکی گشایش ذهنی را پیدا کن.",
             is_active=True,
             sort_order=15,
         )

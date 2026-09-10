@@ -665,6 +665,6 @@ describe("obstacle specifics", () => {
 
   it("obstacle catalog strings are Persian", async () => {
     const { t } = await import("../../i18n");
-    expect(t("exercises.pathfinding-obstacles.title")).toBe("مسیر یابی با مانع");
+    expect(t("exercises.pathfinding-obstacles.title")).toBe("مسیریابی با مانع");
   });
 });

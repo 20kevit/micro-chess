@@ -22,13 +22,10 @@ the shared position source, per-move scorer, speed sessions, play loop,
 design tokens) plus a reusable multi-arrow board layer instead of
 inventing parallel infrastructure.
 
-## Roadmap note (renumbering)
+## Roadmap note
 
-Exercises previously planned as 5 (Hanging Pieces) and 6
-(Attacker/Defender Equality) were **removed** from the project — no
-placeholders remain. All later exercises moved two numbers back, so the
-former Exercise 7 (Give Check) is now Exercise 5. Castling Rights moved
-to the end of the roadmap. Exercises 1–4 are unchanged.
+Official roadmap (`docs/EXERCISES.md` is the single source of truth):
+Give Check is Exercise 5. Castling Rights is Exercise 21.
 
 ## User flow
 

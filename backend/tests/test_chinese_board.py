@@ -1,4 +1,4 @@
-"""Chinese Board (Exercise 13, صفحه چینی): extraction, timing, matching,
+"""Memorization Board (Exercise 12, صفحه‌ی حفظی): extraction, timing, matching,
 scoring, generator, seed, API, and speed sessions."""
 
 import random

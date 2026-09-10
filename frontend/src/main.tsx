@@ -15,10 +15,8 @@ import { GetOutOfCheckPage } from "./pages/GetOutOfCheckPage";
 import { GiveCheckPage } from "./pages/GiveCheckPage";
 import { LegalDestinationsPage } from "./pages/LegalDestinationsPage";
 import { MaterialComparisonPage } from "./pages/MaterialComparisonPage";
-import { MemoryBoardPage } from "./pages/MemoryBoardPage";
-import { OpeningMoveReconstructionPage } from "./pages/OpeningMoveReconstructionPage";
 import { OpeningTrapsPage } from "./pages/OpeningTrapsPage";
-import { RuleOfTheSquarePage } from "./pages/RuleOfTheSquarePage";
+import { ReverseOpeningPage } from "./pages/ReverseOpeningPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PathfindingPage } from "./pages/PathfindingPage";
 import { PathfindingObstaclesPage } from "./pages/PathfindingObstaclesPage";
@@ -46,10 +44,8 @@ const router = createBrowserRouter([
       { path: "/exercises/get-out-of-check", element: <GetOutOfCheckPage /> },
       { path: "/exercises/heavier-side", element: <MaterialComparisonPage /> },
       { path: "/exercises/chinese-board", element: <ChineseBoardPage /> },
-      { path: "/exercises/memory-board", element: <MemoryBoardPage /> },
       { path: "/exercises/opening-traps", element: <OpeningTrapsPage /> },
-      { path: "/exercises/opening-move-reconstruction", element: <OpeningMoveReconstructionPage /> },
-      { path: "/exercises/rule-of-the-square", element: <RuleOfTheSquarePage /> },
+      { path: "/exercises/reverse-opening", element: <ReverseOpeningPage /> },
       { path: "/exercises/blindfold-square-vision", element: <BlindfoldSquareVisionPage /> },
       { path: "/exercises/blindfold-calculation", element: <BlindfoldCalculationPage /> },
       { path: "/exercises/pathfinding", element: <PathfindingPage /> },

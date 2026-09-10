@@ -158,7 +158,7 @@ This exercise deliberately does NOT evaluate whether a capture is safe:
 - Regression-tested at both levels: profile computation (defended
   slider capture counted under `ignore-enemy-attacks`) and validation
   (stored answer accepted regardless of board defense).
-- This is what distinguishes Exercise 3 from Exercise 4 (Hanging
+- This is what distinguishes Exercise 3 from Exercise 4 (Undefended
   Pieces), which is entirely about defense.
 
 ## Question generation (`generator.py`)

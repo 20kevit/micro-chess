@@ -84,7 +84,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  validateReconstructionStep: (body: {
+  validateReverseOpeningStep: (body: {
     puzzle_id: number;
     fen: string;
     moves: string[];
@@ -92,7 +92,7 @@ export const api = {
     to: string;
     promotion?: string | null;
   }) =>
-    request<ReconstructionStepResponse>("/api/v1/reconstruction/step", {
+    request<ReconstructionStepResponse>("/api/v1/reverse-opening/step", {
       method: "POST",
       body: JSON.stringify({ promotion: "q", ...body }),
     }),

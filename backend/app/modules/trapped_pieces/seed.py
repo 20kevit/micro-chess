@@ -129,11 +129,11 @@ def seed_db(db: Session) -> int:
     if exercise is None:
         exercise = Exercise(
             slug=SLUG,
-            title_fa="مهره‌های گرفتار",
-            title_en="Trapped Pieces",
-            description="مهره‌هایی که هیچ حرکت قانونی ندارند را پیدا کن.",
+            title_fa="مهره‌ی گرفتار",
+            title_en="Trapped Piece",
+            description="مهره‌ی گرفتار را پیدا کن.",
             is_active=True,
-            sort_order=13,
+            sort_order=17,
         )
         db.add(exercise)
         db.commit()

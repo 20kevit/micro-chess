@@ -179,7 +179,7 @@ def seed_db(db: Session) -> int:
             title_en="Is it Checkmate?",
             description="بگو وضعیت طرفی که نوبت اوست چیست.",
             is_active=True,
-            sort_order=10,
+            sort_order=12,
         )
         db.add(exercise)
         db.commit()

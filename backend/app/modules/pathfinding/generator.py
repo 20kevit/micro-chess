@@ -43,11 +43,10 @@ HINTS: dict[str, str] = {
     "queen": "وزیر هم مثل رخ و هم مثل فیل حرکت می‌کند.",
 }
 
-# Roadmap position: Exercise 6 (Pathfinding; Get Out of Check postponed,
-# Pathfinding with Obstacles lands separately as Exercise 7).
+# Roadmap position: Exercise 7 (مسیریابی).
 SORT_ORDER = 6
 
-TITLE_FA = "مسیر یابی"
+TITLE_FA = "مسیریابی"
 
 # Chance of re-rolling a 1-move candidate to keep longer puzzles common.
 AVOID_TRIVIAL = 0.6

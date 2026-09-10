@@ -178,7 +178,7 @@ Same lifecycle and contract as Exercises 1–4 (open → prepare ≥20 → start
   `POST .../finish` → final summary. Same error codes as Exercise 1.
 - Full spec: `docs/exercises/05-giving-check.md`.
 
-## Get Out of Check
+## Get Out of Check (Exercise 6)
 
 Same lifecycle and contract as Exercises 1–5 (open → prepare ≥20 → start
 60s clock → submit loop → finish/report), under `/api/v1/get-out-of-check`:
@@ -202,7 +202,7 @@ Same lifecycle and contract as Exercises 1–5 (open → prepare ≥20 → start
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
 
-## Pathfinding (Exercise 6)
+## Pathfinding (Exercise 7)
 
 Same lifecycle and contract as Exercises 1–5 (open → prepare ≥20 → start
 60s clock → submit loop → finish/report), under `/api/v1/pathfinding`:
@@ -230,7 +230,7 @@ Same lifecycle and contract as Exercises 1–5 (open → prepare ≥20 → start
   `POST .../finish` → final summary. Same error codes as Exercise 1.
 - Full spec: `docs/exercises/06-pathfinding.md`.
 
-## Balance Scale (Exercise 10)
+## Balance Scale (Exercise 9)
 
 Same lifecycle and contract as Exercises 1–7 (open → prepare ≥20 → start
 60s clock → submit loop → finish/report), under `/api/v1/balance-scale`:
@@ -252,9 +252,9 @@ Same lifecycle and contract as Exercises 1–7 (open → prepare ≥20 → start
 - `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
-- Full spec: `docs/exercises/10-balance-scale.md`.
+  - Full spec: `docs/exercises/09-balance-scale.md`.
 
-## Heavier Side (Exercise 11)
+## Heavier Side (Exercise 10)
 
 Same lifecycle and contract as Exercises 1–7 and 10 (open → prepare ≥20
 → start 60s clock → submit loop → finish/report), under
@@ -276,9 +276,9 @@ Same lifecycle and contract as Exercises 1–7 and 10 (open → prepare ≥20
 - `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
-- Full spec: `docs/exercises/11-heavier-side.md`.
+  - Full spec: `docs/exercises/10-heavier-side.md`.
 
-## Chinese Board (Exercise 13)
+## Memorization Board (Exercise 12, صفحه‌ی حفظی)
 
 Same lifecycle and contract as Exercises 1–7, 10, and 11 (open → prepare
 ≥20 → start 60s clock → submit loop → finish/report), under
@@ -304,4 +304,4 @@ Same lifecycle and contract as Exercises 1–7, 10, and 11 (open → prepare
 - `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
-- Full spec: `docs/exercises/13-chinese-board.md`.
+  - Full spec: `docs/exercises/12-memorization-board.md`.
