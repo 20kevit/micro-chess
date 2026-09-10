@@ -10,10 +10,16 @@ Conceptual flow for every exercise that needs real board positions::
 This module knows NOTHING about exercises, questions, or answers. It only
 hands out validated FEN strings. Future exercises reuse the same functions.
 
-``puzzles.db`` schema (Lichess dump; only FEN is used here)::
+``puzzles.db`` schema (Lichess dump; FEN-only callers use just the FEN,
+tactical callers also use the curated solution line)::
 
     CREATE TABLE "puzzles" ("Puzzleld" TEXT, "FEN" TEXT, "Rating" INTEGER,
                             "Themes" TEXT, "Moves" TEXT);
+
+``Moves`` is a space-separated UCI line whose FIRST move is the puzzle's
+solution from the side to move (the rest is the forced continuation).
+Exercises that grade a single best move take that first UCI as the
+authoritative answer and never invent moves.
 
 The file is optional local data and is never committed (see .gitignore):
 - Path resolution: ``PUZZLES_DB_PATH`` env var, else ``puzzles.db`` next to
@@ -181,3 +187,62 @@ def random_position_fen(
             if fen is not None:
                 return fen, "puzzles.db"
     return rng.choice(FALLBACK_FENS), "fallback"
+
+
+def fetch_random_puzzle_row(
+    source: str | os.PathLike[str],
+    rng: random.Random | None = None,
+    probes: int = 50,
+) -> dict | None:
+    """Fetch one random FULL puzzle row from puzzles.db (read-only).
+
+    Returns ``{"puzzle_id", "fen", "rating", "themes", "moves"}`` (moves as
+    a list of UCI strings) or None when the file/table is unusable or no
+    valid row is found within ``probes`` tries. Same indexed rowid probing
+    as :func:`fetch_random_fen`; never raises for data problems. Rows with
+    an unparseable FEN or an empty move list are skipped.
+    """
+    rng = rng if rng is not None else random
+    try:
+        conn = sqlite3.connect(f"file:{source}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return None
+    try:
+        try:
+            row = conn.execute("SELECT MAX(rowid) FROM puzzles").fetchone()
+        except sqlite3.Error:
+            return None
+        top = int(row[0]) if row and row[0] else 0
+        if top <= 0:
+            return None
+        for _ in range(max(1, probes)):
+            hit = (
+                conn.execute(
+                    "SELECT PuzzleId, FEN, Rating, Themes, Moves FROM puzzles"
+                    " WHERE rowid >= ? ORDER BY rowid LIMIT 1",
+                    (rng.randint(1, top),),
+                ).fetchone()
+            )
+            if not hit:
+                continue
+            puzzle_id, fen, rating, themes, moves = hit
+            if not isinstance(fen, str) or not fen.strip():
+                continue
+            fen = fen.strip()
+            if not is_valid_fen(fen):
+                continue
+            tokens = moves.split() if isinstance(moves, str) else []
+            if not tokens:
+                continue
+            return {
+                "puzzle_id": str(puzzle_id) if puzzle_id is not None else "",
+                "fen": fen,
+                "rating": int(rating) if isinstance(rating, int) else 1200,
+                "themes": str(themes or ""),
+                "moves": tokens,
+            }
+        return None
+    except sqlite3.Error:
+        return None
+    finally:
+        conn.close()

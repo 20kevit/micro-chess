@@ -13,6 +13,8 @@ from app.db.base import Base
 @pytest.fixture()
 def db_session():
     from app.modules.balance_scale import models as _bs  # noqa: F401
+    from app.modules.blindfold_calculation import models as _bc  # noqa: F401
+    from app.modules.blindfold_square_vision import models as _bsv  # noqa: F401
     from app.modules.captures import models as _cap  # noqa: F401
     from app.modules.chinese_board import models as _cb  # noqa: F401
     from app.modules.exercises import models as _ex  # noqa: F401

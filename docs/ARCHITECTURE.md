@@ -16,7 +16,7 @@ docs/      product + architecture + api + exercises
 | `users` | account model + `/me` |
 | `exercises` | catalog model + validator `registry` |
 | `puzzles` | puzzle model + publish/archive service |
-| `positions` | shared read-only `puzzles.db` access (FEN only) + fallback FENs; no exercise logic |
+| `positions` | shared read-only `puzzles.db` access (FEN-only helpers + full-row fetch for tactical answers) + fallback FENs; no exercise logic |
 | `chess_engine` | python-chess wrapper ONLY (standard rules) |
 | `rule_engine` | `AttemptResult`/`AttemptMode`/`ValidationResult` contract |
 | `rating_engine` | stub; Glicko-2 later |
@@ -38,7 +38,7 @@ docs/      product + architecture + api + exercises
 | `chinese_board` | exercise 12 (Memorization Board, صفحه‌ی حفظی): pure piece helpers (`pieces.py`: extraction/count/`count×1000ms` budget) + descriptor validator (`validator.py`: exact-first, same-kind wrong-square pairing without double-counting, CORRECT-only-when-perfect) + per-piece +5/−2 scorer (negatives kept, no floor) + any-valid-FEN generator (bounded sampling from `puzzles.db`, server-side budget) + speed sessions + router (registers `chinese-board`; slug kept for routes/API/DB) |
 | `checkmate` | exercise 13 (ADMIN-BLOCKED): validator + seed (registers `is-checkmate`) |
 | `blindfold_square_vision` | exercise 14: validator + seed (registers `blindfold-square-vision`) |
-| `blindfold_calculation` | exercise 15: validator + seed (registers `blindfold-calculation`) |
+| `blindfold_calculation` | exercise 15: best-move validator (SAN→UCI vs stored solution, legacy mate branch) + structured Persian descriptor + puzzles.db generator (≤12 pieces, first-move-legal) + speed sessions + router (registers `blindfold-calculation`) |
 | `opening_traps` | exercise 16 (ADMIN-BLOCKED): validator + seed (registers `opening-traps`) |
 | `reverse_opening` | exercise 17 (ADMIN-BLOCKED): validator + step oracle + seed (registers `reverse-opening`) |
 | `trapped_pieces` | exercise 18: validator + seed (registers `trapped-pieces`) |
@@ -145,6 +145,12 @@ Piece Recognition additions (same tables, new columns only):
   shared `puzzles.db` positions from `chinese_board/generator.py`,
   piece sets re-derived from the stored FEN, per-puzzle study budgets
   (`piece_count × 1000ms`) as display-only metadata).
+- `blindfold_calculation_speed_sessions` — same shape for Exercise 15
+  Speed Mode (`blindfold_calculation/sessions.py` mirrors the same
+  lifecycle; ≤12-piece shared `puzzles.db` positions from
+  `blindfold_calculation/generator.py`, SAN answers graded against the
+  stored first-move UCI; `Puzzle.fen` stays NULL so reports never leak
+  positions).
 
 Notes:
 

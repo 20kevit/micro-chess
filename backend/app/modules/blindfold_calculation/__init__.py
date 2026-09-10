@@ -1,4 +1,4 @@
-"""Blindfold Calculation exercise: mate in 1 without seeing the board."""
+"""Blindfold Calculation exercise: best move without seeing the board."""
 
 from app.modules.exercises import registry
 from app.modules.blindfold_calculation.validator import SLUG, validate

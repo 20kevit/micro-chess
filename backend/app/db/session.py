@@ -17,6 +17,8 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 def init_db() -> None:
     # Import models so metadata is populated before create_all.
     from app.modules.balance_scale import models as _bs  # noqa: F401
+    from app.modules.blindfold_calculation import models as _bc  # noqa: F401
+    from app.modules.blindfold_square_vision import models as _bsv  # noqa: F401
     from app.modules.exercises import models as _ex  # noqa: F401
     from app.modules.legal_destinations import models as _ld  # noqa: F401
     from app.modules.material_comparison import models as _hs  # noqa: F401

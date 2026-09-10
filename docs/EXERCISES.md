@@ -487,30 +487,48 @@ Exercise 14, خانه‌یابی ذهنی).
 
 ## Fourteenth slice
 
-**Blindfold Calculation** — IMPLEMENTED (`blindfold-calculation`).
+**Blindfold Calculation** — IMPLEMENTED (`blindfold-calculation`,
+Exercise 15, محاسبه‌ی ذهنی).
 
-- MVP supports only Mate in 1. No Mate in 2, combinations, or engine
-  evaluation (mate detection is `legal moves` + `board.is_checkmate()`,
-  never Stockfish).
-- Route: `/exercises/blindfold-calculation` (dedicated
-  `BlindfoldCalculationPlay` loop: NO chessboard, NO piece images, NO FEN
-  at any point; Persian position description + SAN text input).
-- Validator: `backend/app/modules/blindfold_calculation/validator.py`
-  (submitted SAN parsed with `board.parse_san` against the stored FEN;
-  CORRECT only when the move is legal AND produces checkmate; any legal
-  mating move counts; `#`/`+` suffixes optional; malformed input is WRONG).
-- Description: `backend/app/modules/blindfold_calculation/description.py`
-  (deterministic Persian text: side to move, then White/Black pieces in
-  King/Queen/Rook/Bishop/Knight/Pawn order, squares sorted; square names
-  stay algebraic; TTS-ready via the existing `audio/ports.py` boundary,
-  no provider added).
-- Security: `Puzzle.fen` stays NULL and `position_json` carries only the
-  description/side/mode; the FEN lives in server-only `answer_json`, so
-  the puzzle endpoints never leak the position or the expected SAN.
-- Seed: `python -m app.modules.blindfold_calculation.seed` (15
-  hand-designed puzzles, each independently verified to have exactly one
-  mate-in-1: back-rank, queen, rook, bishop, knight incl. smothered,
-  pawn capture, Scholar's, black-to-move and corner patterns).
+- Concept: position visualization → mental reconstruction → calculation
+  → move selection. This is NOT a board exercise: the user mentally
+  reconstructs a real ≤12-piece position from a structured Persian
+  description and types the best move in SAN.
+- Position source: shared `puzzles.db` via `positions/repository.py`
+  (full-row access: FEN + curated solution line). A puzzle is eligible
+  only when `piece_count <= 12` AND the line's first move is legal in
+  the FEN; that first UCI is the single authoritative answer (Lichess
+  curation is the uniqueness invariant — nothing is invented, no engine
+  replaces it). `Puzzle.fen` stays NULL; `answer_json` carries
+  `{fen, solution, puzzle_id, rating}` server-side only.
+- Description: `description.describe_position` (deterministic structured
+  text: سفید/سیاه sections, شاه/وزیر/رخ/فیل/اسب/پیاده order, empty
+  types omitted, squares in chessboard order in algebraic form,
+  explicit `نوبت:` turn plus castling/en-passant lines when meaningful;
+  TTS-ready via `audio/ports.py`, no provider added). Generated
+  server-side per puzzle, never stored as duplicated text beyond the
+  row's own `position_json`.
+- Route: `/exercises/blindfold-calculation` with `?mode=practice`
+  (untimed, current+next prefetch) and `?mode=speed` (standard 60s
+  session: open → prepare ≥20 → start clock → submit loop with brief
+  feedback auto-advance → server-rebuilt report; per-answer rows reuse
+  `attempts`). Dedicated `BlindfoldCalculationPlay` loop in the shared
+  viewport-fit `GameShell` (no board, no piece images, no FEN at any
+  point); the description owns the flexible middle area, the SAN input
+  stays pinned with touch-sized targets.
+- Validator: `validator.py` (submitted SAN parsed with
+  `board.parse_san` against the stored FEN, normalized to UCI, CORRECT
+  only on UCI equality with the stored solution; `+`/`#` suffixes and
+  whitespace tolerated; malformed/illegal/legal-but-wrong input is
+  WRONG; client FEN/solution/score/timing ignored; CORRECT or WRONG
+  only). Legacy mate-in-1 rows (no `solution` key) keep their original
+  mate rule; the seed archives them, never hard-deletes.
+- Scoring: shared default (correct=1.0, else 0); practice attempts never
+  set `rating_delta`.
+- Seed: `python -m app.modules.blindfold_calculation.seed` (15 real
+  Lichess rows ≤12 pieces, 8 white / 7 black to move incl. captures,
+  promotions, king moves and quiet moves; ratings carried over; every
+  entry independently verified).
 
 ## Fifteenth slice
 

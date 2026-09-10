@@ -1,247 +1,142 @@
-"""Seed/demo puzzles for Blindfold Calculation (Mate in 1 only).
+"""Seed/demo puzzles for Blindfold Calculation (best move, eyes closed).
 
 Run:  python -m app.modules.blindfold_calculation.seed
-Idempotent: skips when puzzles for the slug already exist.
+Idempotent: skips when current-shape puzzles for the slug already exist.
+
+Every entry is a REAL Lichess puzzle row (PuzzleId/FEN/Rating from the
+shared ``puzzles.db``): the authoritative answer is the FIRST move of
+that puzzle's curated line, never invented and never engine-derived.
+Each entry is independently verified before insert (valid FEN, at most
+12 pieces, first move legal) and fails loudly otherwise.
 
 Security: the FEN lives ONLY in server-side answer_json. The Puzzle.fen
-column stays NULL and position_json carries just the Persian description,
-side to move and mode -- so the normal puzzle endpoint never leaks the
-position, the expected SAN, or any mate flags before submission.
+column stays NULL and position_json carries just the Persian
+description, side to move, mode and piece count -- so the normal puzzle
+endpoint never leaks the position or the expected move before
+submission. The explanation stays generic (no squares) for the same
+reason.
 
-Every puzzle is independently verified (raw python-chess legal-move loop,
-never the production validator): the FEN must parse and yield exactly one
-mating move, and the stored example SAN must be that move.
+Migration: legacy mate-in-1 rows (answer_json with "example"/"mate_count"
+and no "solution") are archived, never hard-deleted, before the new
+rows go in.
 """
 
 import chess
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal, init_db
-from app.modules.blindfold_calculation.description import describe_position, side_to_move
+from app.modules.blindfold_calculation.description import describe_position, piece_count, side_to_move
+from app.modules.blindfold_calculation.generator import (
+    EXPLANATION_FA,
+    HINTS,
+    MAX_PIECES,
+    PROMPT_FA,
+    ensure_exercise,
+)
 from app.modules.blindfold_calculation.validator import SLUG
 from app.modules.exercises.models import Exercise
 from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.service import archive
 
-# Each entry: fen, prompt, explanation (conceptual, no destination squares),
-# hints (never reveal the move), rating.
+# Each entry: real puzzles.db row (puzzle_id, fen, rating) + the first
+# move of its curated solution line. 8 White to move / 7 Black to move,
+# covering captures, promotions, king moves, checks and quiet moves.
 PUZZLES: list[dict] = [
-    {
-        "fen": "4r1k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "شاه سیاه در ردیف آخر پشت سربازهای خودش گیر کرده است؛ رخی که وارد ردیف آخر شود و راه فرار را ببندد مات می‌کند.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "به دنبال حرکتی باش که همزمان به شاه کیش بدهد و تمام راه‌های فرار را ببندد.", "rating_cost": 10},
-        ],
-        "rating": 800.0,
-    },
-    {
-        "fen": "6k1/6pp/6Q1/8/8/8/8/6K1 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "وزیر از دور به شاه نزدیک می‌شود؛ وقتی همه خانه‌های اطراف شاه بسته یا زیر ضربه باشند، کیش وزیر مات است.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "وزیر دوربرد است؛ خانه‌ای را پیدا کن که از آنجا هم کیش بدهد هم راه فرار را ببندد.", "rating_cost": 10},
-        ],
-        "rating": 850.0,
-    },
-    {
-        "fen": "6rk/6pp/8/4N3/8/8/8/6K1 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "شاه سیاه بین مهره‌های خودش خفه شده است؛ اسب می‌پرد و کیش می‌دهد و شاه جایی برای فرار ندارد.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "اسب می‌پرد؛ پرشی را پیدا کن که به شاه کیش بدهد.", "rating_cost": 10},
-        ],
-        "rating": 950.0,
-    },
-    {
-        "fen": "1k6/1p6/1P6/2Q5/8/8/8/6K1 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "شاه سیاه در گوشه گیر افتاده است؛ وزیر از ستون کناری وارد می‌شود و مات می‌کند.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "به دنبال حرکتی باش که همزمان به شاه کیش بدهد و تمام راه‌های فرار را ببندد.", "rating_cost": 10},
-        ],
-        "rating": 850.0,
-    },
-    {
-        "fen": "r5k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "گوشه صفحه برای شاه حریف تله است؛ رخی که ستون گوشه را بگیرد و زدن آن ممکن نباشد مات می‌کند.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "رخ فقط مستقیم می‌رود؛ ستونی را پیدا کن که شاه را کیش‌مات کند.", "rating_cost": 10},
-        ],
-        "rating": 800.0,
-    },
-    {
-        "fen": "7k/6pp/5R2/6N1/8/8/8/6K1 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "رخ و اسب با هم کار می‌کنند؛ رخ وارد ردیف آخر می‌شود و اسب راه برگشت شاه را می‌بندد.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "رخ را به ردیف آخر ببر و ببین اسب کدام خانه فرار را بسته است.", "rating_cost": 10},
-        ],
-        "rating": 900.0,
-    },
-    {
-        "fen": "k7/p7/8/8/B7/8/8/1R4K1 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "فیل از روی قطر به شاه گوشه کیش می‌دهد؛ وقتی رخ خانه‌های کنار شاه را بسته باشد، این کیش مات است.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "فیل فقط روی قطر می‌رود؛ قطری را پیدا کن که به شاه برسد.", "rating_cost": 10},
-        ],
-        "rating": 1000.0,
-    },
-    {
-        "fen": "6bk/6pp/5P2/7N/8/8/8/6K1 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "سرباز هم می‌تواند مات کند؛ وقتی سرباز جلو برود و شاه را کیش بدهد و مهره‌ای از آن دفاع کند، شاه راهی ندارد.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "سرباز فقط یک خانه جلو یا مورب می‌زند؛ کدام حرکتش کیش می‌دهد؟", "rating_cost": 10},
-        ],
-        "rating": 1050.0,
-    },
-    {
-        "fen": "6k1/8/8/8/8/3b1b2/4rPPP/6K1 b - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده سیاه را پیدا کن.",
-        "explanation": "این بار نوبت سیاه است؛ شاه سفید در ردیف آخر گیر کرده و رخ سیاه با بستن راه فرار مات می‌کند.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "به نوبت حرکت دقت کن: این بار سیاه مات می‌کند.", "rating_cost": 10},
-        ],
-        "rating": 900.0,
-    },
-    {
-        "fen": "6k1/6pp/8/8/2B5/8/5PPP/1R4K1 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "رخ از ستون کناری بالا می‌رود؛ فیل خانه‌های فرار شاه را از دور بسته است.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "رخ را به ردیف آخر ببر و ببین کدام مهره راه فرار را بسته است.", "rating_cost": 10},
-        ],
-        "rating": 950.0,
-    },
-    {
-        "fen": "3qkb2/3ppp2/8/4N2Q/8/8/5PPP/4K3 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "وزیر مهره حریف را می‌زند و کیش می‌دهد؛ چون اسب از وزیر دفاع می‌کند، شاه نمی‌تواند آن را بگیرد.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "زدن هم یک حرکت است؛ مهره‌ای را بزن که بعد از زدن، کسی نتواند پس بگیرد.", "rating_cost": 10},
-        ],
-        "rating": 900.0,
-    },
-    {
-        "fen": "kr6/pp6/8/3N4/8/8/8/6K1 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "شاه سیاه در گوشه دیگر صفحه هم بین مهره‌های خودش گیر کرده است؛ پرش اسب مات می‌کند.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "اسب می‌پرد؛ پرشی را پیدا کن که به شاه کیش بدهد.", "rating_cost": 10},
-        ],
-        "rating": 950.0,
-    },
-    {
-        "fen": "7k/6pp/5K2/6Q1/8/8/8/8 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "شاه سفید خودش نزدیک شاه سیاه آمده و از وزیر دفاع می‌کند؛ زدن سربازی که شاه را کیش‌مات کند جواب است.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "مهره‌ای که شاه خودی از آن دفاع می‌کند را جلو ببر.", "rating_cost": 10},
-        ],
-        "rating": 1000.0,
-    },
-    {
-        "fen": "k7/ppp5/1Q6/8/8/8/5PPP/1R4K1 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "وزیر سرباز جلوی شاه را می‌زند؛ چون رخ از وزیر دفاع می‌کند، شاه نمی‌تواند فرار کند.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "زدن هم یک حرکت است؛ مهره‌ای را بزن که بعد از زدن، کسی نتواند پس بگیرد.", "rating_cost": 10},
-        ],
-        "rating": 1050.0,
-    },
-    {
-        "fen": "7k/3p2pp/8/5Q2/8/8/5PPP/6K1 w - - 0 1",
-        "prompt_fa": "بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-        "explanation": "وزیر از وسط صفحه راه دوری می‌آید؛ مهم این است که بعد از کیش، هیچ خانه فراری نماند.",
-        "hints": [
-            {"id": "h1", "text_fa": "اول جای شاه حریف و خانه‌های فرار اطرافش را در ذهنت پیدا کن.", "rating_cost": 5},
-            {"id": "h2", "text_fa": "وزیر دوربرد است؛ خانه‌ای را پیدا کن که از آنجا هم کیش بدهد هم راه فرار را ببندد.", "rating_cost": 10},
-        ],
-        "rating": 1100.0,
-    },
+    {"puzzle_id": "gjy0e", "fen": "3k4/p7/2K5/3P2p1/1P3p2/P7/6P1/8 w - - 0 39", "rating": 1166, "solution": "c6d6"},
+    {"puzzle_id": "ix2gC", "fen": "8/3k4/1P2n3/1K6/8/8/6p1/6N1 w - - 3 58", "rating": 918, "solution": "g1f3"},
+    {"puzzle_id": "akJ2a", "fen": "R7/6pk/7p/4QP2/2q2K2/4P3/5R1P/6r1 w - - 5 51", "rating": 1598, "solution": "e5e4"},
+    {"puzzle_id": "cQ7em", "fen": "6R1/5p2/1p2p3/p6Q/4k3/q4r2/P7/K4R2 w - - 6 43", "rating": 1017, "solution": "f1f3"},
+    {"puzzle_id": "JkQ8N", "fen": "6R1/4Pkp1/7p/5p2/8/P4PK1/4rP2/8 w - - 3 37", "rating": 957, "solution": "e7e8q"},
+    {"puzzle_id": "LlBs9", "fen": "6r1/3RPk2/p7/1p6/8/P6Q/P4PK1/1q6 w - - 3 46", "rating": 818, "solution": "g2h2"},
+    {"puzzle_id": "RC4Jo", "fen": "6k1/5p1p/3br3/8/Q3n3/6PP/7K/6R1 w - - 3 36", "rating": 1064, "solution": "g1e1"},
+    {"puzzle_id": "PtUL1", "fen": "Q7/6qk/2P5/2Q5/2N1p1b1/4P3/6K1/8 w - - 1 44", "rating": 1283, "solution": "a8f8"},
+    {"puzzle_id": "j9Heu", "fen": "5rk1/5pp1/8/3NQ2p/8/6PP/5q2/7K b - - 1 31", "rating": 1040, "solution": "h5h4"},
+    {"puzzle_id": "wCR9X", "fen": "8/1k3Q2/1p6/p2p4/PP2q3/2P5/K7/8 b - - 2 55", "rating": 1065, "solution": "b7a6"},
+    {"puzzle_id": "sxtQA", "fen": "6k1/6p1/6P1/4pP2/4P2p/R1K5/1r1p4/8 b - - 0 48", "rating": 653, "solution": "d2d1q"},
+    {"puzzle_id": "GldPU", "fen": "8/1pp4n/6p1/1P2p1k1/2P3P1/2B3K1/8/8 b - - 2 50", "rating": 1516, "solution": "h7f6"},
+    {"puzzle_id": "gQ0JG", "fen": "5k2/p5p1/2P4p/4N3/7P/2r3P1/7K/8 b - - 0 39", "rating": 1433, "solution": "c3c5"},
+    {"puzzle_id": "qo7hw", "fen": "5k2/5pp1/1N5p/8/2P2KP1/2r4P/8/8 b - - 0 46", "rating": 895, "solution": "f8e7"},
+    {"puzzle_id": "S4Oa8", "fen": "8/8/4R3/7k/p4P2/3pp1K1/r5P1/8 b - - 1 45", "rating": 2071, "solution": "e3e2"},
 ]
 
 
-def _independent_mates(fen: str) -> list[str]:
-    """Raw mate search with python-chess only (never the validator)."""
-    board = chess.Board(fen)
-    mates: list[str] = []
-    for move in board.legal_moves:
-        san = board.san(move)
-        board.push(move)
-        try:
-            if board.is_checkmate():
-                mates.append(san)
-        finally:
-            board.pop()
-    return sorted(mates)
-
-
 def verify_puzzle(item: dict) -> str:
-    """Fail loudly unless the FEN has exactly one mate; return its SAN."""
-    mates = _independent_mates(item["fen"])
-    if len(mates) != 1:
-        raise ValueError(f"expected exactly 1 mate-in-1, got {len(mates)}: {item['fen']} -> {mates}")
+    """Fail loudly unless the row is eligible; return its canonical SAN."""
+    fen = item.get("fen")
+    solution = item.get("solution")
+    if not isinstance(fen, str) or not isinstance(solution, str):
+        raise ValueError(f"puzzle needs a FEN and a solution UCI: {item}")
+    board = chess.Board(fen)  # raises on invalid FEN
+    count = piece_count(fen)
+    if count > MAX_PIECES:
+        raise ValueError(f"expected at most {MAX_PIECES} pieces, got {count}: {fen}")
+    move = chess.Move.from_uci(solution)
+    if move not in board.legal_moves:
+        raise ValueError(f"solution {solution} illegal in {fen}")
     # Description must generate without errors (blindfold suitability).
-    describe_position(item["fen"])
-    return mates[0]
+    describe_position(fen)
+    return board.san(move)
+
+
+def _archive_legacy_rows(db: Session) -> int:
+    """Archive mate-in-1 prototype rows (no stored solution). Never deletes."""
+    rows = db.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).all()
+    archived = 0
+    for row in rows:
+        answer = row.answer_json if isinstance(row.answer_json, dict) else {}
+        if not answer.get("solution") and not row.is_archived:
+            archive(db, row)
+            archived += 1
+    return archived
 
 
 def seed_db(db: Session) -> int:
-    """Insert exercise + puzzles. Returns number of puzzles created."""
+    """Archive legacy rows, then insert exercise + puzzles. Returns created count."""
     for item in PUZZLES:
         verify_puzzle(item)
 
+    ensure_exercise(db)
     exercise = db.get(Exercise, SLUG)
-    if exercise is None:
-        exercise = Exercise(
-            slug=SLUG,
-            title_fa="محاسبه‌ی ذهنی",
-            title_en="Blindfold Calculation",
-            description="بدون دیدن صفحه، حرکت مات‌کننده را پیدا کن.",
-            is_active=True,
-            sort_order=14,
-        )
-        db.add(exercise)
-        db.commit()
+    assert exercise is not None
 
-    existing = db.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).count()
+    _archive_legacy_rows(db)
+
+    existing = (
+        db.query(Puzzle)
+        .filter(
+            Puzzle.exercise_slug == SLUG,
+            Puzzle.is_published == True,  # noqa: E712
+            Puzzle.is_archived == False,  # noqa: E712
+        )
+        .count()
+    )
     if existing:
         return 0
 
     created = 0
     for item in PUZZLES:
-        example = verify_puzzle(item)
-        answer = {"fen": item["fen"], "example": example, "mate_count": 1}
+        san = verify_puzzle(item)
+        _ = san
+        count = piece_count(item["fen"])
         puzzle = Puzzle(
             exercise_slug=SLUG,
             fen=None,
             position_json={
                 "description_fa": describe_position(item["fen"]),
                 "side_to_move": side_to_move(item["fen"]),
-                "mode": "mate-in-1",
+                "mode": "best-move",
+                "piece_count": count,
             },
-            answer_json=answer,
-            hint_json={"hints": item["hints"]},
-            prompt_fa=item["prompt_fa"],
-            explanation=item["explanation"],
-            initial_rating=item["rating"],
+            answer_json={
+                "fen": item["fen"],
+                "solution": item["solution"],
+                "puzzle_id": item["puzzle_id"],
+                "rating": float(item["rating"]),
+            },
+            hint_json={"hints": HINTS},
+            prompt_fa=PROMPT_FA,
+            explanation=EXPLANATION_FA,
+            initial_rating=float(item["rating"]),
             is_published=True,
             is_archived=False,
         )

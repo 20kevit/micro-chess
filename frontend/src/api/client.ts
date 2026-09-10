@@ -680,4 +680,53 @@ export const api = {
     request<SpeedSummary>(`/api/v1/chinese-board/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Blindfold Calculation: real positions as Persian text, best-move SAN
+  // answers + speed sessions. Same contract as above (the description in
+  // position_json is the public question; the FEN and the solution move
+  // never leave the server; grading always server-side). Prefetch buffers
+  // never carry answers. No board is ever rendered for this exercise.
+  nextBlindfoldCalcPracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/blindfold-calculation/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startBlindfoldCalcSpeedSession: () =>
+    request<SpeedSession>("/api/v1/blindfold-calculation/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  prepareBlindfoldCalcSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/blindfold-calculation/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startBlindfoldCalcSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/blindfold-calculation/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextBlindfoldCalcSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/blindfold-calculation/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitBlindfoldCalcSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/blindfold-calculation/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getBlindfoldCalcSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/blindfold-calculation/sessions/${sessionId}`),
+  getBlindfoldCalcSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/blindfold-calculation/sessions/${sessionId}/report`),
+  finishBlindfoldCalcSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/blindfold-calculation/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
 };
