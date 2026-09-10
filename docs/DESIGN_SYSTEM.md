@@ -10,6 +10,13 @@ restyle per page.
 - Mobile-first, touch-usable, Persian/RTL; chessboard islands are `dir="ltr"`.
 - Subtle, purposeful motion only; the chessboard never animates.
 - Backend decides correctness; the UI only renders and transports answers.
+- **Viewport-fit by default: every exercise/play screen fits completely
+  inside the visible viewport — board, prompt, controls, feedback,
+  progress/status, and navigation remain visible together with no normal
+  vertical page scrolling.** Never `overflow: hidden` as the fix; design
+  the layout so the content genuinely fits (flex/grid with `minmax(0, 1fr)`
+  and `min-h-0`/`min-w-0`, measured board zones, viewport-aware caps).
+  The board is the primary content and gets priority over header spacing.
 
 ## Typography
 
@@ -123,18 +130,34 @@ Tailwind scale; convention: `gap-2/mt-2` between related controls,
 
 ## Board viewport rule (hard requirement)
 
-`viewport → page padding → max board width → square board`. Enforcement:
+`viewport → page padding → max board width → square board`. Overlays use
+`fixed inset-0` (tracks the visual viewport; no `100vh` mobile-chrome
+bugs). If a `vh` height is ever unavoidable, write `100vh` first with a
+`100dvh` override after it. Enforcement:
 
 1. `ChessBoard` root is `w-full` + `aspect-square` grid (never fixed px).
 2. Time-critical gameplay uses the full-viewport `GameShell` overlay with
    measured orientation (`orientationOf`: width > height → side-by-side
    board + 240px control column, else stacked question → board → action).
+   Page-flow shared loops (`ExercisePlay`, Balance Scale) render in the
+   same overlay for the same reason: the overlay reclaims the AppShell
+   chrome (~220px), so prompt + board + controls + feedback fit on phones
+   with no page scrolling. Landscape uses a wider control column
+   (`w-72`) because option/feedback stacks need the room while the
+   height-bound board loses nothing.
 3. Board size is measured, not guessed: a ResizeObserver reads the
    flex-allocated board area and renders the largest fitting square
    (`fitSquareSize`, capped at 600px). Callback refs must re-measure on
    attach — measuring only on mount freezes late-mounted boards at zero.
+   Non-board hero visuals (Balance Scale) shrink the same way: `FitScale`
+   renders untouched at full size and only scales down (uniform transform,
+   primary inventory buttons stay full-size) when the measured zone is
+   shorter than the visual's natural height.
 4. Feedback must not grow the page: transient overlays/pills for timed
-   modes; in-flow details only where the board can flex-shrink.
+   modes; in-flow details only where the board can flex-shrink. Result
+   cards and landscape control columns may scroll INTERNALLY as a last
+   resort, but the primary action stays reachable via sticky action rows
+   (`submit-bar`, next/retry) — the page itself never scrolls from play.
 5. Squares use `touch-action: manipulation`, min 44px targets.
 6. Tool palettes (piece pickers, inventories) use FIXED-size buttons
    (e.g. `h-11 w-11`) in a wrapping centered row (`flex flex-wrap

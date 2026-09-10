@@ -185,7 +185,10 @@ export function BalanceScale({
           so pieces stay visually attached to their pan while tilting.
           Headroom above the pivot absorbs the raised end at full tilt. */}
       <div dir="ltr" className="relative mx-auto mt-2 w-full max-w-md select-none">
-        <div className="relative mx-auto w-full" style={{ minHeight: 440 }}>
+        {/* Assembly height is dead space below the pans, not geometry: the
+          stand stretches (bottom-0) and the beam/pans sit at fixed offsets,
+          so this stays roomy on tall screens while fitting short ones. */}
+        <div className="relative mx-auto w-full" style={{ minHeight: 350 }}>
           {/* Stand (never rotates). */}
           <div className="absolute bottom-0 left-1/2 top-28 w-3 -translate-x-1/2 rounded-full bg-amber-800" aria-hidden="true" />
           <div className="absolute bottom-0 left-1/2 h-4 w-24 -translate-x-1/2 rounded-t-2xl bg-amber-900" aria-hidden="true" />

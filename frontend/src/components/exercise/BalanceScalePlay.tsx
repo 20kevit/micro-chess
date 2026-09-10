@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { api, apiDetail, apiStatus } from "../../api/client";
-import type { AttemptResponse, Puzzle, SpeedReport, SpeedSummary } from "../../api/types";
+import type { AttemptResponse, Hint, Puzzle, SpeedReport, SpeedSummary } from "../../api/types";
 import { t } from "../../i18n";
+import type { FaKey } from "../../i18n/fa";
 import { savePracticeAttempt } from "../../lib/localProgress";
 import { playSuccess } from "../../lib/sound";
-import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
-import { PageHeader } from "../ui/PageHeader";
 import {
   BalanceScale,
   MAX_PAN_PIECES,
@@ -16,7 +16,7 @@ import {
   totalOf,
   type PanItem,
 } from "./BalanceScaleView";
-import { QuestionHeader, SpeedPill, TimerStrip, faNum } from "./PieceGameLayout";
+import { GameShell, QuestionHeader, SpeedPill, TimerStrip, faNum, useGameFit } from "./PieceGameLayout";
 
 export type BalanceScaleMode = "practice" | "speed";
 
@@ -24,6 +24,27 @@ export type BalanceScaleMode = "practice" | "speed";
 // brief, then the next puzzle. No manual Next button in speed.
 export const SPEED_FEEDBACK_MS = 500;
 export const FULL_FLASH_MS = 1500;
+
+// Natural height of the hero scale block (totals + tilting assembly) at
+// full width. Only used to derive a shrink factor on short viewports.
+const SCALE_NATURAL = 460;
+
+/** Viewport-fit wrapper for the hero scale visual (practice + speed).
+ * At full size it renders children untouched (byte-identical output); on
+ * short viewports it uniformly shrinks the visual so totals, pans, and
+ * inventory stay on screen together. Unmeasured (tests/SSR) renders full
+ * size. Primary actions (inventory add buttons) always stay full-size. */
+function FitScale({ size, children }: { size: number; children: React.ReactNode }) {
+  const s = size <= 0 ? 1 : Math.min(1, size / SCALE_NATURAL);
+  if (s >= 1) return <>{children}</>;
+  return (
+    <div style={{ height: SCALE_NATURAL * s, overflow: "hidden" }}>
+      <div style={{ height: SCALE_NATURAL, transform: `scale(${s})`, transformOrigin: "top center" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 // Dedicated Practice + Speed loop for Balance Scale (Exercise 10). Renders
 // and transports answers only; target totals, optimal counts, scoring,
@@ -48,6 +69,109 @@ export function leftOf(puzzle: Puzzle): string[] {
  * Never ships scores, optimal counts, or correctness flags. */
 export function answerForPieces(pieces: string[]): { pieces: string[] } {
   return { pieces: [...pieces] };
+}
+
+/** Viewport-fit shell for the Balance Scale loops (practice + speed).
+ * Same fixed-overlay + measured-board architecture as the GameShell
+ * siblings: prompt, scale visual, and inventory stay on screen together
+ * with no page scrolling. Landscape puts the measured scale beside a
+ * control column; the scale visual shrinks (via FitScale) only when the
+ * zone is shorter than its natural height. Mechanics untouched. */
+function BalanceBoard({
+  modeKey,
+  stat,
+  puzzle,
+  hints,
+  usedHints,
+  onUseHint,
+  leftItems,
+  rightItems,
+  balanced,
+  showBalanced,
+  locked,
+  onRemoveRight,
+  overlay,
+  top,
+  below,
+}: {
+  modeKey: FaKey;
+  stat?: string;
+  puzzle: Puzzle;
+  hints: Hint[];
+  usedHints: string[];
+  onUseHint: (id: string) => void;
+  leftItems: PanItem[];
+  rightItems: PanItem[];
+  balanced: boolean;
+  showBalanced: boolean;
+  locked: boolean;
+  onRemoveRight: (uid: number) => void;
+  overlay?: ReactNode;
+  top?: ReactNode;
+  below: ReactNode;
+}) {
+  const { rootRef, areaRef, orientation, size } = useGameFit();
+  const question = (
+    <QuestionHeader
+      prompt={t("balance.howto")}
+      puzzleKey={puzzle.id}
+      hints={hints}
+      usedHints={usedHints}
+      onUseHint={onUseHint}
+    />
+  );
+  const scaleCard = (
+    <Card className="relative mt-2">
+      {overlay}
+      <FitScale size={orientation === "landscape" ? size : 0}>
+        <BalanceScale
+          leftItems={leftItems}
+          rightItems={rightItems}
+          balanced={balanced}
+          locked={locked}
+          onRemoveRight={onRemoveRight}
+        />
+      </FitScale>
+      {showBalanced ? (
+        <p className="mt-2 text-center text-lg font-black text-green-700" data-testid="balanced-message" role="status">
+          {t("balance.balanced")}
+        </p>
+      ) : null}
+    </Card>
+  );
+  return (
+    <GameShell title={t("exercises.balance-scale.title")} modeKey={modeKey} stat={stat}>
+      <div ref={rootRef} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {orientation === "landscape" ? (
+          <div className="flex min-h-0 min-w-0 flex-1">
+            <div ref={areaRef} className="relative min-h-0 min-w-0 flex-1">
+              <div className="absolute inset-0 grid place-items-center overflow-hidden">
+                <div className="w-full max-w-md">{scaleCard}</div>
+              </div>
+            </div>
+            {/* No vertical aside padding: question/below carry their own,
+              every pixel counts on short landscape viewports. */}
+            <aside className="flex w-72 shrink-0 flex-col gap-1 overflow-y-auto">
+              {question}
+              {top}
+              <div className="px-3 pb-3">{below}</div>
+            </aside>
+          </div>
+        ) : (
+          <>
+            {question}
+            {top}
+            <div ref={areaRef} className="relative min-h-0 min-w-0 flex-1">
+              <div className="absolute inset-0 grid place-items-center overflow-hidden">
+                <div className="w-full max-w-md">{scaleCard}</div>
+              </div>
+            </div>
+            <div className="shrink-0 px-3 pb-3">{below}</div>
+          </>
+        )}
+      </div>
+    </GameShell>
+  );
 }
 
 type PracticePhase = "loading" | "ready" | "submitting" | "feedback" | "error";
@@ -241,25 +365,27 @@ function PracticeLoop() {
 
   if ((phase === "loading" || phase === "error") && !current) {
     return (
-      <div>
-        <PageHeader title={t("exercises.balance-scale.title")} subtitle={t("balance.intro")} />
-        <Card>
-          <p className="text-center">{phase === "error" ? (error ?? t("common.error")) : t("common.loading")}</p>
-          {phase === "error" ? (
-            <Button className="mt-3 w-full" onClick={loadInitial}>
-              {t("common.retry")}
-            </Button>
-          ) : null}
-        </Card>
-      </div>
+      <GameShell title={t("exercises.balance-scale.title")} modeKey="play.practice">
+        <div className="grid min-h-0 flex-1 place-items-center overflow-y-auto px-4 py-3">
+          <Card className="w-full max-w-md">
+            <p className="text-center">{phase === "error" ? (error ?? t("common.error")) : t("common.loading")}</p>
+            {phase === "error" ? (
+              <Button className="mt-3 w-full" onClick={loadInitial}>
+                {t("common.retry")}
+              </Button>
+            ) : null}
+          </Card>
+        </div>
+      </GameShell>
     );
   }
   if (!puzzle) {
     return (
-      <div>
-        <PageHeader title={t("exercises.balance-scale.title")} subtitle={t("balance.intro")} />
-        <p className="text-center">{t("common.loading")}</p>
-      </div>
+      <GameShell title={t("exercises.balance-scale.title")} modeKey="play.practice">
+        <div className="grid min-h-0 flex-1 place-items-center px-4">
+          <p>{t("common.loading")}</p>
+        </div>
+      </GameShell>
     );
   }
 
@@ -269,74 +395,55 @@ function PracticeLoop() {
   const full = right.length >= MAX_PAN_PIECES;
 
   return (
-    <div className="mx-auto w-full max-w-2xl overflow-x-clip pb-6">
-      <PageHeader title={t("exercises.balance-scale.title")} subtitle={t("balance.intro")} />
-      <div className="mb-3 flex items-center gap-2">
-        <Badge>
-          {t("practice.solved")}: {faNum(solved)}
-        </Badge>
-        <Badge>
-          {t("speed.score")}: {faNum(scoreTotal)}
-        </Badge>
-      </div>
-
-      <QuestionHeader
-        prompt={t("balance.howto")}
-        puzzleKey={puzzle.id}
-        hints={hints}
-        usedHints={usedHints}
-        onUseHint={(id) => setUsedHints((p) => [...p, id])}
-      />
-
-      <Card className="mt-2">
-        <BalanceScale
-          leftItems={leftItems}
-          rightItems={right}
-          balanced={balanced || result?.result === "correct"}
-          locked={locked}
-          onRemoveRight={removeUid}
-        />
-        {balanced || result?.result === "correct" ? (
-          <p className="mt-2 text-center text-lg font-black text-green-700" data-testid="balanced-message" role="status">
-            {t("balance.balanced")}
-          </p>
-        ) : null}
-      </Card>
-
-      {phase === "feedback" && result ? (
-        <Card className="mt-3" data-testid="practice-feedback">
-          <p className="text-center text-sm font-bold text-stone-600">
-            {t("balance.score")}: <span className="text-2xl font-black text-violet-700">{faNum(result.score)}</span>
-          </p>
-          {puzzle.explanation ? (
-            <p className="mt-2 text-center text-sm text-stone-600">
-              {t("play.explanation")}: {puzzle.explanation}
+    <BalanceBoard
+      modeKey="play.practice"
+      puzzle={puzzle}
+      hints={hints}
+      usedHints={usedHints}
+      onUseHint={(id) => setUsedHints((p) => [...p, id])}
+      leftItems={leftItems}
+      rightItems={right}
+      balanced={balanced || result?.result === "correct"}
+      showBalanced={balanced || result?.result === "correct"}
+      locked={locked}
+      onRemoveRight={removeUid}
+      stat={`${faNum(solved)} · ${faNum(scoreTotal)}`}
+      below={
+        phase === "feedback" && result ? (
+          <Card className="mt-3" data-testid="practice-feedback">
+            <p className="text-center text-sm font-bold text-stone-600">
+              {t("balance.score")}: <span className="text-2xl font-black text-violet-700">{faNum(result.score)}</span>
             </p>
-          ) : null}
-          <Button className="mt-3 w-full" onClick={advance} data-testid="next-question">
-            {t("play.next")}
-          </Button>
-        </Card>
-      ) : (
-        <div>
-          <Card className="mt-3">
-            <p className="mb-2 text-center text-sm font-black text-stone-700">{t("balance.inventory")}</p>
-            <PieceInventory onAdd={addPiece} disabled={locked} full={full} />
-            {fullFlash ? (
-              <p className="mt-2 text-center text-sm font-bold text-amber-700" role="status">
-                {t("balance.panFull")}
+            {puzzle.explanation ? (
+              <p className="mt-2 text-center text-sm text-stone-600">
+                {t("play.explanation")}: {puzzle.explanation}
               </p>
             ) : null}
-          </Card>
-          <div className="mt-3 flex gap-2">
-            <Button variant="secondary" className="flex-1" onClick={retryCurrent} disabled={locked}>
-              {t("play.clear")}
+            <Button className="mt-3 w-full" onClick={advance} data-testid="next-question">
+              {t("play.next")}
             </Button>
+          </Card>
+        ) : (
+          <div>
+            <Card className="mt-3">
+              <p className="mb-2 text-center text-sm font-black text-stone-700">{t("balance.inventory")}</p>
+              <PieceInventory onAdd={addPiece} disabled={locked} full={full} />
+              {fullFlash ? (
+                <p className="mt-2 text-center text-sm font-bold text-amber-700" role="status">
+                  {t("balance.panFull")}
+                </p>
+              ) : null}
+            </Card>
+            <div className="mt-3 flex gap-2">
+              <Button variant="secondary" className="flex-1" onClick={retryCurrent} disabled={locked}>
+                {t("play.clear")}
+              </Button>
+            </div>
+            {error ? <p className="mt-2 text-center text-sm font-bold text-red-600">{error}</p> : null}
           </div>
-          {error ? <p className="mt-2 text-center text-sm font-bold text-red-600">{error}</p> : null}
-        </div>
-      )}
-    </div>
+        )
+      }
+    />
   );
 }
 
@@ -728,20 +835,21 @@ function SpeedLoop() {
 
   if (phase === "preparing") {
     return (
-      <div className="mx-auto w-full max-w-2xl">
-        <PageHeader title={t("exercises.balance-scale.title")} subtitle={t("speed.howto")} />
-        <Card>
-          <p className="text-center text-sm font-bold text-stone-600">{t("speed.preparing")}</p>
-          {error ? (
-            <div>
-              <p className="mt-3 text-center text-sm font-bold text-red-600">{error}</p>
-              <Button className="mt-3 w-full" onClick={boot}>
-                {t("common.retry")}
-              </Button>
-            </div>
-          ) : null}
-        </Card>
-      </div>
+      <GameShell title={t("exercises.balance-scale.title")} modeKey="play.speed">
+        <div className="grid min-h-0 flex-1 place-items-center overflow-y-auto px-4 py-3">
+          <Card className="w-full max-w-md">
+            <p className="text-center text-sm font-bold text-stone-600">{t("speed.preparing")}</p>
+            {error ? (
+              <div>
+                <p className="mt-3 text-center text-sm font-bold text-red-600">{error}</p>
+                <Button className="mt-3 w-full" onClick={boot}>
+                  {t("common.retry")}
+                </Button>
+              </div>
+            ) : null}
+          </Card>
+        </div>
+      </GameShell>
     );
   }
 
@@ -752,17 +860,18 @@ function SpeedLoop() {
   const puzzle = current;
   if (!session || !puzzle) {
     return (
-      <div className="mx-auto w-full max-w-2xl">
-        <PageHeader title={t("exercises.balance-scale.title")} subtitle={t("speed.howto")} />
-        <Card>
-          <p className="text-center">{error ?? t("common.loading")}</p>
-          {error ? (
-            <Button className="mt-3 w-full" onClick={boot}>
-              {t("common.retry")}
-            </Button>
-          ) : null}
-        </Card>
-      </div>
+      <GameShell title={t("exercises.balance-scale.title")} modeKey="play.speed">
+        <div className="grid min-h-0 flex-1 place-items-center px-4">
+          <Card className="w-full max-w-md">
+            <p className="text-center">{error ?? t("common.loading")}</p>
+            {error ? (
+              <Button className="mt-3 w-full" onClick={boot}>
+                {t("common.retry")}
+              </Button>
+            ) : null}
+          </Card>
+        </div>
+      </GameShell>
     );
   }
 
@@ -773,42 +882,35 @@ function SpeedLoop() {
   const full = right.length >= MAX_PAN_PIECES;
 
   return (
-    <div className="relative mx-auto w-full max-w-2xl overflow-x-clip pb-6">
-      <PageHeader title={t("exercises.balance-scale.title")} subtitle={t("speed.howto")} />
-      <TimerStrip remainingSec={remainingSec} correct={session.correct} progress={progress} />
-      <QuestionHeader
-        prompt={t("balance.howto")}
-        puzzleKey={puzzle.id}
-        hints={hints}
-        usedHints={usedHints}
-        onUseHint={(id) => setUsedHints((p) => [...p, id])}
-      />
-      <Card className="relative mt-2">
-        {result ? <SpeedPill result={result} /> : null}
-        <BalanceScale
-          leftItems={leftItems}
-          rightItems={right}
-          balanced={speedBalanced || result?.result === "correct"}
-          locked={result !== null || busy}
-          onRemoveRight={removeUid}
-        />
-        {speedBalanced || result?.result === "correct" ? (
-          <p className="mt-2 text-center text-lg font-black text-green-700" data-testid="balanced-message" role="status">
-            {t("balance.balanced")}
-          </p>
-        ) : null}
-      </Card>
-      <Card className="mt-3">
-        <p className="mb-2 text-center text-sm font-black text-stone-700">{t("balance.inventory")}</p>
-        <PieceInventory onAdd={addPiece} disabled={result !== null || busy} full={full} />
-        {fullFlash ? (
-          <p className="mt-2 text-center text-sm font-bold text-amber-700" role="status">
-            {t("balance.panFull")}
-          </p>
-        ) : null}
-      </Card>
-      {error ? <p className="mt-2 text-center text-sm font-bold text-red-600">{error}</p> : null}
-    </div>
+    <BalanceBoard
+      modeKey="play.speed"
+      puzzle={puzzle}
+      hints={hints}
+      usedHints={usedHints}
+      onUseHint={(id) => setUsedHints((p) => [...p, id])}
+      leftItems={leftItems}
+      rightItems={right}
+      balanced={speedBalanced || result?.result === "correct"}
+      showBalanced={speedBalanced || result?.result === "correct"}
+      locked={result !== null || busy}
+      onRemoveRight={removeUid}
+      overlay={result ? <SpeedPill result={result} /> : null}
+      top={<TimerStrip remainingSec={remainingSec} correct={session.correct} progress={progress} />}
+      below={
+        <div>
+          <Card className="mt-3">
+            <p className="mb-2 text-center text-sm font-black text-stone-700">{t("balance.inventory")}</p>
+            <PieceInventory onAdd={addPiece} disabled={result !== null || busy} full={full} />
+            {fullFlash ? (
+              <p className="mt-2 text-center text-sm font-bold text-amber-700" role="status">
+                {t("balance.panFull")}
+              </p>
+            ) : null}
+          </Card>
+          {error ? <p className="mt-2 text-center text-sm font-bold text-red-600">{error}</p> : null}
+        </div>
+      }
+    />
   );
 }
 
@@ -829,26 +931,28 @@ function SpeedReportView({
 }) {
   if (!report) {
     return (
-      <div className="mx-auto w-full max-w-2xl">
-        <PageHeader title={t("speed.result")} subtitle={t("speed.howto")} />
-        <Card>
-          <p className="text-center">{error ?? t("common.loading")}</p>
-          {error ? (
-            <Button className="mt-3 w-full" onClick={onRetry}>
-              {t("common.retry")}
-            </Button>
-          ) : null}
-        </Card>
-      </div>
+      <GameShell title={t("speed.result")} modeKey="play.speed">
+        <div className="grid min-h-0 flex-1 place-items-center px-4">
+          <Card className="w-full max-w-md">
+            <p className="text-center">{error ?? t("common.loading")}</p>
+            {error ? (
+              <Button className="mt-3 w-full" onClick={onRetry}>
+                {t("common.retry")}
+              </Button>
+            ) : null}
+          </Card>
+        </div>
+      </GameShell>
     );
   }
   const { session, entries } = report;
   const average = session.attempted > 0 ? session.score / session.attempted : null;
   const accuracy = session.attempted > 0 ? Math.round((session.correct / session.attempted) * 100) : null;
   return (
-    <div className="mx-auto w-full max-w-2xl pb-6">
-      <PageHeader title={t("speed.result")} subtitle={t("speed.finished")} />
-      <Card>
+    <GameShell title={t("speed.result")} modeKey="play.speed" scroll>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+        <p className="py-1 text-center text-sm font-bold text-stone-600">{t("speed.finished")}</p>
+        <Card>
         {session.attempted === 0 ? (
           <p className="text-center text-sm font-bold text-stone-600">{t("report.empty")}</p>
         ) : (
@@ -912,7 +1016,8 @@ function SpeedReportView({
             {t("speed.retry")}
           </Button>
         </div>
-      </Card>
-    </div>
+        </Card>
+      </div>
+    </GameShell>
   );
 }
