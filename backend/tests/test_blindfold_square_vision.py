@@ -1,383 +1,145 @@
-"""Blindfold Square Vision: distances, validation, seed, API."""
+"""Blindfold Square Vision: square colors, validation, scoring, seed, API."""
 
-from collections import deque
+import random
 
-from app.modules.exercises import registry
+from app.modules.blindfold_square_vision import generator as gen_mod
 from app.modules.blindfold_square_vision import seed as seed_mod
+from app.modules.blindfold_square_vision.scoring import score_square_vision
 from app.modules.blindfold_square_vision.validator import (
     SLUG,
-    bishop_distance,
-    example_path,
-    king_distance,
-    knight_distance,
-    min_moves,
-    normalize_color,
-    normalize_moves,
-    normalize_piece,
-    pawn_distance,
-    queen_distance,
-    rook_distance,
+    normalize_choice,
+    square_color,
     validate,
 )
+from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
 
 
-def answer_for(piece: str, color: str, origin: str, dest: str) -> dict:
-    return {"piece": piece, "color": color, "from": origin, "to": dest}
+def answer_for(square: str) -> dict:
+    return {"square": square}
 
 
-def attempt(moves: object) -> dict:
-    return {"moves": moves}
+# --- Deterministic square colors ---
 
 
-# --- King ---
+def test_a1_is_dark_and_h1_is_light():
+    assert square_color("a1") == "black"
+    assert square_color("h1") == "white"
+    assert square_color("a8") == "white"
+    assert square_color("h8") == "black"
 
 
-def test_king_same_square():
-    assert king_distance("e4", "e4") == 0
+def test_adjacent_squares_alternate():
+    files = "abcdefgh"
+    for fi in range(8):
+        for rank in range(1, 9):
+            here = f"{files[fi]}{rank}"
+            if fi < 7:
+                assert square_color(f"{files[fi + 1]}{rank}") != square_color(here)
+            if rank < 8:
+                assert square_color(f"{files[fi]}{rank + 1}") != square_color(here)
 
 
-def test_king_adjacent():
-    assert king_distance("e4", "e5") == 1
-    assert king_distance("e4", "f5") == 1
+def test_board_splits_evenly():
+    files = "abcdefgh"
+    colors = [square_color(f"{files[fi]}{rank}") for fi in range(8) for rank in range(1, 9)]
+    assert len(colors) == 64
+    assert colors.count("white") == 32
+    assert colors.count("black") == 32
 
 
-def test_king_horizontal():
-    assert king_distance("a1", "h1") == 7
+# --- Practice validation (tap the square) ---
 
 
-def test_king_vertical():
-    assert king_distance("e2", "e7") == 5
-
-
-def test_king_diagonal():
-    assert king_distance("a1", "h8") == 7
-
-
-def test_king_large_distance():
-    assert king_distance("a1", "h7") == 7
-    assert king_distance("c3", "f6") == 3
-
-
-# --- Rook ---
-
-
-def test_rook_same_rank():
-    assert rook_distance("a1", "h1") == 1
-
-
-def test_rook_same_file():
-    assert rook_distance("a1", "a8") == 1
-
-
-def test_rook_different_rank_file():
-    assert rook_distance("a1", "h8") == 2
-
-
-def test_rook_same_square():
-    assert rook_distance("d4", "d4") == 0
-
-
-# --- Bishop ---
-
-
-def test_bishop_same_diagonal():
-    assert bishop_distance("c1", "h6") == 1
-
-
-def test_bishop_same_color_unaligned():
-    assert bishop_distance("a1", "d2") == 2
-
-
-def test_bishop_same_color_two_moves():
-    # Same color but off-diagonal squares always connect in exactly 2.
-    assert bishop_distance("a1", "d2") == 2
-    assert bishop_distance("c1", "b4") == 2
-
-
-def test_bishop_opposite_color_unreachable():
-    assert bishop_distance("a1", "h7") is None
-    assert bishop_distance("a1", "a2") is None
-
-
-def test_bishop_same_square():
-    assert bishop_distance("e4", "e4") == 0
-
-
-# --- Queen ---
-
-
-def test_queen_same_rank():
-    assert queen_distance("d4", "h4") == 1
-
-
-def test_queen_same_file():
-    assert queen_distance("d4", "d8") == 1
-
-
-def test_queen_same_diagonal():
-    assert queen_distance("d4", "h8") == 1
-
-
-def test_queen_non_aligned():
-    assert queen_distance("a1", "h7") == 2
-
-
-def test_queen_same_square():
-    assert queen_distance("e4", "e4") == 0
-
-
-# --- Knight ---
-
-
-def test_knight_same_square():
-    assert knight_distance("e4", "e4") == 0
-
-
-def test_knight_one_move():
-    assert knight_distance("a1", "c2") == 1
-    assert knight_distance("b5", "d6") == 1
-
-
-def test_knight_two_moves():
-    assert knight_distance("a1", "d4") == 2
-
-
-def test_knight_three_moves():
-    assert knight_distance("a1", "e6") == 3
-
-
-def test_knight_longer_distance():
-    assert knight_distance("a1", "h8") == 6
-
-
-def test_knight_independent_bfs():
-    # Independent BFS over knight jumps (not the validator helper).
-    steps = ((1, 2), (2, 1), (2, -1), (1, -2), (-1, -2), (-2, -1), (-2, 1), (-1, 2))
-
-    def bfs(origin: str, dest: str) -> int:
-        if origin == dest:
-            return 0
-        seen = {origin}
-        queue: deque[tuple[str, int]] = deque([(origin, 0)])
-        while queue:
-            square, dist = queue.popleft()
-            fx, fr = ord(square[0]) - 97, int(square[1]) - 1
-            for dx, dy in steps:
-                f, r = fx + dx, fr + dy
-                if 0 <= f < 8 and 0 <= r < 8:
-                    nxt = chr(97 + f) + str(r + 1)
-                    if nxt == dest:
-                        return dist + 1
-                    if nxt not in seen:
-                        seen.add(nxt)
-                        queue.append((nxt, dist + 1))
-        raise AssertionError("knights reach every square")
-
-    for origin, dest in (("a1", "c2"), ("a1", "d4"), ("a1", "e6"), ("a1", "h8"), ("g1", "f3"), ("h8", "a1")):
-        assert knight_distance(origin, dest) == bfs(origin, dest)
-
-
-# --- Pawn ---
-
-
-def test_pawn_forward_movement():
-    assert pawn_distance("white", "e2", "e5") == 2
-    assert pawn_distance("black", "e7", "e3") == 3
-
-
-def test_pawn_wrong_direction():
-    assert pawn_distance("white", "e5", "e2") is None
-    assert pawn_distance("black", "e2", "e5") is None
-
-
-def test_pawn_same_square():
-    assert pawn_distance("white", "e4", "e4") == 0
-
-
-def test_pawn_unreachable_sideways_backward():
-    assert pawn_distance("white", "e4", "d5") is None
-    assert pawn_distance("white", "e4", "e3") is None
-    assert pawn_distance("black", "e4", "e5") is None
-
-
-def test_pawn_white_vs_black_direction():
-    assert pawn_distance("white", "e2", "e4") == 1
-    assert pawn_distance("black", "e7", "e5") == 1
-    assert pawn_distance("white", "e7", "e5") is None
-    assert pawn_distance("black", "e2", "e4") is None
-
-
-# --- Validation ---
-
-
-def test_correct_answer():
-    out = validate(answer_for("N", "white", "a1", "c2"), attempt(1))
+def test_practice_correct_square():
+    out = validate(answer_for("d5"), {"square": "d5"})
     assert out.result == AttemptResult.CORRECT
-    assert out.detail == {
-        "correct": ["1"],
-        "missed": [],
-        "wrong": [],
-        "moves": 1,
-        "path": ["a1", "c2"],
-    }
+    assert out.detail["correct"] == ["d5"]
+    assert out.detail["missed"] == []
+    assert out.detail["wrong"] == []
 
 
-def test_wrong_answer():
-    out = validate(answer_for("N", "white", "a1", "c2"), attempt(2))
+def test_practice_wrong_square_marks_tap_red_and_target_orange():
+    out = validate(answer_for("d5"), {"square": "d4"})
     assert out.result == AttemptResult.WRONG
-    assert out.detail["moves"] == 1
-    assert out.detail["wrong"] == ["2"]
+    assert out.detail["wrong"] == ["d4"]
+    assert out.detail["missed"] == ["d5"]
+    assert out.detail["correct"] == []
 
 
-def test_zero_answer():
-    assert validate(answer_for("K", "white", "e4", "e4"), attempt(0)).result == AttemptResult.CORRECT
-    assert validate(answer_for("K", "white", "e4", "e5"), attempt(0)).result == AttemptResult.WRONG
+def test_practice_malformed_square_safe():
+    for bad in ("", "z9", "d5d5", None, 42, ["d5"]):
+        out = validate(answer_for("d5"), {"square": bad})
+        assert out.result == AttemptResult.WRONG
 
 
-def test_negative_answer():
-    assert validate(answer_for("K", "white", "e4", "e4"), attempt(-1)).result == AttemptResult.WRONG
+# --- Speed validation (name the color) ---
 
 
-def test_malformed_answer():
-    answer = answer_for("K", "white", "e4", "e5")
-    assert validate(answer, {}).result == AttemptResult.WRONG
-    assert validate(answer, {"moves": "1"}).result == AttemptResult.WRONG
-    assert validate(answer, {"moves": "3 moves"}).result == AttemptResult.WRONG
-    assert validate(answer, {"moves": 1.0}).result == AttemptResult.WRONG
-    assert validate(answer, {"moves": True}).result == AttemptResult.WRONG
-    assert validate(answer, {"moves": None}).result == AttemptResult.WRONG
-    assert validate(answer, None).result == AttemptResult.WRONG  # type: ignore[arg-type]
-    assert validate({}, attempt(1)).result == AttemptResult.WRONG
-    assert validate({"piece": "X", "color": "white", "from": "a1", "to": "c2"}, attempt(1)).result == AttemptResult.WRONG
-    assert validate({"piece": "N", "color": "red", "from": "a1", "to": "c2"}, attempt(1)).result == AttemptResult.WRONG
-    assert validate({"piece": "N", "color": "white", "from": "a9", "to": "c2"}, attempt(1)).result == AttemptResult.WRONG
+def test_speed_correct_and_wrong_choice():
+    out = validate(answer_for("d5"), {"choice": "white"})
+    assert out.result == AttemptResult.CORRECT
+    assert out.detail["correct"] == ["white"]
+    bad = validate(answer_for("d5"), {"choice": "black"})
+    assert bad.result == AttemptResult.WRONG
+    assert bad.detail["wrong"] == ["black"]
+    assert bad.detail["missed"] == ["white"]
 
 
-def test_fake_correctness_flags_ignored():
-    out = validate(answer_for("K", "white", "e4", "e5"), {"moves": 5, "result": "correct", "correct": True})
+def test_speed_malformed_choice_safe():
+    for bad in ("green", "", None, 1, ["white"]):
+        assert validate(answer_for("a1"), {"choice": bad}).result == AttemptResult.WRONG
+    assert normalize_choice(" White ") == "white"
+
+
+def test_client_color_never_overrides_server():
+    # Even a "correct-looking" client payload loses to the stored square.
+    out = validate(answer_for("a1"), {"choice": "white", "square": "h1"})
     assert out.result == AttemptResult.WRONG
 
 
-def test_fake_distance_metadata_ignored():
-    out = validate(answer_for("K", "white", "e4", "e5"), {"moves": 9, "moves_expected": 9, "distance": 9})
-    assert out.result == AttemptResult.WRONG
-    assert out.detail["moves"] == 1
+def test_missing_target_fails_closed():
+    assert validate({}, {"square": "d5"}).result == AttemptResult.WRONG
+    assert validate({}, {"choice": "white"}).result == AttemptResult.WRONG
 
 
-def test_normalize_helpers():
-    assert normalize_piece(" n ") == "N"
-    assert normalize_piece("x") is None
-    assert normalize_piece(5) is None
-    from app.modules.blindfold_square_vision.validator import normalize_color, normalize_moves
-
-    assert normalize_color(" White ") == "white"
-    assert normalize_color("red") is None
-    assert normalize_moves(0) == 0
-    assert normalize_moves(-2) is None
-    assert normalize_moves("2") is None
-    assert normalize_moves(True) is None
+# --- Registry + scoring ---
 
 
 def test_registered_in_registry():
     assert registry.get_validator(SLUG) is not None
+    assert registry.get_scorer(SLUG) is not None
 
 
-# --- Seed correctness (INDEPENDENT recomputation) ---
-# These tests never call min_moves/example_path/validate: every distance is
-# re-derived with a separately written BFS over per-piece move rules.
+def test_scoring_correct_plus5_wrong_minus3():
+    assert score_square_vision(validate(answer_for("d5"), {"square": "d5"})) == 5.0
+    assert score_square_vision(validate(answer_for("d5"), {"square": "d4"})) == -3.0
+    assert score_square_vision(validate(answer_for("a1"), {"choice": "black"})) == 5.0
+    assert score_square_vision(validate(answer_for("a1"), {"choice": "white"})) == -3.0
 
 
-def _independent_moves(piece: str, color: str, square: str) -> list[str]:
-    fx, fr = ord(square[0]) - 97, int(square[1]) - 1
-
-    def ray(steps: list[tuple[int, int]]) -> list[str]:
-        out = []
-        for dx, dy in steps:
-            f, r = fx + dx, fr + dy
-            while 0 <= f < 8 and 0 <= r < 8:
-                out.append(chr(97 + f) + str(r + 1))
-                f += dx
-                r += dy
-        return out
-
-    orth = [(1, 0), (-1, 0), (0, 1), (0, -1)]
-    diag = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
-    if piece == "K":
-        return [chr(97 + fx + dx) + str(fr + dy + 1) for dx in (-1, 0, 1) for dy in (-1, 0, 1) if (dx or dy) and 0 <= fx + dx < 8 and 0 <= fr + dy < 8]
-    if piece == "Q":
-        return ray(orth + diag)
-    if piece == "R":
-        return ray(orth)
-    if piece == "B":
-        return ray(diag)
-    if piece == "N":
-        return [
-            chr(97 + fx + dx) + str(fr + dy + 1)
-            for dx, dy in ((1, 2), (2, 1), (2, -1), (1, -2), (-1, -2), (-2, -1), (-2, 1), (-1, 2))
-            if 0 <= fx + dx < 8 and 0 <= fr + dy < 8
-        ]
-    step = 1 if color == "white" else -1
-    start_rank = 1 if color == "white" else 6
-    out = []
-    if 0 <= fr + step < 8:
-        out.append(chr(97 + fx) + str(fr + step + 1))
-    if fr == start_rank and 0 <= fr + 2 * step < 8:
-        out.append(chr(97 + fx) + str(fr + 2 * step + 1))
-    return out
+# --- Generator + seed ---
 
 
-def _independent_distance(piece: str, color: str, origin: str, dest: str) -> int | None:
-    if origin == dest:
-        return 0
-    seen = {origin}
-    queue: deque[tuple[str, int]] = deque([(origin, 0)])
-    while queue:
-        square, dist = queue.popleft()
-        for nxt in _independent_moves(piece, color, square):
-            if nxt == dest:
-                return dist + 1
-            if nxt not in seen:
-                seen.add(nxt)
-                queue.append((nxt, dist + 1))
-    return None
+def test_generator_uniform_square_with_matching_prompt(db_session):
+    puzzle = gen_mod.create_puzzle(db_session, random.Random(14))
+    answer = puzzle.answer_json
+    assert answer["square"] == puzzle.position_json["square"]
+    assert answer["square"] in puzzle.prompt_fa
+    assert puzzle.fen == gen_mod.EMPTY_FEN
 
 
-def test_seed_count_and_content(db_session):
-    assert seed_mod.seed_db(db_session) == 15
-    assert seed_mod.seed_db(db_session) == 0  # idempotent
+def test_seed_covers_both_colors_and_is_idempotent(db_session):
+    assert seed_mod.seed_db(db_session) == 8
+    assert seed_mod.seed_db(db_session) == 0
     puzzles = db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).all()
-    assert len(puzzles) == 15
-    for puzzle in puzzles:
-        assert puzzle.fen is None  # no board for this exercise
-        assert set(puzzle.position_json) == {"piece", "color", "from", "to"}
-        assert puzzle.answer_json == {
-            "piece": puzzle.position_json["piece"],
-            "color": puzzle.position_json["color"],
-            "from": puzzle.position_json["from"],
-            "to": puzzle.position_json["to"],
-        }
-        assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
+    assert len(puzzles) == 8
+    colors = {square_color(p.answer_json["square"]) for p in puzzles}
+    assert colors == {"white", "black"}
 
 
-def test_seed_answers_match_independent_recomputation(db_session):
-    seed_mod.seed_db(db_session)
-    puzzles = db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).all()
-    by_piece: dict[str, int] = {}
-    for puzzle in puzzles:
-        task = puzzle.answer_json
-        expected = _independent_distance(task["piece"], task["color"], task["from"], task["to"])
-        assert expected is not None, puzzle.id
-        assert validate(task, {"moves": expected}).result == AttemptResult.CORRECT
-        assert validate(task, {"moves": expected + 1}).result == AttemptResult.WRONG
-        by_piece[task["piece"]] = by_piece.get(task["piece"], 0) + 1
-    assert by_piece == {"K": 3, "Q": 2, "R": 2, "B": 2, "N": 4, "P": 2}
-    ratings = {p.initial_rating for p in puzzles}
-    assert len(ratings) >= 5
-
-
-# --- API flow ---
+# --- API ---
 
 
 def _seeded(db_session) -> Puzzle:
@@ -389,41 +151,57 @@ def _seeded(db_session) -> Puzzle:
     return puzzle
 
 
-def test_api_list_and_submit(client, db_session):
-    puzzle = _seeded(db_session)
-    res = client.get(f"/api/v1/puzzles?exercise={SLUG}")
+def test_api_next_hides_color(client, db_session):
+    res = client.post("/api/v1/blindfold-square-vision/next", json={})
     assert res.status_code == 200
     body = res.json()
-    assert len(body) == 15
-    assert "answer_json" not in body[0]
-    task = body[0]["position_json"]
-    assert set(task) == {"piece", "color", "from", "to"}
+    assert "answer_json" not in body
+    assert len(body["position_json"]["square"]) == 2
 
-    expected = _independent_distance(task["piece"], task["color"], task["from"], task["to"])
-    assert expected is not None
+
+def test_api_practice_submit_scores_plus5_minus3(client, db_session):
+    puzzle = _seeded(db_session)
+    target = puzzle.answer_json["square"]
     ok = client.post(
         "/api/v1/attempts",
-        json={"puzzle_id": puzzle.id, "answer": {"moves": expected}, "mode": "practice"},
+        json={"puzzle_id": puzzle.id, "answer": {"square": target}, "mode": "practice"},
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
-    assert ok.json()["score"] == 1.0
+    assert ok.json()["score"] == 5.0
 
+    wrong_square = "a1" if target != "a1" else "h8"
     bad = client.post(
         "/api/v1/attempts",
-        json={"puzzle_id": puzzle.id, "answer": {"moves": expected + 10}, "mode": "practice"},
+        json={"puzzle_id": puzzle.id, "answer": {"square": wrong_square}, "mode": "practice"},
     )
     assert bad.json()["result"] == "wrong"
+    assert bad.json()["score"] == -3.0
 
-    rated = client.post(
-        "/api/v1/attempts",
-        json={"puzzle_id": puzzle.id, "answer": {"moves": expected}, "mode": "rated"},
+
+def test_speed_lifecycle(client, db_session):
+    started = client.post("/api/v1/blindfold-square-vision/sessions", json={})
+    assert started.status_code == 200
+    session_id = started.json()["session_id"]
+    buf = client.post(
+        f"/api/v1/blindfold-square-vision/sessions/{session_id}/puzzles", json={"count": 20}
     )
-    assert rated.status_code == 401
-
-
-def test_api_puzzle_detail_hides_answer(client, db_session):
-    puzzle = _seeded(db_session)
-    res = client.get(f"/api/v1/puzzles/{puzzle.id}")
-    assert res.status_code == 200
-    assert "answer_json" not in res.json()
+    assert buf.status_code == 200
+    assert len(buf.json()) == 20
+    for entry in buf.json():
+        assert "answer_json" not in entry
+    clock = client.post(f"/api/v1/blindfold-square-vision/sessions/{session_id}/start")
+    assert clock.status_code == 200
+    first = buf.json()[0]
+    expected = square_color(first["position_json"]["square"])
+    sub = client.post(
+        f"/api/v1/blindfold-square-vision/sessions/{session_id}/submit",
+        json={"puzzle_id": first["id"], "answer": {"choice": expected}},
+    )
+    assert sub.status_code == 200
+    assert sub.json()["attempt"]["result"] == "correct"
+    assert sub.json()["attempt"]["score"] == 5.0
+    report = client.get(f"/api/v1/blindfold-square-vision/sessions/{session_id}/report")
+    assert report.status_code == 200
+    assert report.json()["session"]["attempted"] == 1
+    assert report.json()["session"]["score"] == 5.0

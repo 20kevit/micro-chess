@@ -583,6 +583,54 @@ export const api = {
     request<SpeedSummary>(`/api/v1/heavier-side/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Blindfold Square Vision: one uniform-random square per puzzle + speed
+  // sessions. Same contract as above (the square in position_json is the
+  // public question; its color never leaves the server; grading always
+  // server-side). Prefetch buffers never carry answers.
+  nextSquareVisionPracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/blindfold-square-vision/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startSquareVisionSpeedSession: () =>
+    request<SpeedSession>("/api/v1/blindfold-square-vision/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  prepareSquareVisionSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/blindfold-square-vision/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startSquareVisionSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/blindfold-square-vision/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextSquareVisionSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/blindfold-square-vision/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitSquareVisionSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/blindfold-square-vision/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getSquareVisionSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/blindfold-square-vision/sessions/${sessionId}`),
+  getSquareVisionSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/blindfold-square-vision/sessions/${sessionId}/report`),
+  finishSquareVisionSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/blindfold-square-vision/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
   // Chinese Board: memorize a real position, rebuild it from memory +
   // speed sessions. Same contract as above (the FEN in position_json is
   // the board shown during memorization; the piece set verdict and the

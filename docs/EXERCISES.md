@@ -451,19 +451,34 @@ do not continue development for now.
 
 ## Thirteenth slice
 
-**Blindfold Square Vision** — IMPLEMENTED (`blindfold-square-vision`).
+**Blindfold Square Vision** — IMPLEMENTED (`blindfold-square-vision`,
+Exercise 14, خانه‌یابی ذهنی).
 
-- Route: `/exercises/blindfold-square-vision` (dedicated
-  `BlindfoldSquareVisionPlay` loop reusing attempt/timing/hint/feedback
-  primitives: empty board with neutral start/target markers, piece info card
-  with SVG icon, large numeric input, post-submit shortest path display).
+- One uniform-random square per puzzle («خانه‌ی X چه رنگیه؟»).
+- Practice: `/exercises/blindfold-square-vision?mode=practice` renders an
+  empty tappable board; tapping the asked square submits `{square}`
+  immediately. Correct tap = green, wrong tap = red, missed target =
+  orange (server `detail` drives the shared board states; no local
+  coloring). Brief feedback, then auto-advance; untimed.
+- Speed: `?mode=speed` runs the standard 60s session (open → prepare ≥20
+  → start clock → submit loop with ~450ms auto-advance → server-rebuilt
+  report; per-answer rows reuse `attempts`). NO board is shown: two large
+  سفید/سیاه buttons submit `{choice}`; only the tapped button colorizes
+  (green/red). Correct +5, wrong −3.
+- Square colors are NEVER stored: `square_color()` derives them
+  deterministically (`(file + rank)` odd = light/white, a1 is dark).
+  `position_json` carries only the square (the public question);
+  `answer_json` carries only the square (server-only truth); `fen` is the
+  empty board for practice rendering.
 - Validator: `backend/app/modules/blindfold_square_vision/validator.py`
-  (closed-form distances for king/queen/rook/bishop, BFS for knight and
-  forward-only pawn; task params travel in the server-only `answer_json`,
-  never exposed; unreachable pairs fail closed).
-- Seed: `python -m app.modules.blindfold_square_vision.seed` (15
-  hand-designed puzzles, K3/Q2/R2/B2/N4/P2 with 1/2/3/6-move knight cases;
-  every distance independently verified at seed time).
+  (practice `{square}` matched to target, speed `{choice}` matched to the
+  derived color; CORRECT/WRONG only; malformed fails safe; client colors
+  ignored). Scoring: registered scorer (`+5/−3`, negatives kept).
+  Sessions: `blindfold_square_vision/sessions.py` + `router.py` mirroring
+  the shared session lifecycle; practice at
+  `POST /api/v1/blindfold-square-vision/next`.
+- Seed: `python -m app.modules.blindfold_square_vision.seed` (8 spread
+  squares, both colors).
 
 ## Fourteenth slice
 

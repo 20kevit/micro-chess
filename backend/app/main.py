@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db.session import init_db
 from app.modules.auth.router import router as auth_router
 from app.modules.balance_scale.router import router as balance_scale_router
+from app.modules.blindfold_square_vision.router import router as square_vision_router
 from app.modules.captures.router import router as captures_router
 from app.modules.chinese_board.router import router as chinese_board_router
 from app.modules.exercises.router import router as exercises_router
@@ -71,6 +72,7 @@ def health() -> dict[str, str]:
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(balance_scale_router, prefix="/api/v1")
+app.include_router(square_vision_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(exercises_router, prefix="/api/v1")
 app.include_router(captures_router, prefix="/api/v1")

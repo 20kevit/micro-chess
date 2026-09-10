@@ -1,13 +1,13 @@
-import { BlindfoldSquareVisionPlay } from "../components/exercise/BlindfoldSquareVisionPlay";
+import { useSearchParams } from "react-router-dom";
+import { BlindfoldSquareVisionPlay, type SquareVisionMode } from "../components/exercise/BlindfoldSquareVisionPlay";
 
-// Blindfold Square Vision gameplay page. Empty board with neutral markers;
-// the answer is a number entered in a touch-friendly input.
+// Blindfold Square Vision gameplay page (خانه‌یابی ذهنی). The home card's
+// Practice/Speed buttons link here with ?mode= and enter their loop
+// directly (no intermediate screen); the color verdict, scoring (+5/−3),
+// and the speed clock stay backend-authoritative. Practice shows an empty
+// tappable board; Speed shows no board, only سفید/سیاه choices.
 export function BlindfoldSquareVisionPage() {
-  return (
-    <BlindfoldSquareVisionPlay
-      slug="blindfold-square-vision"
-      titleKey="exercises.blindfold-square-vision.title"
-      introKey="blindfold.intro"
-    />
-  );
+  const [params] = useSearchParams();
+  const mode: SquareVisionMode = params.get("mode") === "speed" ? "speed" : "practice";
+  return <BlindfoldSquareVisionPlay key={mode} mode={mode} />;
 }
