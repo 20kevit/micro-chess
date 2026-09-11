@@ -30,13 +30,14 @@ BLOCKED
 ## 3. Platform Areas
 
 Phase 01 (Foundation) completed and verified. Phase 02 (Accounts)
-completed and verified. No later phase started.
+completed and verified. Phase 03 (Player Platform) completed and
+verified. No later phase started.
 
 | Area                         | Status      |
 | ---------------------------- | ----------- |
 | Foundation                   | VERIFIED    |
 | Accounts & Identity          | VERIFIED    |
-| Player Platform              | NOT_STARTED |
+| Player Platform              | VERIFIED    |
 | Ratings                      | NOT_STARTED |
 | Gamification                 | NOT_STARTED |
 | Administration               | NOT_STARTED |
@@ -55,16 +56,67 @@ and guest identity on top of them.
 
 ## 4. Exercise Compatibility
 
-Existing exercises verified preserved after Phase 01:
+Existing exercises verified preserved after Phase 03:
 
 * exercise behavior, exercise-specific validation, scoring
 * puzzle delivery (answers still never leave the server)
 * responsive exercise UX (no exercise UI touched)
-* existing tests: all pass unchanged
+* existing tests: all pass unchanged (`/` anonymous menu unchanged)
 
 ---
 
 ## 5. Evidence
+
+Phase 03 player platform (all verified by tests + live runtime checks):
+
+* Player profile: `player_profiles(user_id UNIQUE, display_name,
+  bio, avatar_reference)` (`backend/app/modules/player/models.py`);
+  `GET/PATCH /api/v1/me/profile` (`modules/player/router.py`,
+  thin; logic in `modules/player/service.py`). Lazy creation on
+  first read (no data backfill); editable fields only, mass
+  assignment rejected, no secrets in responses.
+  `tests/test_player_platform.py` (15 tests).
+* External chess identities: `player_external_identities` with
+  CHECK(provider) + UNIQUE(user_id, provider) +
+  UNIQUE(provider, external_username) (normalized strip+lower);
+  `GET/POST/PATCH/DELETE /api/v1/me/chess-identities`. Providers
+  strictly fide/lichess/chess_com; ratings self-reported and
+  separate from MicroChess ratings; `is_verified` server-controlled
+  (always False, never client-settable). Duplicates → 409,
+  foreign ids → 404 (no existence leak).
+* Training history: `GET /api/v1/me/training/attempts` (filters
+  exercise/mode/correct + `page`/`page_size` bounds, newest first)
+  and `GET /api/v1/me/training/attempts/{id}` read authoritative
+  `attempts` rows; no duplication, no recalculation, no
+  answer-solution exposure. Ownership is `/me`-scoping (no client
+  user ids); cross-user → 404, anonymous → 401. Migrated guest
+  attempts surface automatically after `/guest/migrate`.
+* Progress: `GET /api/v1/me/progress` (all-time totals +
+  per-exercise attempts/correct/accuracy/last) and
+  `GET /api/v1/me/progress/{slug}` (404 for unknown slugs) via
+  straightforward attempt queries — no analytics warehouse, no
+  time ranges (Phase 8 owns those). No rating/XP/streak fields
+  anywhere (Phases 4/5 own those; `rating_delta` is never
+  surfaced).
+* Dashboard: `GET /api/v1/me/dashboard` read model
+  (profile + progress + 5 most recent attempts).
+* Exercise discovery: `GET /api/v1/exercises/{slug}` detail
+  (metadata only; 404 unknown); list endpoint unchanged
+  (active-only). Frontend catalog remains the playable-source.
+* Schema v3: `ensure_schema` upgrades Phase 02 DBs (new tables via
+  `create_all`, no data touch; dev DB booted live at v3);
+  fresh boot + idempotency covered by tests.
+* Frontend: `HomePage` (`/` dashboard when logged in, unchanged
+  exercise menu when anonymous), `DashboardPage`, `ProgressPage`
+  (summary + filters + paging), `ProfilePage` (edit + identities
+  CRUD), 4-tab player nav (Home/Exercises/Progress/Profile;
+  player tabs only when logged in), `/account` links to
+  `/profile`; Persian RTL, 44px targets, loading/empty/error
+  states; 14 new frontend tests.
+* Runtime verified live: register → profile → identities
+  (409/422/404 boundaries) → attempts → history/progress/
+  dashboard (cross-user 404, anon 401, pagination 422);
+  production bundle contains the new screens; exercises untouched.
 
 Phase 02 accounts (all verified by tests + live runtime checks):
 
@@ -188,15 +240,35 @@ Impact: None for SQLite dev; sufficient for current scale.
 Required follow-up: Adopt Alembic with the PostgreSQL move.
 ```
 
+```text
+Area: Player privacy settings / avatar uploads / public profiles
+Current limitation: Phase 03 stores display_name/bio/avatar_reference
+only; no privacy-settings table, no media uploads, no public profile
+or leaderboard endpoints (no product requirement defines their fields).
+Impact: None; profile visibility defaults to private (server never
+serves one player's data to another).
+Required follow-up: Explicit product spec + later phase.
+```
+
+```text
+Area: Guest migration presentation
+Current limitation: No dedicated migration UI; migrated guest attempts
+surface automatically in history/progress/dashboard after /guest/migrate.
+Impact: None for data; players are not shown a migration confirmation screen.
+Required follow-up: Small UI notice when a product flow requires it.
+```
+
 ---
 
 ## 7. Testing State
 
-* backend tests: 920 passed (`pytest`; includes 28 account tests in
-  `tests/test_accounts.py` plus Phase 02 contract updates to the
-  foundation/exercise API tests)
-* frontend tests: 239 passed (`npm test`, 21 files; includes 10 new
-  auth-context/login/protected-account tests)
+* backend tests: 935 passed (`pytest`; includes 28 account tests in
+  `tests/test_accounts.py`, 15 player-platform tests in
+  `tests/test_player_platform.py`, plus the Phase 03
+  migration-table and v3-upgrade contract updates)
+* frontend tests: 253 passed (`npm test`, 25 files; includes 10
+  auth-context/login/protected-account tests and 14 new player
+  transport/page/nav tests)
 * typecheck: `npm run typecheck` clean
 * build: `npm run build` succeeds (pre-existing chunk-size warning only)
 * migration verification: fresh-boot, idempotency, data preservation,
