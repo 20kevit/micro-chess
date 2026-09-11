@@ -139,3 +139,17 @@ export interface SpeedReport {
   session: SpeedSummary;
   entries: ReportEntry[];
 }
+
+// Authentication state (mirrors backend users/schemas.py UserOut).
+// The server owns roles/capabilities; the client only renders them.
+export interface AuthUser {
+  id: number;
+  email: string;
+  display_name: string;
+  created_at: string;
+}
+
+export interface AuthToken {
+  access_token: string;
+  token_type: string;
+}

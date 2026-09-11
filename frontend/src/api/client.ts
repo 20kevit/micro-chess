@@ -2,6 +2,8 @@
 import type {
   AttemptMode,
   AttemptResponse,
+  AuthToken,
+  AuthUser,
   Exercise,
   PathStepResponse,
   Puzzle,
@@ -14,33 +16,74 @@ import type {
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
+// Authentication token transport. The token lives in localStorage so
+// anonymous local progress survives reloads; the server remains the
+// source of truth (it validates the token on every request).
+const TOKEN_KEY = "microchess.auth.token.v1";
+
+export function getToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setToken(token: string): void {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // Storage blocked: session simply won't persist across reloads.
+  }
+}
+
+export function clearToken(): void {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // Ignore: nothing persisted.
+  }
+}
+
 // Structured transport error. `message` keeps the legacy `api_error:{status}`
 // shape (callers match on it); `status`/`detail` carry the authoritative
 // backend reason (e.g. session_not_found vs puzzle_not_in_session) so the
 // UI can recover precisely instead of showing one generic error.
+// `code` reads the new `error.code` envelope; `detail` keeps the legacy
+// field both shapes still carry.
 export interface ApiError extends Error {
   status: number;
   detail: string;
+  code: string;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...init,
   });
   if (!res.ok) {
     let detail = "";
+    let code = "";
     try {
-      const data = (await res.json()) as { detail?: unknown };
+      const data = (await res.json()) as { detail?: unknown; error?: { code?: unknown } };
       if (typeof data?.detail === "string") detail = data.detail;
+      else if (Array.isArray(data?.detail)) detail = "validation_error";
+      if (typeof data?.error?.code === "string") code = data.error.code;
     } catch {
       // Non-JSON error body (proxy/gateway HTML): status is all we have.
     }
     const err = new Error(`api_error:${res.status}${detail ? `:${detail}` : ""}`) as ApiError;
     err.status = res.status;
     err.detail = detail;
+    err.code = code;
     throw err;
   }
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
@@ -53,6 +96,12 @@ export function apiStatus(e: unknown): number | null {
 export function apiDetail(e: unknown): string {
   return e instanceof Error && typeof (e as ApiError).detail === "string"
     ? (e as ApiError).detail
+    : "";
+}
+
+export function apiCode(e: unknown): string {
+  return e instanceof Error && typeof (e as ApiError).code === "string"
+    ? (e as ApiError).code
     : "";
 }
 
@@ -779,4 +828,21 @@ export const api = {
     request<SpeedSummary>(`/api/v1/trapped-pieces/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Authentication primitives. Login/registration UI arrives in Phase 2;
+  // these transport functions plus AuthContext are the state foundation.
+  register: (body: { email: string; password: string; display_name?: string }) =>
+    request<AuthToken>("/api/v1/auth/register", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  login: (body: { email: string; password: string }) =>
+    request<AuthToken>("/api/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  logout: () =>
+    request<void>("/api/v1/auth/logout", {
+      method: "POST",
+    }),
+  me: () => request<AuthUser>("/api/v1/users/me"),
 };
