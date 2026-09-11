@@ -29,14 +29,27 @@ class Role(str, Enum):
 class Capability(str, Enum):
     EXERCISES_READ = "exercises.read"
     EXERCISES_MANAGE = "exercises.manage"
+    EXERCISES_CREATE = "exercises.create"
+    EXERCISES_UPDATE = "exercises.update"
+    EXERCISES_ENABLE = "exercises.enable"
+    EXERCISES_DISABLE = "exercises.disable"
+    EXERCISES_DELETE = "exercises.delete"
     PUZZLES_READ = "puzzles.read"
     PUZZLES_CREATE = "puzzles.create"
     PUZZLES_MANAGE = "puzzles.manage"
+    PUZZLES_UPDATE = "puzzles.update"
     PUZZLES_REVIEW = "puzzles.review"
     PUZZLES_PUBLISH = "puzzles.publish"
+    PUZZLES_RETIRE = "puzzles.retire"
     ATTEMPTS_SUBMIT = "attempts.submit"
     USERS_READ = "users.read"
+    USERS_READ_PRIVATE = "users.read_private"
     USERS_MANAGE = "users.manage"
+    USERS_SUSPEND = "users.suspend"
+    USERS_REACTIVATE = "users.reactivate"
+    ROLES_ASSIGN = "roles.assign"
+    ROLES_REVOKE = "roles.revoke"
+    ADMIN_OVERVIEW = "admin.overview"
     GENERATORS_RUN = "generators.run"
     ANALYTICS_VIEW = "analytics.view"
     AUDIT_VIEW = "audit.view"
@@ -103,6 +116,18 @@ def capabilities_for_roles(roles: list[Role]) -> frozenset[Capability]:
 
 def has_capability(role: Role, capability: Capability) -> bool:
     return capability in ROLE_CAPABILITIES.get(role, frozenset())
+
+
+def ensure_capability(user, capability: Capability):
+    """Manual check for handlers that need per-field authorization.
+
+    Raises 401 when unauthenticated, 403 when the identity lacks the
+    capability. Prefer require_capability() for single-capability routes.
+    """
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="auth_required")
+    if capability not in capabilities_for_roles(roles_for_user(user)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
 
 
 def require_capability(capability: Capability, *, allow_anonymous: bool = False):

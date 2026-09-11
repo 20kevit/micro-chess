@@ -567,7 +567,7 @@ def _v4_style_engine():
     return engine
 
 
-def test_phase4_database_upgrades_to_v5_preserving_data():
+def test_phase4_database_upgrades_to_v6_preserving_data():
     from app.modules.exercises.models import Exercise
     from app.modules.progress.models import Attempt
     from app.modules.puzzles.models import Puzzle
@@ -608,8 +608,8 @@ def test_phase4_database_upgrades_to_v5_preserving_data():
             {"u": user_id, "p": puzzle_id},
         )
 
-    assert ensure_schema(engine) == SCHEMA_VERSION == 5
-    assert ensure_schema(engine) == 5  # idempotent re-run
+    assert ensure_schema(engine) == SCHEMA_VERSION == 6
+    assert ensure_schema(engine) == 6  # idempotent re-run
 
     names = inspect(engine).get_table_names()
     assert "player_gamification_state" in names

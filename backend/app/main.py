@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.core.errors import register_error_handlers
 from app.core.logging import RequestIdMiddleware, configure_logging
 from app.db.session import init_db
+from app.modules.admin.router import router as admin_router
 from app.modules.auth.router import router as auth_router
 from app.modules.balance_scale.router import router as balance_scale_router
 from app.modules.blindfold_calculation.router import router as blindfold_calculation_router
@@ -84,6 +85,7 @@ def health() -> dict[str, str]:
 
 
 app.include_router(auth_router, prefix=API_V1_PREFIX)
+app.include_router(admin_router, prefix=API_V1_PREFIX)
 app.include_router(balance_scale_router, prefix=API_V1_PREFIX)
 app.include_router(blindfold_calculation_router, prefix=API_V1_PREFIX)
 app.include_router(square_vision_router, prefix=API_V1_PREFIX)

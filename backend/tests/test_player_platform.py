@@ -402,14 +402,14 @@ def test_dashboard_read_model_for_new_and_active_players(client, db_session):
 # --- migration -------------------------------------------------------------------------
 
 
-def test_schema_v5_creates_gamification_tables_and_upgrades_cleanly():
+def test_schema_v6_creates_gamification_and_audit_tables_and_upgrades_cleanly():
     from sqlalchemy import create_engine
     from sqlalchemy.pool import StaticPool
 
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
-    assert ensure_schema(engine) == SCHEMA_VERSION == 5
+    assert ensure_schema(engine) == SCHEMA_VERSION == 6
     tables = inspect(engine).get_table_names()
     assert "player_profiles" in tables
     assert "player_external_identities" in tables
@@ -419,7 +419,8 @@ def test_schema_v5_creates_gamification_tables_and_upgrades_cleanly():
     assert "xp_events" in tables
     assert "player_streaks" in tables
     assert "player_achievements" in tables
+    assert "audit_logs" in tables
     attempt_cols = {c["name"] for c in inspect(engine).get_columns("attempts")}
     assert {"rating_before", "rating_delta", "rating_after", "xp_awarded"} <= attempt_cols
     # Idempotent re-run.
-    assert ensure_schema(engine) == 5
+    assert ensure_schema(engine) == 6

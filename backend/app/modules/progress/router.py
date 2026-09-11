@@ -36,6 +36,8 @@ def create_attempt(
     except ValueError as exc:
         if str(exc) == "attempt_owner_conflict":
             raise HTTPException(status_code=400, detail="attempt_owner_conflict")
+        if str(exc) == "exercise_not_available":
+            raise HTTPException(status_code=404, detail="exercise_not_available")
         raise HTTPException(status_code=404, detail="puzzle_not_available")
     out = schemas.AttemptOut.model_validate(attempt)
     out.feedback_key = feedback_key

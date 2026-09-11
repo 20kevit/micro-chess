@@ -44,6 +44,7 @@ def test_import_models_covers_all_exercise_tables():
         "exercises",
         "puzzles",
         "attempts",
+        "audit_logs",
         "schema_version",
     ):
         assert table in Base.metadata.tables

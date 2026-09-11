@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 class SchemaVersion(Base):
@@ -180,11 +180,24 @@ def _migrate_v5_gamification(conn) -> None:
             conn.execute(text("ALTER TABLE attempts ADD COLUMN xp_awarded INTEGER"))
 
 
+def _migrate_v6_admin(conn) -> None:
+    """Phase 6 administration: persistent audit log.
+
+    The ``audit_logs`` table is created by ``ensure_schema`` via
+    ``Base.metadata.create_all`` on fresh and existing databases alike;
+    no data backfill exists (audit history starts with Phase 6, no
+    historical records are fabricated). This step exists so the version
+    history records the change explicitly.
+    """
+    _ = conn
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
     (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
     (4, "phase-04 ratings: attempt rating snapshot columns", _migrate_v4_ratings),
     (5, "phase-05 gamification: attempt XP snapshot column", _migrate_v5_gamification),
+    (6, "phase-06 administration: persistent audit log", _migrate_v6_admin),
 ]
 
 

@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.modules.exercises import registry
+from app.modules.exercises.models import Exercise
 from app.modules.feedback_engine.service import feedback_key_for
 from app.modules.gamification_engine import service as gamification_service
 from app.modules.progress.models import Attempt
@@ -59,6 +60,13 @@ def submit_attempt(
     puzzle: Puzzle | None = db.get(Puzzle, puzzle_id)
     if puzzle is None or not puzzle.is_published or puzzle.is_archived:
         raise ValueError("puzzle_not_available")
+    # Disabled exercises cannot start new training work (Phase 6 admin).
+    # Missing catalog rows (legacy/generated content without an Exercise
+    # entry) stay playable so pre-admin behavior is preserved; history is
+    # never invalidated either way.
+    exercise = db.get(Exercise, puzzle.exercise_slug)
+    if exercise is not None and not exercise.is_active:
+        raise ValueError("exercise_not_available")
 
     used_hints = [h for h in (hints_used or []) if isinstance(h, str)]
 
