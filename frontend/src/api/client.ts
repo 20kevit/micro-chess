@@ -828,14 +828,14 @@ export const api = {
     request<SpeedSummary>(`/api/v1/trapped-pieces/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
-  // Authentication primitives. Login/registration UI arrives in Phase 2;
-  // these transport functions plus AuthContext are the state foundation.
-  register: (body: { email: string; password: string; display_name?: string }) =>
+  // Authentication transport. The server owns identity, roles, and
+  // sessions; these functions only carry credentials and tokens.
+  register: (body: { username: string; password: string; display_name?: string }) =>
     request<AuthToken>("/api/v1/auth/register", {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  login: (body: { email: string; password: string }) =>
+  login: (body: { username: string; password: string }) =>
     request<AuthToken>("/api/v1/auth/login", {
       method: "POST",
       body: JSON.stringify(body),
@@ -845,4 +845,18 @@ export const api = {
       method: "POST",
     }),
   me: () => request<AuthUser>("/api/v1/users/me"),
+  // Guest identity transport (server-controlled temporary sessions).
+  createGuestSession: () =>
+    request<{ guest_token: string; expires_at: string }>("/api/v1/guest/session", {
+      method: "POST",
+    }),
+  getGuestSession: (guestToken: string) =>
+    request<{ active: boolean; expires_at: string }>("/api/v1/guest/session", {
+      headers: { Authorization: `Bearer ${guestToken}` },
+    }),
+  migrateGuest: (guestToken: string) =>
+    request<{ migrated_attempts: number; already_migrated: boolean }>("/api/v1/guest/migrate", {
+      method: "POST",
+      body: JSON.stringify({ guest_token: guestToken }),
+    }),
 };

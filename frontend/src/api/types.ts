@@ -144,8 +144,9 @@ export interface SpeedReport {
 // The server owns roles/capabilities; the client only renders them.
 export interface AuthUser {
   id: number;
-  email: string;
+  username: string;
   display_name: string;
+  roles: string[];
   created_at: string;
 }
 

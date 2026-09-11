@@ -1,6 +1,6 @@
-// Authentication state foundation. No login UI lives here — Phase 2
-// builds the screens; pages and route guards consume useAuth() for the
-// current user, loading/error states, and session actions.
+// Account authentication state. Screens consume useAuth() for the
+// current user, loading/error states, and session actions. The backend
+// remains authoritative: roles and capabilities only render here.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { api, apiStatus, clearToken, getToken, setToken } from "../api/client";
@@ -10,8 +10,8 @@ export interface AuthState {
   user: AuthUser | null;
   loading: boolean;
   error: string;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
+  register: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(await api.me());
       setError("");
     } catch (e) {
-      // Invalid/expired token: drop it so the app falls back to
+      // Invalid/expired/revoked token: drop it so the app falls back to
       // anonymous local progress instead of failing every request.
       if (apiStatus(e) === 401) {
         clearToken();
@@ -59,10 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     setLoading(true);
     try {
-      const token = await api.login({ email, password });
+      const token = await api.login({ username, password });
       setToken(token.access_token);
       setUser(await api.me());
       setError("");
@@ -74,10 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (email: string, password: string) => {
+  const register = useCallback(async (username: string, password: string) => {
     setLoading(true);
     try {
-      const token = await api.register({ email, password });
+      const token = await api.register({ username, password });
       setToken(token.access_token);
       setUser(await api.me());
       setError("");

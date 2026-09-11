@@ -1,0 +1,23 @@
+// Map backend auth failures to Persian UI strings. The server stays
+// generic on purpose (no username enumeration); this only translates
+// the machine-readable error.code for display.
+import { apiCode, apiStatus } from "../api/client";
+import type { FaKey } from "../i18n/fa";
+
+export function authErrorKey(e: unknown): FaKey {
+  switch (apiCode(e)) {
+    case "INVALID_CREDENTIALS":
+      return "auth.error.invalid";
+    case "USERNAME_TAKEN":
+      return "auth.error.taken";
+    case "USERNAME_INVALID":
+      return "auth.error.invalidUsername";
+    case "PASSWORD_TOO_SHORT":
+    case "PASSWORD_TOO_LONG":
+      return "auth.error.shortPassword";
+    case "RATE_LIMITED":
+      return "auth.error.rateLimited";
+    default:
+      return apiStatus(e) === 401 ? "auth.error.invalid" : "common.error";
+  }
+}

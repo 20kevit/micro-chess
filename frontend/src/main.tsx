@@ -3,6 +3,11 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AppShell } from "./components/ui/AppShell";
+import { AccountPage } from "./pages/AccountPage";
+import { LoginPage } from "./pages/LoginPage";
+import { RegisterPage } from "./pages/RegisterPage";
+import { AuthProvider } from "./lib/auth-context";
+import { RequireAuth } from "./lib/require-auth";
 import { BalanceScalePage } from "./pages/BalanceScalePage";
 import { BlindfoldCalculationPage } from "./pages/BlindfoldCalculationPage";
 import { BlindfoldSquareVisionPage } from "./pages/BlindfoldSquareVisionPage";
@@ -34,6 +39,16 @@ const router = createBrowserRouter([
     children: [
       { path: "/", element: <ExercisesPage /> },
       { path: "/exercises", element: <ExercisesPage /> },
+      { path: "/login", element: <LoginPage /> },
+      { path: "/register", element: <RegisterPage /> },
+      {
+        path: "/account",
+        element: (
+          <RequireAuth>
+            <AccountPage />
+          </RequireAuth>
+        ),
+      },
       { path: "/exercises/piece-recognition", element: <PieceRecognitionPage /> },
       { path: "/exercises/legal-destinations", element: <LegalDestinationsPage /> },
       { path: "/exercises/captures", element: <CapturesPage /> },
@@ -60,7 +75,9 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
   </StrictMode>,
 );
 
