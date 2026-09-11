@@ -183,7 +183,9 @@ def random_position_fen(
     path = resolve_source_path(explicit_path)
     if path is not None:
         for _ in range(max_attempts):
-            fen = fetch_random_fen(path)
+            # Thread the caller's RNG through so seeded generation stays
+            # reproducible regardless of ambient global-random consumption.
+            fen = fetch_random_fen(path, rng)
             if fen is not None:
                 return fen, "puzzles.db"
     return rng.choice(FALLBACK_FENS), "fallback"
