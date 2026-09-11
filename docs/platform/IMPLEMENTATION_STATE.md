@@ -34,8 +34,8 @@ completed and verified. Phase 03 (Player Platform) completed and
 verified. Phase 04 (Ratings) completed and verified. Phase 05
 (Gamification foundation) completed and verified. Phase 06
 (Administration foundation) completed and verified. Phase 07
-(Content & Generators) completed and verified. No later phase
-started.
+(Content & Generators) completed and verified. Phase 08
+(Analytics) completed and verified. No later phase started.
 
 | Area                         | Status      |
 | ---------------------------- | ----------- |
@@ -46,7 +46,7 @@ started.
 | Gamification                 | VERIFIED    |
 | Administration               | VERIFIED    |
 | Content & Generators         | VERIFIED    |
-| Analytics                    | NOT_STARTED |
+| Analytics                    | VERIFIED    |
 | Relationships                | NOT_STARTED |
 | Adaptive Training Foundation | NOT_STARTED |
 | Support & Notifications      | NOT_STARTED |
@@ -70,6 +70,67 @@ Existing exercises verified preserved after Phase 03:
 ---
 
 ## 5. Evidence
+
+Phase 08 analytics (all verified by tests + live runtime checks):
+
+* Architecture (`backend/app/modules/analytics/`, new; no new tables,
+  schema stays v7): `service.py` derives every metric from
+  authoritative `attempts` / `rating_events` / `xp_events` / streak
+  state / content metadata; routers (`player/router.py`
+  `/me/analytics*`, `admin/router.py` `/admin/analytics*`) stay thin.
+  Read-only by construction (no adds/commits; immutability test
+  asserts identical row counts before/after every endpoint).
+* Semantics (documented in the service module): UTC rolling windows
+  (`7d`/`30d`/`90d`), `all`, and `custom` UTC calendar-day ranges;
+  previous-equivalent-period comparison for bounded windows only
+  (`all` → 422); accuracy = correct / ALL attempts (matches Phase 3
+  progress); response time over non-NULL `duration_ms`; authenticated
+  attempts only (guests enter after `/guest/migrate`); observed
+  difficulty = easy ≥0.7 / medium ≥0.4 / hard below, gated at ≥5
+  attempts (`insufficient_data`), never persisted (Phase 10 owns
+  adaptation). No cross-exercise session count exists (speed sessions
+  are exercise-scoped tables with no shared model; `active_days` is
+  the consistency signal); mastery/leaderboards/goals have no source
+  tables yet — all intentional deferrals, no speculative framework.
+* Player API (`USERS_READ`, `/me`-scoped, no client user ids):
+  `GET /me/analytics` (totals + by-mode/by-exercise + daily buckets
+  with XP + rating trends + XP/streak), `GET /me/analytics/comparison`
+  (current vs previous + deltas), `GET
+  /me/analytics/exercises/{slug}` (404 unknown), `GET
+  /me/analytics/puzzles/{id}` (personal stats only, never answers;
+  404 missing). `tests/test_analytics.py` (21 tests).
+* Admin API (new `analytics.read_platform/read_exercise/
+  read_puzzle` capabilities; ADMIN holds all; player → 403, anon →
+  401): `GET /admin/analytics` (users/new/active, attempts/accuracy,
+  exercise usage, daily, rating/XP, previous-period comparison),
+  `GET /admin/analytics/exercises[/{slug}]`, `GET
+  /admin/analytics/puzzles[?exercise,page]` + `/{id}` (attempts,
+  unique players, accuracy, failure rate, repeated failures ≥2 wrong
+  by one user, observed difficulty, avg response; answers never
+  included). Aggregates only — no per-user rows, no secrets.
+* Frontend: `AnalyticsSection` on the Progress page (period selector,
+  totals, daily trend bars, comparison deltas, per-exercise; CSS bars,
+  no chart dependency) + `/admin/analytics` (platform cards, exercise
+  usage, puzzle performance with Persian observed-difficulty labels),
+  dashboard link, `analyticsApi` transport, ~25 Persian strings in
+  `fa.ts`; RTL preserved, 44px targets, loading/empty/error states.
+  8 new frontend tests.
+* Runtime verified live on a fresh DB (30 checks): 401/403
+  boundaries → empty contract → rated-correct + practice-wrong →
+  totals/accuracy/rating/XP reconcile → comparison 7d + all→422 →
+  exercise filter/404 → personal puzzle answer-free → isolation →
+  date filtering → admin aggregates match + secret-free → exercise/
+  puzzle analytics + observed `insufficient_data` → regressions
+  (progress/dashboard/ratings/gamification/exercises) → no mutation
+  → schema v7 with no analytics tables.
+* Drive-by fix: `core/errors.py` 500 handler referenced an unimported
+  `status` (NameError on any unhandled error); now imports
+  `fastapi.status`. No behavior change on handled paths.
+* Intentional deferrals: coach/parent analytics (Phase 9 needs the
+  relationship model), leaderboards, mastery, goals, sessions count,
+  support-volume metrics (no source tables), caching/materialization
+  (direct queries suffice at current scale), adaptive training
+  (Phase 10).
 
 Phase 07 content & generators (all verified by tests + live runtime checks):
 
@@ -508,19 +569,21 @@ Required follow-up: Small UI notice when a product flow requires it.
 
 ## 7. Testing State
 
-* backend tests: 1028 passed (`pytest`; includes 28 account tests in
+* backend tests: 1049 passed (`pytest`; includes 28 account tests in
   `tests/test_accounts.py`, 15 player-platform tests in
   `tests/test_player_platform.py`, 19 rating tests in
   `tests/test_ratings.py`, 27 gamification tests in
   `tests/test_gamification.py`, 28 admin tests in
-  `tests/test_admin.py`, 18 new content/generator tests in
-  `tests/test_content_lifecycle.py`, plus the Phase 07 v7-upgrade contract updates)
-* frontend tests: 285 passed (`npm test`, 29 files; includes 10
+  `tests/test_admin.py`, 18 content/generator tests in
+  `tests/test_content_lifecycle.py`, 21 new analytics tests in
+  `tests/test_analytics.py`, plus the Phase 07 v7-upgrade contract updates)
+* frontend tests: 293 passed (`npm test`, 31 files; includes 10
   auth-context/login/protected-account tests, 14 player
   transport/page/nav tests, 6 rating transport/section tests, 7
   gamification transport/section tests, 15 admin
-  transport/guard/page/nav tests, and 4 new content-lifecycle/
-  generator transport/page tests)
+  transport/guard/page/nav tests, 4 content-lifecycle/
+  generator transport/page tests, and 8 new analytics
+  section/page tests)
 * typecheck: `npm run typecheck` clean
 * build: `npm run build` succeeds (pre-existing chunk-size warning only)
 * migration verification: fresh-boot, idempotency, data preservation,
