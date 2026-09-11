@@ -45,7 +45,9 @@ function attempt(puzzleId: number, correct: boolean, score: number): AttemptResp
     result: correct ? "correct" : "wrong",
     score,
     feedback_key: correct ? "feedback.correct" : "feedback.wrong",
+    rating_before: null,
     rating_delta: null,
+    rating_after: null,
     detail: correct
       ? {
           correct: ["black:K@e8", "black:Q@d8", "white:K@e1", "white:Q@d1"],

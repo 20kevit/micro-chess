@@ -10,6 +10,7 @@ vi.mock("../api/client", () => ({
   api: {
     progress: vi.fn(),
     trainingAttempts: vi.fn(),
+    getRatings: vi.fn(),
   },
   apiStatus: () => null,
 }));
@@ -28,12 +29,16 @@ function attempt(id: number): HistoryAttempt {
     score: 1,
     duration_ms: null,
     hints_used: [],
+    rating_before: null,
+    rating_delta: null,
+    rating_after: null,
     created_at: "2026-09-01T10:00:00",
   };
 }
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mockedApi.getRatings.mockResolvedValue({ items: [] });
 });
 
 function renderPage() {

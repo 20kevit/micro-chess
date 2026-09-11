@@ -46,7 +46,9 @@ function attempt(puzzleId: number, choice: string, expected: string, correct: bo
     result: correct ? "correct" : "wrong",
     score: correct ? 5 : -2,
     feedback_key: correct ? "feedback.correct" : "feedback.wrong",
+    rating_before: null,
     rating_delta: null,
+    rating_after: null,
     detail: correct
       ? { correct: [choice], missed: [], wrong: [] }
       : { correct: [], missed: [expected], wrong: [choice] },

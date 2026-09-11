@@ -53,6 +53,25 @@ describe("player platform transport", () => {
     expect((deleteMock.mock.calls[0]?.[1] as RequestInit).method).toBe("DELETE");
   });
 
+  it("fetches ratings without sending user ids", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ok({ items: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.getRatings();
+    await api.getExerciseRating("pin");
+    await api.getRatingHistory("pin");
+    const calls = fetchMock.mock.calls.map((call) => call[0]);
+    expect(calls).toEqual([
+      "/api/v1/me/ratings",
+      "/api/v1/me/ratings/pin",
+      "/api/v1/me/ratings/pin/history",
+    ]);
+    for (const call of fetchMock.mock.calls) {
+      const init = call[1] as RequestInit | undefined;
+      expect(init?.method ?? "GET").toBe("GET");
+      expect(String(call[0])).not.toContain("user_id");
+    }
+  });
+
   it("fetches progress, dashboard, and exercise detail", async () => {
     const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ok({}));
     vi.stubGlobal("fetch", fetchMock);

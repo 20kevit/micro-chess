@@ -45,7 +45,9 @@ function attempt(puzzleId: number, correct: boolean, move = "Kd6"): AttemptRespo
     result: correct ? "correct" : "wrong",
     score: correct ? 1 : 0,
     feedback_key: correct ? "feedback.correct" : "feedback.wrong",
+    rating_before: null,
     rating_delta: null,
+    rating_after: null,
     detail: correct
       ? { correct: [move], missed: [], wrong: [], correct_move: move }
       : { correct: [], missed: [move], wrong: ["Kc5"], correct_move: move },
