@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from app.core.capabilities import Capability, require_capability
 from app.core.deps import get_db
 from app.core.pagination import DEFAULT_PAGE_SIZE, PageQuery, PageSizeQuery
+from app.modules.analytics import schemas as analytics_schemas
+from app.modules.analytics import service as analytics_service
 from app.modules.gamification_engine import service as gamification_service
 from app.modules.player import schemas, service
 from app.modules.rating_engine import service as ratings_service
@@ -279,6 +281,82 @@ def list_achievements(
             for definition in gamification_service.ACHIEVEMENTS
         ]
     )
+
+
+# --- analytics (Phase 8, read-only derived metrics) -----------------------------
+
+
+def _analytics_window(period: str, date_from: str | None, date_to: str | None):
+    try:
+        return analytics_service.resolve_window(period, date_from, date_to)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.get("/analytics", response_model=analytics_schemas.PlayerAnalyticsOut)
+def get_analytics(
+    period: str = "7d",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    exercise: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.USERS_READ)),
+):
+    window = _analytics_window(period, date_from, date_to)
+    if exercise is not None and not service.is_known_exercise(db, exercise):
+        raise HTTPException(status_code=404, detail="exercise_not_found")
+    return analytics_service.player_overview(db, user.id, window, exercise)
+
+
+@router.get("/analytics/comparison", response_model=analytics_schemas.PlayerComparisonOut)
+def get_analytics_comparison(
+    period: str = "7d",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    exercise: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.USERS_READ)),
+):
+    window = _analytics_window(period, date_from, date_to)
+    if exercise is not None and not service.is_known_exercise(db, exercise):
+        raise HTTPException(status_code=404, detail="exercise_not_found")
+    try:
+        return analytics_service.player_comparison(db, user.id, window, exercise)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.get(
+    "/analytics/exercises/{exercise_slug}",
+    response_model=analytics_schemas.PlayerAnalyticsOut,
+)
+def get_analytics_exercise(
+    exercise_slug: str,
+    period: str = "7d",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.USERS_READ)),
+):
+    if not service.is_known_exercise(db, exercise_slug):
+        raise HTTPException(status_code=404, detail="exercise_not_found")
+    window = _analytics_window(period, date_from, date_to)
+    return analytics_service.player_overview(db, user.id, window, exercise_slug)
+
+
+@router.get(
+    "/analytics/puzzles/{puzzle_id}",
+    response_model=analytics_schemas.PlayerPuzzleAnalyticsOut,
+)
+def get_analytics_puzzle(
+    puzzle_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.USERS_READ)),
+):
+    stats = analytics_service.player_puzzle(db, user.id, puzzle_id)
+    if stats is None:
+        raise HTTPException(status_code=404, detail="puzzle_not_found")
+    return stats
 
 
 # --- dashboard ------------------------------------------------------------------

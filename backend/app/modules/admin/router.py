@@ -15,6 +15,8 @@ from app.core.capabilities import (
 from app.core.deps import get_current_user_optional, get_db
 from app.core.pagination import DEFAULT_PAGE_SIZE, PageQuery, PageSizeQuery
 from app.modules.admin import schemas, service
+from app.modules.analytics import schemas as analytics_schemas
+from app.modules.analytics import service as analytics_service
 from app.modules.users.models import User
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -481,6 +483,106 @@ def cancel_generator_run(
     from app.modules.generators import service as generator_service
 
     return generator_service.run_view(run)
+
+
+# --- analytics (Phase 8, read-only derived metrics) -----------------------------
+
+
+def _analytics_window(period: str, date_from: str | None, date_to: str | None):
+    try:
+        return analytics_service.resolve_window(period, date_from, date_to)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.get("/analytics", response_model=analytics_schemas.PlatformAnalyticsOut)
+def get_platform_analytics(
+    period: str = "7d",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ANALYTICS_READ_PLATFORM)),
+):
+    _ = user
+    window = _analytics_window(period, date_from, date_to)
+    return analytics_service.platform_overview(db, window)
+
+
+@router.get(
+    "/analytics/exercises",
+    response_model=list[analytics_schemas.AdminExerciseAnalyticsOut],
+)
+def list_exercise_analytics(
+    period: str = "7d",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ANALYTICS_READ_EXERCISE)),
+):
+    _ = user
+    window = _analytics_window(period, date_from, date_to)
+    return analytics_service.exercise_overview(db, window)
+
+
+@router.get(
+    "/analytics/exercises/{exercise_slug}",
+    response_model=analytics_schemas.AdminExerciseDetailOut,
+)
+def get_exercise_analytics(
+    exercise_slug: str,
+    period: str = "7d",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ANALYTICS_READ_EXERCISE)),
+):
+    _ = user
+    window = _analytics_window(period, date_from, date_to)
+    detail = analytics_service.exercise_detail(db, exercise_slug, window)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="exercise_not_found")
+    return detail
+
+
+@router.get(
+    "/analytics/puzzles",
+    response_model=list[analytics_schemas.PuzzleAnalyticsOut],
+)
+def list_puzzle_analytics(
+    period: str = "7d",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    exercise: str | None = None,
+    page: PageQuery = 1,
+    page_size: PageSizeQuery = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ANALYTICS_READ_PUZZLE)),
+):
+    _ = user
+    window = _analytics_window(period, date_from, date_to)
+    return analytics_service.puzzle_list(
+        db, window, exercise=exercise, page=page, page_size=page_size
+    )
+
+
+@router.get(
+    "/analytics/puzzles/{puzzle_id}",
+    response_model=analytics_schemas.PuzzleAnalyticsDetailOut,
+)
+def get_puzzle_analytics(
+    puzzle_id: int,
+    period: str = "7d",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ANALYTICS_READ_PUZZLE)),
+):
+    _ = user
+    window = _analytics_window(period, date_from, date_to)
+    detail = analytics_service.puzzle_detail(db, puzzle_id, window)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="puzzle_not_found")
+    return detail
 
 
 # --- audit ------------------------------------------------------------------
