@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.capabilities import Capability, require_capability
 from app.core.deps import get_db
 from app.core.pagination import DEFAULT_PAGE_SIZE, PageQuery, PageSizeQuery
+from app.modules.gamification_engine import service as gamification_service
 from app.modules.player import schemas, service
 from app.modules.rating_engine import service as ratings_service
 from app.modules.rule_engine.base import AttemptMode
@@ -220,6 +221,64 @@ def get_rating_history(
         db, user.id, exercise_slug, page=page, page_size=page_size
     )
     return schemas.RatingHistoryOut(items=[schemas.rating_event_to_out(row) for row in rows])
+
+
+# --- gamification ---------------------------------------------------------------------
+
+
+@router.get("/gamification", response_model=schemas.GamificationSummaryOut)
+def get_gamification(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.USERS_READ)),
+):
+    state = gamification_service.get_state(db, user.id)
+    total = state.total_xp if state else 0
+    level = state.level if state else 1
+    in_level, for_next = gamification_service.xp_progress_in_level(total)
+    streak = gamification_service.get_streak(db, user.id)
+    unlocks = gamification_service.list_unlocks(db, user.id)
+    return schemas.GamificationSummaryOut(
+        xp=schemas.GamificationXpOut(
+            total=total, level=level, xp_in_level=in_level, xp_for_next=for_next
+        ),
+        streak=schemas.GamificationStreakOut(
+            current=streak.current_streak if streak else 0,
+            longest=streak.longest_streak if streak else 0,
+        ),
+        achievements_unlocked=len(unlocks),
+        total_achievements=len(gamification_service.ACHIEVEMENTS),
+    )
+
+
+@router.get("/gamification/xp", response_model=schemas.XpHistoryOut)
+def get_xp_history(
+    page: PageQuery = 1,
+    page_size: PageSizeQuery = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.USERS_READ)),
+):
+    rows = gamification_service.list_xp_history(db, user.id, page=page, page_size=page_size)
+    return schemas.XpHistoryOut(items=[schemas.xp_event_to_out(row) for row in rows])
+
+
+@router.get("/achievements", response_model=schemas.AchievementsOut)
+def list_achievements(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.USERS_READ)),
+):
+    unlocked = {row.achievement_code: row for row in gamification_service.list_unlocks(db, user.id)}
+    return schemas.AchievementsOut(
+        items=[
+            schemas.AchievementOut(
+                code=definition.code,
+                unlocked=definition.code in unlocked,
+                unlocked_at=unlocked[definition.code].unlocked_at
+                if definition.code in unlocked
+                else None,
+            )
+            for definition in gamification_service.ACHIEVEMENTS
+        ]
+    )
 
 
 # --- dashboard ------------------------------------------------------------------

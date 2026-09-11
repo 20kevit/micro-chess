@@ -84,6 +84,8 @@ class HistoryAttemptOut(BaseModel):
     rating_before: float | None = None
     rating_delta: float | None = None
     rating_after: float | None = None
+    # XP awarded for this attempt (NULL for non-qualifying attempts).
+    xp_awarded: int | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -162,6 +164,61 @@ def rating_event_to_out(row) -> RatingHistoryItemOut:
 
 class RatingHistoryOut(BaseModel):
     items: list[RatingHistoryItemOut]
+
+
+# --- gamification --------------------------------------------------------------------
+
+
+class GamificationXpOut(BaseModel):
+    total: int
+    level: int
+    # Progress inside the current level (for the progress bar display).
+    xp_in_level: int
+    xp_for_next: int
+
+
+class GamificationStreakOut(BaseModel):
+    current: int
+    longest: int
+
+
+class GamificationSummaryOut(BaseModel):
+    xp: GamificationXpOut
+    streak: GamificationStreakOut
+    achievements_unlocked: int
+    total_achievements: int
+
+
+class XpHistoryItemOut(BaseModel):
+    attempt_id: int
+    amount: int
+    reason: str
+    balance_after: int
+    occurred_at: datetime
+
+
+class XpHistoryOut(BaseModel):
+    items: list[XpHistoryItemOut]
+
+
+def xp_event_to_out(row) -> XpHistoryItemOut:
+    return XpHistoryItemOut(
+        attempt_id=row.attempt_id,
+        amount=row.amount,
+        reason=row.reason,
+        balance_after=row.balance_after,
+        occurred_at=row.created_at,
+    )
+
+
+class AchievementOut(BaseModel):
+    code: str
+    unlocked: bool
+    unlocked_at: datetime | None = None
+
+
+class AchievementsOut(BaseModel):
+    items: list[AchievementOut]
 
 
 # --- dashboard ----------------------------------------------------------------------

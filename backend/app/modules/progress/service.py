@@ -1,9 +1,13 @@
-"""Attempt submission: Puzzle -> Validation -> Score -> Rating -> Feedback.
+"""Attempt submission: Puzzle -> Validation -> Score -> Rating -> Gamification -> Feedback.
 
 Backend is authoritative. Frontend never decides correctness.
-Practice attempts never affect rating (rating snapshot stays NULL).
+Practice attempts never affect rating (rating snapshot stays NULL), but
+both practice and rated attempts by authenticated users earn XP (XP
+snapshot stays NULL only for guests and terminal states).
 Rated attempts update the player's per-exercise rating through the
-rating engine; attempt, rating, and rating event commit atomically.
+rating engine; qualifying attempts update gamification through the
+gamification engine; attempt, rating, XP, streak, and achievement state
+commit atomically.
 """
 
 from datetime import datetime, timezone
@@ -12,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.exercises import registry
 from app.modules.feedback_engine.service import feedback_key_for
+from app.modules.gamification_engine import service as gamification_service
 from app.modules.progress.models import Attempt
 from app.modules.puzzles.models import Puzzle
 from app.modules.rating_engine import service as rating_service
@@ -113,6 +118,22 @@ def submit_attempt(
             attempt=attempt,
             result=result.value,
             puzzle_rating=puzzle.initial_rating,
+        )
+
+    # Server-decided XP: any authenticated user's validated
+    # correct/partial/wrong attempt earns XP in both practice and rated
+    # modes (gamification eligibility is separate from rating
+    # eligibility). The gamification application flushes (no commit);
+    # the single commit below persists attempt + rating + XP + streak +
+    # achievements atomically.
+    if gamification_service.is_xp_eligible(user_id=user_id, result=result.value):
+        assert user_id is not None
+        gamification_service.apply_attempt(
+            db,
+            user_id=user_id,
+            attempt=attempt,
+            result=result.value,
+            active_date=now.date(),
         )
 
     db.commit()

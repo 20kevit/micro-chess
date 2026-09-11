@@ -33,6 +33,9 @@ class AttemptOut(BaseModel):
     rating_before: float | None = None
     rating_delta: float | None = None
     rating_after: float | None = None
+    # Server-authoritative XP awarded for this attempt (Phase 5). Set for
+    # qualifying attempts; NULL for guests and terminal states.
+    xp_awarded: int | None = None
     # Structured validation detail, e.g. {"correct": [...], "missed": [...], "wrong": [...]}.
     detail: dict = {}
     hints_used: list[str] = []
