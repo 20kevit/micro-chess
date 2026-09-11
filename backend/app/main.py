@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.api import API_V1_PREFIX
+from app.core.errors import register_error_handlers
 from app.db.session import init_db
 from app.modules.auth.router import router as auth_router
 from app.modules.balance_scale.router import router as balance_scale_router
@@ -58,6 +60,8 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="MicroChess", version="0.1.0", lifespan=lifespan)
 
+register_error_handlers(app)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -72,23 +76,23 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-app.include_router(auth_router, prefix="/api/v1")
-app.include_router(balance_scale_router, prefix="/api/v1")
-app.include_router(blindfold_calculation_router, prefix="/api/v1")
-app.include_router(square_vision_router, prefix="/api/v1")
-app.include_router(users_router, prefix="/api/v1")
-app.include_router(exercises_router, prefix="/api/v1")
-app.include_router(captures_router, prefix="/api/v1")
-app.include_router(chinese_board_router, prefix="/api/v1")
-app.include_router(get_out_of_check_router, prefix="/api/v1")
-app.include_router(give_check_router, prefix="/api/v1")
-app.include_router(pathfinding_router, prefix="/api/v1")
-app.include_router(obstacle_pathfinding_router, prefix="/api/v1")
-app.include_router(piece_recognition_router, prefix="/api/v1")
-app.include_router(legal_destinations_router, prefix="/api/v1")
-app.include_router(heavier_side_router, prefix="/api/v1")
-app.include_router(reconstruction_router, prefix="/api/v1")
-app.include_router(puzzles_router, prefix="/api/v1")
-app.include_router(attempts_router, prefix="/api/v1")
-app.include_router(trapped_pieces_router, prefix="/api/v1")
-app.include_router(undefended_pieces_router, prefix="/api/v1")
+app.include_router(auth_router, prefix=API_V1_PREFIX)
+app.include_router(balance_scale_router, prefix=API_V1_PREFIX)
+app.include_router(blindfold_calculation_router, prefix=API_V1_PREFIX)
+app.include_router(square_vision_router, prefix=API_V1_PREFIX)
+app.include_router(users_router, prefix=API_V1_PREFIX)
+app.include_router(exercises_router, prefix=API_V1_PREFIX)
+app.include_router(captures_router, prefix=API_V1_PREFIX)
+app.include_router(chinese_board_router, prefix=API_V1_PREFIX)
+app.include_router(get_out_of_check_router, prefix=API_V1_PREFIX)
+app.include_router(give_check_router, prefix=API_V1_PREFIX)
+app.include_router(pathfinding_router, prefix=API_V1_PREFIX)
+app.include_router(obstacle_pathfinding_router, prefix=API_V1_PREFIX)
+app.include_router(piece_recognition_router, prefix=API_V1_PREFIX)
+app.include_router(legal_destinations_router, prefix=API_V1_PREFIX)
+app.include_router(heavier_side_router, prefix=API_V1_PREFIX)
+app.include_router(reconstruction_router, prefix=API_V1_PREFIX)
+app.include_router(puzzles_router, prefix=API_V1_PREFIX)
+app.include_router(attempts_router, prefix=API_V1_PREFIX)
+app.include_router(trapped_pieces_router, prefix=API_V1_PREFIX)
+app.include_router(undefended_pieces_router, prefix=API_V1_PREFIX)
