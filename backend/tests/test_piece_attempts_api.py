@@ -104,7 +104,9 @@ def test_rated_requires_auth(client, db_session):
     assert res.status_code == 401
 
 
-def test_rated_with_auth_stays_unrated_stub_but_records_user(client, db_session):
+def test_rated_with_auth_updates_player_rating(client, db_session):
+    from app.modules.rating_engine.models import PlayerRating, RatingEvent
+
     puzzle = _seeded_puzzle(db_session)
     headers = _auth_header(db_session)
     res = client.post(
@@ -119,11 +121,36 @@ def test_rated_with_auth_stays_unrated_stub_but_records_user(client, db_session)
     assert res.status_code == 200
     body = res.json()
     assert body["result"] == "correct"
-    # Rating engine is still a stub: rated intent recorded, delta None.
-    assert body["rating_delta"] is None
+    # Phase 4: a correct rated attempt moves the rating server-side.
+    assert body["rating_before"] == 1200.0
+    assert body["rating_delta"] is not None and body["rating_delta"] > 0
+    assert body["rating_after"] == body["rating_before"] + body["rating_delta"]
     attempt = db_session.query(Attempt).filter(Attempt.id == body["id"]).one()
     assert attempt.user_id is not None
     assert attempt.mode == "rated"
+    assert attempt.rating_before == body["rating_before"]
+    assert attempt.rating_delta == body["rating_delta"]
+    assert attempt.rating_after == body["rating_after"]
+
+    rating = (
+        db_session.query(PlayerRating)
+        .filter(
+            PlayerRating.user_id == attempt.user_id,
+            PlayerRating.exercise_slug == SLUG,
+        )
+        .one()
+    )
+    assert rating.rating == body["rating_after"]
+    assert rating.games_count == 1
+    assert rating.is_provisional is True
+
+    event = db_session.query(RatingEvent).filter(RatingEvent.attempt_id == attempt.id).one()
+    assert event.user_id == attempt.user_id
+    assert event.exercise_slug == SLUG
+    assert event.rating_before == body["rating_before"]
+    assert event.rating_delta == body["rating_delta"]
+    assert event.rating_after == body["rating_after"]
+    assert event.reason == "attempt"
 
 
 def test_hints_and_timing_recorded(client, db_session):

@@ -253,6 +253,7 @@ def test_history_empty_ordering_filters_and_pagination(client, db_session):
     assert set(listed[0]) == {
         "id", "puzzle_id", "exercise_slug", "mode", "result",
         "score", "duration_ms", "hints_used", "created_at",
+        "rating_before", "rating_delta", "rating_after",
     }
 
     by_exercise = client.get(
@@ -400,16 +401,20 @@ def test_dashboard_read_model_for_new_and_active_players(client, db_session):
 # --- migration -------------------------------------------------------------------------
 
 
-def test_schema_v3_creates_player_tables_and_upgrades_cleanly():
+def test_schema_v4_creates_rating_tables_and_upgrades_cleanly():
     from sqlalchemy import create_engine
     from sqlalchemy.pool import StaticPool
 
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
-    assert ensure_schema(engine) == SCHEMA_VERSION == 3
+    assert ensure_schema(engine) == SCHEMA_VERSION == 4
     tables = inspect(engine).get_table_names()
     assert "player_profiles" in tables
     assert "player_external_identities" in tables
+    assert "player_ratings" in tables
+    assert "rating_events" in tables
+    attempt_cols = {c["name"] for c in inspect(engine).get_columns("attempts")}
+    assert {"rating_before", "rating_delta", "rating_after"} <= attempt_cols
     # Idempotent re-run.
-    assert ensure_schema(engine) == 3
+    assert ensure_schema(engine) == 4
