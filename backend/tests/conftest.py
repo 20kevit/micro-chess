@@ -26,6 +26,7 @@ def db_session():
     from app.modules.pathfinding import models as _pf  # noqa: F401
     from app.modules.pathfinding_obstacles import models as _pfo  # noqa: F401
     from app.modules.piece_recognition import models as _pr1  # noqa: F401
+    from app.modules.player import models as _player  # noqa: F401
     from app.modules.progress import models as _pr  # noqa: F401
     from app.modules.puzzles import models as _pz  # noqa: F401
     from app.modules.trapped_pieces import models as _tp  # noqa: F401

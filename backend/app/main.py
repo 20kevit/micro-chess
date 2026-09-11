@@ -24,6 +24,7 @@ from app.modules.material_comparison.router import router as heavier_side_router
 from app.modules.pathfinding.router import router as pathfinding_router
 from app.modules.pathfinding_obstacles.router import router as obstacle_pathfinding_router
 from app.modules.piece_recognition.router import router as piece_recognition_router
+from app.modules.player.router import router as player_router
 from app.modules.progress.router import router as attempts_router
 from app.modules.puzzles.router import router as puzzles_router
 from app.modules.trapped_pieces.router import router as trapped_pieces_router
@@ -95,6 +96,7 @@ app.include_router(give_check_router, prefix=API_V1_PREFIX)
 app.include_router(pathfinding_router, prefix=API_V1_PREFIX)
 app.include_router(obstacle_pathfinding_router, prefix=API_V1_PREFIX)
 app.include_router(piece_recognition_router, prefix=API_V1_PREFIX)
+app.include_router(player_router, prefix=API_V1_PREFIX)
 app.include_router(legal_destinations_router, prefix=API_V1_PREFIX)
 app.include_router(heavier_side_router, prefix=API_V1_PREFIX)
 app.include_router(reconstruction_router, prefix=API_V1_PREFIX)

@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class SchemaVersion(Base):
@@ -125,8 +125,21 @@ def _migrate_v2_accounts(conn) -> None:
         )
 
 
+def _migrate_v3_player(conn) -> None:
+    """Phase 3 player platform: profile + external-identity tables.
+
+    No data backfill is required: ``ensure_schema`` already creates the
+    new tables via ``Base.metadata.create_all`` (fresh and existing DBs
+    alike), and profiles are created lazily on first access, so Phase 2
+    accounts gain a profile without touching existing rows. This step
+    exists so the version history records the change explicitly.
+    """
+    _ = conn
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
+    (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
 ]
 
 

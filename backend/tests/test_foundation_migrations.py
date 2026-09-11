@@ -32,6 +32,8 @@ def test_import_models_covers_all_exercise_tables():
         "user_roles",
         "auth_sessions",
         "guest_sessions",
+        "player_profiles",
+        "player_external_identities",
         "exercises",
         "puzzles",
         "attempts",
