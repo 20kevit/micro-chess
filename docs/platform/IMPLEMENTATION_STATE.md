@@ -29,12 +29,13 @@ BLOCKED
 
 ## 3. Platform Areas
 
-Phase 01 (Foundation) completed and verified. No later phase started.
+Phase 01 (Foundation) completed and verified. Phase 02 (Accounts)
+completed and verified. No later phase started.
 
 | Area                         | Status      |
 | ---------------------------- | ----------- |
 | Foundation                   | VERIFIED    |
-| Accounts & Identity          | NOT_STARTED |
+| Accounts & Identity          | VERIFIED    |
 | Player Platform              | NOT_STARTED |
 | Ratings                      | NOT_STARTED |
 | Gamification                 | NOT_STARTED |
@@ -47,7 +48,8 @@ Phase 01 (Foundation) completed and verified. No later phase started.
 
 Foundation primitives that later phases build on (password hashing +
 policy, JWT sessions, capability registry, token transport, audit
-helper) exist, but no Phase 2+ product behavior was implemented.
+helper) exist and Phase 2 persists accounts, roles, server sessions,
+and guest identity on top of them.
 
 ---
 
@@ -63,6 +65,47 @@ Existing exercises verified preserved after Phase 01:
 ---
 
 ## 5. Evidence
+
+Phase 02 accounts (all verified by tests + live runtime checks):
+
+* Username identity: `users.username` normalized (strip + lower),
+  unique (`ix_users_username`), policy 3–30 `[a-z0-9_]`
+  (`backend/app/modules/auth/service.py`); login/registration use
+  username only. Legacy `users.email` kept nullable for upgrades, never
+  required/returned. `tests/test_accounts.py` (28 tests).
+* Passwords: Phase 01 pbkdf2_sha256 policy preserved; hashes never in
+  responses (`/users/me` returns id/username/display_name/roles/
+  created_at only); generic `401 INVALID_CREDENTIALS` for unknown
+  user/wrong password/suspended.
+* Persisted roles: `user_roles(user_id, role)` with CHECK to
+  PLAYER/COACH/PARENT/ADMIN; registration assigns PLAYER; GUEST is not
+  a role (`Role("GUEST")` raises). Capabilities resolve server-side
+  from DB rows in canonical order; JWT carries no role (re-signed
+  tokens rejected by the session hash binding). ADMIN carries
+  platform-operation capabilities (no admin endpoints exist yet);
+  COACH/PARENT map to the player set until Phase 9 relationships.
+* Server sessions: `auth_sessions` rows bound to tokens via
+  `sid` claim + SHA-256 hash; logout revokes (idempotent 204);
+  multi-session supported; expiry, suspension, tampering, cross-user
+  sid reuse, and sid-less legacy tokens all resolve to anonymous.
+* Guests: `guest_sessions` (ACTIVE/MIGRATED/REVOKED + expiry) via
+  `POST /api/v1/guest/session`, `GET /api/v1/guest/session`,
+  `POST /api/v1/guest/migrate` (`accounts.migrate_guest`
+  capability). Guest practice attempts carry `guest_session_id`;
+  rated mode still requires an account. Migration is atomic,
+  idempotent, replay-safe, ownership-checked (409 on foreign replay).
+* Schema v2: `ensure_schema` upgrades Phase 01 DBs (username backfill
+  from email, email nullability relaxation incl. SQLite rebuild,
+  PLAYER backfill, attempts column); fresh boot + idempotency +
+  downgrade refusal covered by tests; dev DB boots at v2.
+* Frontend: username transport + guest helpers (`api/client.ts`),
+  `AuthProvider`/`useAuth`, `/login`, `/register`, guarded
+  `/account` (identity + Persian roles + logout), `RequireAuth`,
+  header auth state, Persian error mapping; 10 new frontend tests.
+* Runtime verified live: register → login → `/users/me` → duplicate
+  400 → generic 401s → logout → revoked 401 → second session alive →
+  guest create/get/migrate/replay (15/15 checks); production bundle
+  contains the account screens; exercises untouched.
 
 Phase 01 foundation (all verified by tests + live runtime checks):
 
@@ -114,17 +157,21 @@ Required follow-up: Docs fix outside any implementation phase.
 ```
 
 ```text
-Area: Roles
-Current limitation: No persisted roles; administrative capabilities deny everyone (fail closed).
-Impact: None for Phase 1; admin endpoints do not exist yet.
-Required follow-up: Phase 2 role model.
+Area: Coach/Parent scoped capabilities
+Current limitation: COACH/PARENT map to the player capability set; no
+student-scoped object access exists (no relationship model yet).
+Impact: None; student data access arrives with Phase 9 relationships.
+Required follow-up: Phase 9 relationship + object authorization.
 ```
 
 ```text
-Area: Sessions
-Current limitation: Stateless JWT only; logout is client-side token discard.
-Impact: No server-side revocation yet.
-Required follow-up: Phase 2 persisted sessions.
+Area: Anonymous local progress
+Current limitation: frontend localStorage practice log is client-side
+convenience only and is never imported as server attempts (client
+scores are untrusted by design).
+Impact: None; server-side guest attempts migrate via /guest/migrate.
+Required follow-up: none (intended; revisit only with explicit product
+requirement and server re-validation).
 ```
 
 ```text
@@ -145,8 +192,11 @@ Required follow-up: Adopt Alembic with the PostgreSQL move.
 
 ## 7. Testing State
 
-* backend tests: 891 passed (`pytest`; 861 pre-existing + 30 foundation)
-* frontend tests: 229 passed (`npm test`, 18 files; 222 pre-existing + 7 foundation)
+* backend tests: 920 passed (`pytest`; includes 28 account tests in
+  `tests/test_accounts.py` plus Phase 02 contract updates to the
+  foundation/exercise API tests)
+* frontend tests: 239 passed (`npm test`, 21 files; includes 10 new
+  auth-context/login/protected-account tests)
 * typecheck: `npm run typecheck` clean
 * build: `npm run build` succeeds (pre-existing chunk-size warning only)
 * migration verification: fresh-boot, idempotency, data preservation,
