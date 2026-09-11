@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { t } from "../../i18n";
 import { useAuth } from "../../lib/auth-context";
+import { isAdminRole } from "../../lib/require-admin";
 
 // Mobile-first shell: content + bottom nav on phones, top bar on desktop.
 export function AppShell() {
@@ -73,6 +74,11 @@ export function AppShell() {
             <NavLink to="/profile" className={link}>
               {t("nav.profile")}
             </NavLink>
+            {isAdminRole(user.roles) ? (
+              <NavLink to="/admin" className={link}>
+                {t("nav.admin")}
+              </NavLink>
+            ) : null}
           </>
         ) : null}
       </nav>

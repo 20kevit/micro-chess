@@ -9,6 +9,11 @@ import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { AuthProvider } from "./lib/auth-context";
 import { RequireAuth } from "./lib/require-auth";
+import { RequireAdmin } from "./lib/require-admin";
+import { AdminDashboardPage } from "./pages/AdminDashboardPage";
+import { AdminExercisesPage } from "./pages/AdminExercisesPage";
+import { AdminPuzzlesPage } from "./pages/AdminPuzzlesPage";
+import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { BalanceScalePage } from "./pages/BalanceScalePage";
 import { BlindfoldCalculationPage } from "./pages/BlindfoldCalculationPage";
 import { BlindfoldSquareVisionPage } from "./pages/BlindfoldSquareVisionPage";
@@ -88,6 +93,38 @@ const router = createBrowserRouter([
       { path: "/exercises/pin", element: <PinPage /> },
       { path: "/exercises/trapped-pieces", element: <TrappedPiecesPage /> },
       { path: "/exercises/castling-rights", element: <CastlingRightsPage /> },
+      {
+        path: "/admin",
+        element: (
+          <RequireAdmin>
+            <AdminDashboardPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/users",
+        element: (
+          <RequireAdmin>
+            <AdminUsersPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/exercises",
+        element: (
+          <RequireAdmin>
+            <AdminExercisesPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/puzzles",
+        element: (
+          <RequireAdmin>
+            <AdminPuzzlesPage />
+          </RequireAdmin>
+        ),
+      },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

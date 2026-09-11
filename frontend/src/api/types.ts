@@ -275,6 +275,97 @@ export interface AchievementsResponse {
   items: AchievementItem[];
 }
 
+// Administration (mirrors backend modules/admin/schemas.py). The server
+// owns authorization; these are display/transport shapes only. Admin
+// responses never carry passwords, hashes, tokens, or other secrets.
+export interface AdminUser {
+  id: number;
+  username: string;
+  display_name: string;
+  roles: string[];
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AdminUserDetail extends AdminUser {
+  profile: {
+    display_name: string;
+    bio: string;
+    avatar_reference: string;
+  };
+  attempts_count: number;
+}
+
+export interface AdminExercise {
+  slug: string;
+  title_fa: string;
+  title_en: string;
+  description: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface AdminExerciseDetail extends AdminExercise {
+  puzzle_count: number;
+  attempts_count: number;
+}
+
+export interface AdminPuzzle {
+  id: number;
+  exercise_slug: string;
+  status: string;
+  fen: string | null;
+  position_json: Record<string, unknown>;
+  answer_json: Record<string, unknown>;
+  hint_json: Record<string, unknown>;
+  prompt_fa: string;
+  explanation: string;
+  initial_rating: number;
+  is_published: boolean;
+  is_archived: boolean;
+  published_at: string | null;
+  created_at: string;
+}
+
+export interface AdminOverview {
+  users_total: number;
+  users_active: number;
+  users_suspended: number;
+  exercises_total: number;
+  exercises_active: number;
+  puzzles_total: number;
+  puzzles_published: number;
+  puzzles_archived: number;
+  attempts_total: number;
+  attempts_last_24h: number;
+  recent_registrations: Array<{
+    id: number;
+    username: string;
+    display_name: string;
+    created_at: string;
+  }>;
+  recent_audit: Array<{
+    id: number;
+    actor_user_id: number | null;
+    action: string;
+    target_type: string;
+    target_id: string;
+    result: string;
+    created_at: string;
+  }>;
+}
+
+export interface AdminAuditRecord {
+  id: number;
+  actor_user_id: number | null;
+  action: string;
+  target_type: string;
+  target_id: string;
+  metadata: Record<string, unknown>;
+  result: string;
+  created_at: string;
+}
+
 // Authentication state (mirrors backend users/schemas.py UserOut).
 // The server owns roles/capabilities; the client only renders them.
 export interface AuthUser {

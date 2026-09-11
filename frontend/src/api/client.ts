@@ -1,6 +1,13 @@
 // Thin HTTP client. Backend is authoritative; this only transports data.
 import type {
   AchievementsResponse,
+  AdminAuditRecord,
+  AdminExercise,
+  AdminExerciseDetail,
+  AdminOverview,
+  AdminPuzzle,
+  AdminUser,
+  AdminUserDetail,
   AttemptMode,
   AttemptResponse,
   AuthToken,
@@ -935,4 +942,74 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ guest_token: guestToken }),
     }),
+};
+
+// Administration transport (Phase 6). UX only — every endpoint
+// authorizes server-side via canonical capabilities.
+function adminQuery(params?: Record<string, string | number | undefined>): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value !== undefined && value !== "") query.set(key, String(value));
+  }
+  const suffix = query.toString();
+  return suffix ? `?${suffix}` : "";
+}
+
+export const adminApi = {
+  dashboard: () => request<AdminOverview>("/api/v1/admin/dashboard"),
+  users: (params?: { search?: string; role?: string; status?: string; page?: number; page_size?: number }) =>
+    request<AdminUser[]>(`/api/v1/admin/users${adminQuery(params)}`),
+  user: (id: number) => request<AdminUserDetail>(`/api/v1/admin/users/${id}`),
+  suspendUser: (id: number) =>
+    request<AdminUser>(`/api/v1/admin/users/${id}/suspend`, { method: "POST" }),
+  reactivateUser: (id: number) =>
+    request<AdminUser>(`/api/v1/admin/users/${id}/reactivate`, { method: "POST" }),
+  userRoles: (id: number) => request<{ roles: string[] }>(`/api/v1/admin/users/${id}/roles`),
+  assignRole: (id: number, role: string) =>
+    request<{ roles: string[] }>(`/api/v1/admin/users/${id}/roles`, {
+      method: "POST",
+      body: JSON.stringify({ role }),
+    }),
+  revokeRole: (id: number, role: string) =>
+    request<{ roles: string[] }>(`/api/v1/admin/users/${id}/roles/${role}`, {
+      method: "DELETE",
+    }),
+  exercises: () => request<AdminExercise[]>("/api/v1/admin/exercises"),
+  exercise: (slug: string) => request<AdminExerciseDetail>(`/api/v1/admin/exercises/${slug}`),
+  updateExercise: (
+    slug: string,
+    body: { title_fa?: string; title_en?: string; description?: string; sort_order?: number; is_active?: boolean },
+  ) =>
+    request<AdminExerciseDetail>(`/api/v1/admin/exercises/${slug}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  puzzles: (params?: { exercise?: string; status?: string; page?: number; page_size?: number }) =>
+    request<AdminPuzzle[]>(`/api/v1/admin/puzzles${adminQuery(params)}`),
+  puzzle: (id: number) => request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}`),
+  createPuzzle: (body: {
+    exercise_slug: string;
+    fen?: string | null;
+    position_json?: Record<string, unknown>;
+    answer_json?: Record<string, unknown>;
+    hint_json?: Record<string, unknown>;
+    prompt_fa?: string;
+    explanation?: string;
+    initial_rating?: number;
+  }) =>
+    request<AdminPuzzle>("/api/v1/admin/puzzles", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updatePuzzle: (id: number, body: Record<string, unknown>) =>
+    request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  publishPuzzle: (id: number) =>
+    request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}/publish`, { method: "POST" }),
+  retirePuzzle: (id: number) =>
+    request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}/retire`, { method: "POST" }),
+  audit: (params?: { action?: string; target_type?: string; page?: number; page_size?: number }) =>
+    request<AdminAuditRecord[]>(`/api/v1/admin/audit${adminQuery(params)}`),
 };
