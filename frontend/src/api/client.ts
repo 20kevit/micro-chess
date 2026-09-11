@@ -729,4 +729,54 @@ export const api = {
     request<SpeedSummary>(`/api/v1/blindfold-calculation/sessions/${sessionId}/finish`, {
       method: "POST",
     }),
+  // Trapped Pieces: real positions, select every trapped piece + speed
+  // sessions. Same contract as above (public puzzle data only — the FEN is
+  // visible for rendering, the trapped set never leaves the server;
+  // grading always server-side). Practice positions may hold 1-3 trapped
+  // pieces (multi-select + confirm); Speed positions hold exactly one, so
+  // one tap submits immediately. Prefetch buffers never carry answers.
+  nextTrappedPracticePuzzle: (body?: { exclude_ids?: number[] }) =>
+    request<Puzzle>("/api/v1/trapped-pieces/next", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  startTrappedSpeedSession: () =>
+    request<SpeedSession>("/api/v1/trapped-pieces/sessions", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  prepareTrappedSpeedPuzzles: (sessionId: string, body: { count: number }) =>
+    request<Puzzle[]>(`/api/v1/trapped-pieces/sessions/${sessionId}/puzzles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  startTrappedSpeedClock: (sessionId: string) =>
+    request<SpeedSession>(`/api/v1/trapped-pieces/sessions/${sessionId}/start`, {
+      method: "POST",
+    }),
+  nextTrappedSpeedPuzzle: (sessionId: string) =>
+    request<Puzzle>(`/api/v1/trapped-pieces/sessions/${sessionId}/next`, {
+      method: "POST",
+    }),
+  submitTrappedSpeedAnswer: (
+    sessionId: string,
+    body: {
+      puzzle_id: number;
+      answer: Record<string, unknown>;
+      hints_used?: string[];
+      started_at?: string | null;
+    },
+  ) =>
+    request<SpeedSubmitResponse>(`/api/v1/trapped-pieces/sessions/${sessionId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getTrappedSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/trapped-pieces/sessions/${sessionId}`),
+  getTrappedSpeedReport: (sessionId: string) =>
+    request<SpeedReport>(`/api/v1/trapped-pieces/sessions/${sessionId}/report`),
+  finishTrappedSpeedSession: (sessionId: string) =>
+    request<SpeedSummary>(`/api/v1/trapped-pieces/sessions/${sessionId}/finish`, {
+      method: "POST",
+    }),
 };

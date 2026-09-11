@@ -1,13 +1,10 @@
-"""Trapped Pieces validator: select every trapped non-king piece.
+"""Trapped Pieces validator: select every trapped piece square.
 
-A non-king piece is trapped when it has zero pseudo-legal moves:
-
-    trapped(piece) = pseudo_legal_moves(piece) == 0
-
-Pseudo-legal (not legal) is deliberate: a pinned piece still has
-pseudo-legal moves along/around the pin, so it is NOT trapped even when
-it has zero legal moves. Kings are never trapped. Pawn pushes, double
-pushes, captures, and promotions all count as moves; captures count.
+A piece is trapped when it has zero SAFE destinations (see
+``detector.py``: legal moves filtered by Static Exchange Evaluation, so
+a defended destination with a favorable recapture still counts as an
+escape). Candidates are Kings, Queens, Rooks, Bishops and Knights of
+either color; pawns are never trapped.
 
 Puzzle definition (stored in the puzzle row):
 - FEN holds the position.
@@ -28,33 +25,12 @@ Result rules:
 
 from typing import Any
 
-import chess
-
 from app.modules.rule_engine.base import AttemptResult, ValidationResult, split_squares
+from app.modules.trapped_pieces.detector import trapped_squares
 
 SLUG = "trapped-pieces"
 
-
-def trapped_squares(fen: str) -> list[str]:
-    """Compute trapped squares from a FEN (used by seed + tests).
-
-    Inspects every non-king piece on both sides. The side to move in the
-    FEN is ignored: board.turn is set to each piece's own color before
-    generating its pseudo-legal moves. Submission validation compares
-    against the stored answer and never recomputes from FEN or trusts
-    client-provided square lists.
-    """
-    board = chess.Board(fen)  # raises on invalid FEN
-    trapped: list[str] = []
-    for sq in chess.SQUARES:
-        piece = board.piece_at(sq)
-        if piece is None or piece.piece_type == chess.KING:
-            continue
-        board.turn = piece.color
-        mask = chess.BB_SQUARES[sq]
-        if not any(True for _ in board.generate_pseudo_legal_moves(from_mask=mask)):
-            trapped.append(chess.square_name(sq))
-    return sorted(trapped)
+__all__ = ["SLUG", "trapped_squares", "validate"]
 
 
 def validate(puzzle_answer: dict[str, Any], attempt: dict[str, Any]) -> ValidationResult:

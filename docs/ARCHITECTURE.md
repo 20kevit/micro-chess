@@ -41,7 +41,7 @@ docs/      product + architecture + api + exercises
 | `blindfold_calculation` | exercise 15: best-move validator (SAN→UCI vs stored solution, legacy mate branch) + structured Persian descriptor + puzzles.db generator (≤12 pieces, first-move-legal) + speed sessions + router (registers `blindfold-calculation`) |
 | `opening_traps` | exercise 16 (ADMIN-BLOCKED): validator + seed (registers `opening-traps`) |
 | `reverse_opening` | exercise 17 (ADMIN-BLOCKED): validator + step oracle + seed (registers `reverse-opening`) |
-| `trapped_pieces` | exercise 18: validator + seed (registers `trapped-pieces`) |
+| `trapped_pieces` | exercise 18: SEE-based detector (`detector.py`: legal moves + Static Exchange Evaluation, kings included, pawns excluded) + set validator + per-square +5/−2/−2 scorer + shared-position generator (practice 1–3, speed exactly-one) + speed sessions + router (registers `trapped-pieces`) |
 | `castling_rights` | exercise 21 (ADMIN-BLOCKED): validator + seed (registers `castling-rights`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
@@ -145,6 +145,11 @@ Piece Recognition additions (same tables, new columns only):
   shared `puzzles.db` positions from `chinese_board/generator.py`,
   piece sets re-derived from the stored FEN, per-puzzle study budgets
   (`piece_count × 1000ms`) as display-only metadata).
+- `trapped_speed_sessions` — same shape for Exercise 18 Speed Mode
+  (`trapped_pieces/sessions.py` mirrors the same lifecycle; random
+  shared `puzzles.db` positions evaluated by `trapped_squares`, Speed
+  buffers restricted to exactly-one-trapped positions for tap-to-submit
+  grading, answers server-side only).
 - `blindfold_calculation_speed_sessions` — same shape for Exercise 15
   Speed Mode (`blindfold_calculation/sessions.py` mirrors the same
   lifecycle; ≤12-piece shared `puzzles.db` positions from
@@ -196,3 +201,10 @@ Notes:
     attempts; the frontend never receives the answer before submission;
     the board never exceeds the viewport; the MicroChess Design System
     (`docs/DESIGN_SYSTEM.md`) is shared by future exercises.
+11. Trapped Pieces: a non-pawn piece (King included) with zero SAFE
+    destinations, where safe = the post-move Static Exchange Evaluation
+    on the destination is >= 0 (shared P=1 N=3 B=3 R=5 Q=9 values;
+    favorable recaptures count as escapes). Practice serves 1–3 trapped
+    pieces with multi-select + confirm; Speed serves exactly-one
+    positions with tap-to-submit; scoring is +5 correct / −2 missed /
+    −2 wrong per square (Speed wrong tap = −4).

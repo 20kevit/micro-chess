@@ -22,6 +22,7 @@ from app.modules.pathfinding_obstacles.router import router as obstacle_pathfind
 from app.modules.piece_recognition.router import router as piece_recognition_router
 from app.modules.progress.router import router as attempts_router
 from app.modules.puzzles.router import router as puzzles_router
+from app.modules.trapped_pieces.router import router as trapped_pieces_router
 from app.modules.undefended_pieces.router import router as undefended_pieces_router
 from app.modules.users.router import router as users_router
 
@@ -89,4 +90,5 @@ app.include_router(heavier_side_router, prefix="/api/v1")
 app.include_router(reconstruction_router, prefix="/api/v1")
 app.include_router(puzzles_router, prefix="/api/v1")
 app.include_router(attempts_router, prefix="/api/v1")
+app.include_router(trapped_pieces_router, prefix="/api/v1")
 app.include_router(undefended_pieces_router, prefix="/api/v1")

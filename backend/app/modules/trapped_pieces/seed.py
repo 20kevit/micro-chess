@@ -1,166 +1,111 @@
-"""Seed/demo puzzles for Trapped Pieces.
+"""Seed puzzles for Trapped Pieces.
 
 Run:  python -m app.modules.trapped_pieces.seed
 Idempotent: skips when puzzles for the slug already exist.
-Answers are computed from FEN via trapped_squares, so they are
-verifiable; tests recompute them independently with python-chess.
+
+Unlike hand-listed seeds, this seed runs the authoritative pipeline:
+it scans candidate source positions from the shared ``puzzles.db`` via
+``generator.create_puzzle`` (seeded RNG for reproducibility), keeps only
+positions with 1-3 trapped pieces, and reserves a single-answer subset
+for Speed mode. Every stored answer is recomputed from the FEN with
+``trapped_squares`` before insert, so rows are independently verifiable;
+tests recompute them with the detector.
+
+Seed plan (30 puzzles):
+- 18 Practice puzzles (1-3 trapped pieces, at least 6 multi-answer).
+- 12 Speed-pool puzzles (exactly one trapped piece each).
+
+When the shared source is unavailable the generator falls back to its
+curated positions, so seeding never crashes on a fresh machine.
 """
+
+import random
 
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal, init_db
-from app.modules.exercises.models import Exercise
 from app.modules.puzzles.models import Puzzle
-from app.modules.trapped_pieces.validator import SLUG, trapped_squares
+from app.modules.trapped_pieces import generator
+from app.modules.trapped_pieces.detector import trapped_squares
+from app.modules.trapped_pieces.validator import SLUG
 
-# Each entry: fen, prompt, explanation, hints, rating.
-PUZZLES: list[dict] = [
-    {
-        "fen": "4k3/8/8/8/8/1P6/2P5/N5K1 w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "اسب a1 گرفتار است؛ سربازهای خودی b3 و c2 همه پرش‌هایش را بسته‌اند.",
-        "hints": [{"id": "h1", "text_fa": "اسب گوشه فقط چند پرش دارد؛ ببین همه بسته‌اند یا نه.", "rating_cost": 5}],
-        "rating": 800.0,
-    },
-    {
-        "fen": "2b1k3/1p1p4/8/8/8/8/8/4K3 w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "فیل c8 گرفتار است؛ سربازهای خودی b7 و d7 هر دو قطرش را بسته‌اند.",
-        "hints": [{"id": "h1", "text_fa": "قطرهای فیل را دنبال کن.", "rating_cost": 5}],
-        "rating": 850.0,
-    },
-    {
-        "fen": "4k3/8/8/8/8/8/P7/RN4K1 w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "رخ a1 گرفتار است؛ سرباز a2 ستون و اسب b1 ردیف را بسته‌اند. اسب b1 خودش آزاد است.",
-        "hints": [{"id": "h1", "text_fa": "رخ فقط مستقیم می‌رود؛ هر دو جهتش را ببین.", "rating_cost": 5}],
-        "rating": 850.0,
-    },
-    {
-        "fen": "4k3/8/8/8/4p3/4P3/8/4K3 w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "سرباز سفید e3 و سرباز سیاه e4 همدیگر را قفل کرده‌اند؛ هیچ‌کدام جلو یا مورب حرکتی ندارند.",
-        "hints": [{"id": "h1", "text_fa": "سرباز روبه‌رو همدیگر را می‌بندند.", "rating_cost": 10}],
-        "rating": 900.0,
-    },
-    {
-        "fen": "4rk2/8/8/8/8/8/4N3/4K3 w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "اسب e2 آچمز است ولی گرفتار نیست؛ حرکت شبه‌قانونی دارد پس چیزی انتخاب نکن.",
-        "hints": [{"id": "h1", "text_fa": "آچمز با گرفتار فرق دارد.", "rating_cost": 10}],
-        "rating": 950.0,
-    },
-    {
-        "fen": "4k3/8/8/8/8/8/1PPPPP2/RN2K2R w K - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "همه مهره‌ها حداقل یک حرکت دارند؛ چیزی انتخاب نکن.",
-        "hints": [{"id": "h1", "text_fa": "اگر حتی یک حرکت هست، گرفتار نیست.", "rating_cost": 5}],
-        "rating": 750.0,
-    },
-    {
-        "fen": "4k3/8/8/8/8/6p1/5PK1/7N w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "اسب h1 سرباز g3 را می‌زند؛ پس گرفتار نیست و چیزی انتخاب نکن.",
-        "hints": [{"id": "h1", "text_fa": "زدن هم یک حرکت است.", "rating_cost": 5}],
-        "rating": 800.0,
-    },
-    {
-        "fen": "4k3/8/8/8/8/8/2PPP3/2BQK3 w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "وزیر d1 گرفتار است؛ مهره‌های خودی همه جهتش را بسته‌اند. فیل c1 با b2 آزاد است.",
-        "hints": [{"id": "h1", "text_fa": "همه هشت جهت وزیر را ببین.", "rating_cost": 10}],
-        "rating": 950.0,
-    },
-    {
-        "fen": "2bqk3/1pppp3/8/8/8/8/8/4K3 w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "فیل c8 و وزیر d8 هر دو گرفتارند؛ سربازهای خودی همه راه‌ها را بسته‌اند.",
-        "hints": [{"id": "h1", "text_fa": "گاهی بیشتر از یک مهره گرفتار است.", "rating_cost": 10}],
-        "rating": 1000.0,
-    },
-    {
-        "fen": "4k3/8/8/8/3p4/3P4/8/4K3 w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "سربازهای d3 و d4 همدیگر را قفل کرده‌اند.",
-        "hints": [{"id": "h1", "text_fa": "سرباز مورب خالی را هم بررسی کن.", "rating_cost": 5}],
-        "rating": 850.0,
-    },
-    {
-        "fen": "4k2n/5pp1/6p1/8/8/8/8/4K3 w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "اسب h8 گرفتار است چون f7 و g6 پر از سرباز خودی‌اند؛ سرباز g7 هم پشت g6 قفل است.",
-        "hints": [{"id": "h1", "text_fa": "پرش‌های اسب را یکی‌یکی ببین.", "rating_cost": 10}],
-        "rating": 1000.0,
-    },
-    {
-        "fen": "2b1k3/1p1p4/8/8/8/8/P7/RN4K1 w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "رخ a1 در گوشه و فیل c8 بالای صفحه هر دو گرفتارند.",
-        "hints": [{"id": "h1", "text_fa": "کل صفحه را بگرد، نه فقط یک گوشه.", "rating_cost": 10}],
-        "rating": 1050.0,
-    },
-    {
-        "fen": "4k3/8/8/8/8/8/6PP/6KR w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "رخ h1 گرفتار است؛ شاه g1 و سرباز h2 راهش را بسته‌اند. شاه هیچ‌وقت گرفتار نیست.",
-        "hints": [{"id": "h1", "text_fa": "شاه را هیچ‌وقت انتخاب نکن.", "rating_cost": 5}],
-        "rating": 900.0,
-    },
-    {
-        "fen": "4k3/8/8/8/4P3/8/4P3/4K3 w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "سرباز e4 به e5 و سرباز e2 به e3 می‌روند؛ چیزی انتخاب نکن.",
-        "hints": [{"id": "h1", "text_fa": "یک خانه خالی جلو یعنی آزاد.", "rating_cost": 5}],
-        "rating": 750.0,
-    },
-    {
-        "fen": "4k3/8/8/8/8/8/1P1P4/2B1K3 w - - 0 1",
-        "prompt_fa": "مهره‌های گرفتار را انتخاب کن.",
-        "explanation": "فیل c1 گرفتار است؛ سربازهای خودی b2 و d2 هر دو قطرش را بسته‌اند.",
-        "hints": [{"id": "h1", "text_fa": "فیل گوشه فقط دو قطر کوتاه دارد.", "rating_cost": 5}],
-        "rating": 800.0,
-    },
-]
+SEED = 18
+PRACTICE_COUNT = 18
+SPEED_COUNT = 12
+MIN_MULTI = 6
 
 
-def seed_db(db: Session) -> int:
-    """Insert exercise + puzzles. Returns number of puzzles created."""
-    exercise = db.get(Exercise, SLUG)
-    if exercise is None:
-        exercise = Exercise(
-            slug=SLUG,
-            title_fa="مهره‌ی گرفتار",
-            title_en="Trapped Piece",
-            description="مهره‌ی گرفتار را پیدا کن.",
-            is_active=True,
-            sort_order=17,
-        )
-        db.add(exercise)
+def seed_db(db: Session, rng: random.Random | None = None) -> int:
+    """Insert exercise + puzzles. Returns number of puzzles created.
+
+    Idempotent top-up: rows stored under the pre-SEE definition (any
+    stored answer that no longer matches a fresh recomputation, e.g.
+    pawn answers) are ARCHIVED first (never hard-deleted, history kept),
+    matching rows stay published, then fresh puzzles are generated until
+    the Practice + Speed targets hold.
+    """
+    generator.ensure_exercise(db)
+
+    stale = 0
+    live = (
+        db.query(Puzzle)
+        .filter(Puzzle.exercise_slug == SLUG, Puzzle.is_archived == False)  # noqa: E712
+        .all()
+    )
+    for row in live:
+        stored = row.answer_json if isinstance(row.answer_json, dict) else {}
+        squares = sorted(stored.get("squares", []))
+        if (
+            not squares  # this exercise never serves zero-target puzzles
+            or (row.fen and squares != trapped_squares(row.fen))
+        ):
+            row.is_archived = True
+            stale += 1
+    if stale:
         db.commit()
 
-    existing = db.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).count()
-    if existing:
-        return 0
-
+    rng = rng if rng is not None else random.Random(SEED)
     created = 0
-    for item in PUZZLES:
-        squares = trapped_squares(item["fen"])
-        answer = {"squares": squares}
-        puzzle = Puzzle(
-            exercise_slug=SLUG,
-            fen=item["fen"],
-            position_json={"fen": item["fen"], "mode": "standard"},
-            answer_json=answer,
-            hint_json={"hints": item["hints"]},
-            prompt_fa=item["prompt_fa"],
-            explanation=item["explanation"],
-            initial_rating=item["rating"],
-            is_published=True,
-            is_archived=False,
+
+    def _counts() -> tuple[int, int, int]:
+        rows = (
+            db.query(Puzzle)
+            .filter(Puzzle.exercise_slug == SLUG, Puzzle.is_archived == False)  # noqa: E712
+            .all()
         )
-        db.add(puzzle)
-        created += 1
-    db.commit()
+        total = len(rows)
+        multi = sum(1 for row in rows if len((row.answer_json or {}).get("squares", [])) > 1)
+        single = sum(1 for row in rows if len((row.answer_json or {}).get("squares", [])) == 1)
+        return total, multi, single
+
+    def _done(total: int, multi: int, single: int) -> bool:
+        return total >= PRACTICE_COUNT + SPEED_COUNT and multi >= MIN_MULTI and single >= SPEED_COUNT
+
+    # Exclude every live id so identical-FEN reuse never double-counts a
+    # row as created (the generator re-rolls bounded times instead).
+    exclude: set[int] = {
+        row.id
+        for row in db.query(Puzzle.id)
+        .filter(Puzzle.exercise_slug == SLUG, Puzzle.is_archived == False)  # noqa: E712
+        .all()
+    }
+    guard = 0
+    while guard < 200:
+        total, multi, single = _counts()
+        if _done(total, multi, single):
+            break
+        guard += 1
+        # Fill the Speed pool with single-answer positions once Practice
+        # variety (or size) is secured; otherwise take any 1-3 position.
+        exactly_one = single < SPEED_COUNT and (multi >= MIN_MULTI or total >= PRACTICE_COUNT)
+        puzzle = generator.create_puzzle(db, rng, exclude_ids=exclude, exactly_one=exactly_one)
+        # Independent verification: the stored answer must equal a fresh
+        # recomputation from the FEN (never trusted from the generator).
+        assert puzzle.fen is not None
+        assert puzzle.answer_json["squares"] == trapped_squares(puzzle.fen)
+        if puzzle.id not in exclude:
+            exclude.add(puzzle.id)
+            created += 1
     return created
 
 

@@ -27,6 +27,7 @@ def db_session():
     from app.modules.piece_recognition import models as _pr1  # noqa: F401
     from app.modules.progress import models as _pr  # noqa: F401
     from app.modules.puzzles import models as _pz  # noqa: F401
+    from app.modules.trapped_pieces import models as _tp  # noqa: F401
     from app.modules.undefended_pieces import models as _up  # noqa: F401
     from app.modules.users import models as _u  # noqa: F401
 

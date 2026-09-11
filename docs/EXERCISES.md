@@ -605,14 +605,50 @@ continue development for now. (Consolidated from the former
 
 **Trapped Piece** — IMPLEMENTED (`trapped-pieces`, Exercise 18, مهره‌ی گرفتار).
 
-- Route: `/exercises/trapped-pieces` (shared `ExercisePlay` loop with no
-  pre-highlight; only the user's selections are shown).
-- Validator: `backend/app/modules/trapped_pieces/validator.py` (trapped =
-  non-king piece with zero pseudo-legal moves via `generate_pseudo_legal_moves`;
-  pinned pieces have pseudo moves so they are NOT trapped; kings excluded).
-- Seed: `python -m app.modules.trapped_pieces.seed` (15 hand-designed puzzles
-  covering all five trappable kinds, pawn mutual blocks, pinned-not-trapped,
-  king-excluded and empty cases; every answer independently verified).
+MicroChess definition (NOT the Lichess motif): a non-pawn piece
+(King, Queen, Rook, Bishop, Knight, either color) is trapped iff it has
+zero SAFE destinations. A destination is safe iff moving there does not
+lose material after the resulting forcing exchange — an attacked square
+with a favorable recapture still counts as an escape, while a quiet
+square that loses the piece after the exchange does not. Pawns are never
+candidates; kings use pure legality (never move into check).
+
+- Route: `/exercises/trapped-pieces` with `?mode=practice` (untimed,
+  multi-select any number + «بررسی جواب», positions hold 1–3 trapped
+  pieces) and `?mode=speed` (standard 60s session, every position holds
+  exactly one trapped piece so one tap submits immediately, no confirm
+  step). Card renders both entry buttons directly.
+- Play loop: dedicated `TrappedPiecesPlay` (practice + speed reusing the
+  `PieceGameLayout` shell, timer, hints, feedback; whole board is the
+  question, only user selections shown); correctness, scoring, and the
+  speed clock stay backend-authoritative.
+- Engine: `trapped_pieces/detector.py` — per candidate, legal moves with
+  the turn set to its color, each destination pushed and graded by
+  Static Exchange Evaluation (least-valuable-attacker swap, shared
+  P=1 N=3 B=3 R=5 Q=9 K=0 values, kings never capture in the line);
+  safe iff net ≥ 0; check-giving moves are safe unless a legal reply
+  captures the piece at a net loss. Deterministic, millisecond-scale,
+  server-side only. Limitation: only the on-square exchange is searched;
+  deeper multi-move traps beyond the immediate exchange count as safe.
+- Position source: shared `puzzles.db` via `positions/repository.py`
+  (FEN only), evaluated by `trapped_pieces/generator.py` (bounded
+  sampling rejecting in-check/empty/4+-degenerate positions; Speed uses
+  `exactly_one` mode). Answers server-side only.
+- Validator: `backend/app/modules/trapped_pieces/validator.py` (exact
+  set match; duplicates/order-insensitive; malformed squares count as
+  wrong; client FEN/answer/score ignored).
+- Scoring: registered per-square scorer (`+5` correct / `−2` missed /
+  `−2` wrong, negatives kept; `+5` bonus for correctly answered
+  zero-target legacy rows). Speed reuses it: correct tap `+5`, wrong
+  tap `−4` (−2 wrong plus −2 for the missed single trapped piece).
+- Speed: `trapped_pieces/sessions.py` + `router.py` (open → prepare ≥20
+  → start 60s clock → tap-to-submit loop with ~450ms auto-advance, no
+  manual next → server-rebuilt per-puzzle report; per-answer rows reuse
+  `attempts`).
+- Seed: `python -m app.modules.trapped_pieces.seed` (seeded scan of the
+  shared source to ~30 live puzzles: Practice mix with multi-answer
+  coverage + exactly-one Speed pool; pre-SEE legacy rows archived, never
+  hard-deleted; every answer independently re-verified from its FEN).
 
 ## Nineteenth slice (end of the roadmap)
 
