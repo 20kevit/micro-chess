@@ -24,6 +24,7 @@ _NOT_FOUND = {
     "exercise_not_found": ("exercise_not_found", 404),
     "puzzle_not_found": ("puzzle_not_found", 404),
     "audit_not_found": ("audit_not_found", 404),
+    "generator_run_not_found": ("generator_run_not_found", 404),
 }
 _UNPROCESSABLE = {
     "invalid_role",
@@ -33,12 +34,24 @@ _UNPROCESSABLE = {
     "invalid_title",
     "invalid_sort_order",
     "unknown_exercise",
+    "unknown_generator",
+    "invalid_count",
+    "invalid_seed",
+    "invalid_target_rating",
+    "invalid_initial_rating",
+    "invalid_difficulty",
+    "invalid_source",
+    "invalid_config",
+    "unsupported_config",
+    "invalid_decision",
 }
 _CONFLICT = {
     "last_admin",
     "puzzle_immutable",
     "puzzle_archived",
     "puzzle_answer_missing",
+    "validation_failed",
+    "invalid_transition",
     "exercise_not_implemented",
 }
 
@@ -309,6 +322,62 @@ def publish_puzzle(
     return service.puzzle_admin_view(puzzle)
 
 
+@router.post("/puzzles/{puzzle_id}/validate", response_model=schemas.PuzzleAdminOut)
+def validate_puzzle(
+    puzzle_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.PUZZLES_VALIDATE)),
+):
+    try:
+        puzzle, _, _ = service.validate_puzzle(db, actor_id=user.id, puzzle_id=puzzle_id)
+    except ValueError as exc:
+        raise _domain_error(exc)
+    return service.puzzle_admin_view(puzzle)
+
+
+@router.post("/puzzles/{puzzle_id}/review", response_model=schemas.PuzzleAdminOut)
+def review_puzzle(
+    puzzle_id: int,
+    body: schemas.PuzzleReviewIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.PUZZLES_REVIEW)),
+):
+    try:
+        puzzle, _ = service.review_puzzle(
+            db, actor_id=user.id, puzzle_id=puzzle_id,
+            decision=body.decision.strip().lower(), notes=body.notes,
+        )
+    except ValueError as exc:
+        raise _domain_error(exc)
+    return service.puzzle_admin_view(puzzle)
+
+
+@router.post("/puzzles/{puzzle_id}/approve", response_model=schemas.PuzzleAdminOut)
+def approve_puzzle(
+    puzzle_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.PUZZLES_APPROVE)),
+):
+    try:
+        puzzle, _ = service.approve_puzzle(db, actor_id=user.id, puzzle_id=puzzle_id)
+    except ValueError as exc:
+        raise _domain_error(exc)
+    return service.puzzle_admin_view(puzzle)
+
+
+@router.get("/puzzles/{puzzle_id}/history", response_model=schemas.PuzzleHistoryOut)
+def get_puzzle_history(
+    puzzle_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.PUZZLES_MANAGE)),
+):
+    _ = user
+    try:
+        return service.puzzle_history(db, puzzle_id)
+    except ValueError as exc:
+        raise _domain_error(exc)
+
+
 @router.post("/puzzles/{puzzle_id}/retire", response_model=schemas.PuzzleAdminOut)
 def retire_puzzle(
     puzzle_id: int,
@@ -320,6 +389,98 @@ def retire_puzzle(
     except ValueError as exc:
         raise _domain_error(exc)
     return service.puzzle_admin_view(puzzle)
+
+
+# --- generators ------------------------------------------------------------
+
+
+@router.get("/generators", response_model=list[schemas.GeneratorOut])
+def list_generators(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.GENERATORS_READ)),
+):
+    _ = db
+    _ = user
+    return service.list_generators()
+
+
+@router.post(
+    "/generators/{generator_code}/runs",
+    response_model=schemas.GeneratorRunOut,
+    status_code=201,
+)
+def run_generator(
+    generator_code: str,
+    body: schemas.GeneratorRunCreateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.GENERATORS_RUN)),
+):
+    try:
+        run = service.run_generator(
+            db,
+            actor_id=user.id,
+            generator_code=generator_code,
+            count=body.count,
+            seed=body.seed,
+            target_rating=body.target_rating,
+            difficulty=body.difficulty,
+            config=body.config,
+        )
+    except ValueError as exc:
+        raise _domain_error(exc)
+    from app.modules.generators import service as generator_service
+
+    return generator_service.run_view(run)
+
+
+@router.get("/generator-runs", response_model=list[schemas.GeneratorRunOut])
+def list_generator_runs(
+    generator: str | None = None,
+    exercise: str | None = None,
+    status: str | None = None,
+    page: PageQuery = 1,
+    page_size: PageSizeQuery = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.GENERATORS_READ)),
+):
+    _ = user
+    from app.modules.generators import service as generator_service
+
+    rows, _ = service.list_generator_runs(
+        db, generator=generator, exercise=exercise, status=status,
+        page=page, page_size=page_size,
+    )
+    return [generator_service.run_view(row) for row in rows]
+
+
+@router.get("/generator-runs/{run_id}", response_model=schemas.GeneratorRunOut)
+def get_generator_run(
+    run_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.GENERATORS_READ)),
+):
+    _ = user
+    from app.modules.generators import service as generator_service
+
+    run = service.get_generator_run(db, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="generator_run_not_found")
+    return generator_service.run_view(run)
+
+
+@router.post("/generator-runs/{run_id}/cancel", response_model=schemas.GeneratorRunOut)
+def cancel_generator_run(
+    run_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.GENERATORS_CANCEL)),
+):
+    try:
+        run, _ = service.cancel_generator_run(db, actor_id=user.id, run_id=run_id)
+    except ValueError as exc:
+        raise _domain_error(exc)
+    from app.modules.generators import service as generator_service
+
+    return generator_service.run_view(run)
 
 
 # --- audit ------------------------------------------------------------------

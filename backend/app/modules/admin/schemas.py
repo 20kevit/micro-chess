@@ -80,6 +80,13 @@ class PuzzleAdminOut(BaseModel):
     is_archived: bool
     published_at: datetime | None = None
     created_at: datetime
+    # Phase 07 lifecycle + provenance metadata.
+    source: str = "manual"
+    source_reference: str | None = None
+    generator_run_id: int | None = None
+    difficulty: int | None = None
+    target_rating: float | None = None
+    retired_at: datetime | None = None
 
 
 class PuzzleCreateIn(BaseModel):
@@ -91,6 +98,10 @@ class PuzzleCreateIn(BaseModel):
     prompt_fa: str = Field(default="", max_length=500)
     explanation: str = Field(default="", max_length=2000)
     initial_rating: float = 1200.0
+    source: str = Field(default="manual", max_length=20)
+    source_reference: str | None = Field(default=None, max_length=255)
+    difficulty: int | None = Field(default=None)
+    target_rating: float | None = Field(default=None)
 
 
 class PuzzleUpdateIn(BaseModel):
@@ -102,6 +113,62 @@ class PuzzleUpdateIn(BaseModel):
     prompt_fa: str | None = Field(default=None, max_length=500)
     explanation: str | None = Field(default=None, max_length=2000)
     initial_rating: float | None = None
+    difficulty: int | None = None
+    target_rating: float | None = None
+    source_reference: str | None = Field(default=None, max_length=255)
+
+
+class PuzzleReviewIn(BaseModel):
+    decision: str = Field(min_length=1, max_length=20)
+    notes: str = Field(default="", max_length=2000)
+
+
+class PuzzleHistoryOut(BaseModel):
+    puzzle_id: int
+    status: str
+    transitions: list[dict] = []
+    validations: list[dict] = []
+    reviews: list[dict] = []
+
+
+class GeneratorOut(BaseModel):
+    code: str
+    exercise_slug: str
+    version: str
+    description: str = ""
+    config_schema: dict = {}
+    status: str = "active"
+
+
+class GeneratorRunCreateIn(BaseModel):
+    count: int = Field(ge=1, le=50)
+    seed: int | None = Field(default=None, ge=0, le=2147483647)
+    target_rating: float | None = Field(default=None)
+    difficulty: int | None = Field(default=None)
+    config: dict = {}
+
+
+class GeneratorRunOut(BaseModel):
+    id: int
+    generator_code: str
+    generator_version: str
+    exercise_slug: str
+    status: str
+    requested_count: int
+    generated_count: int
+    validated_count: int
+    accepted_count: int
+    rejected_count: int
+    seed: int | None = None
+    target_rating: float | None = None
+    difficulty: int | None = None
+    config: dict = {}
+    result: dict = {}
+    error: str = ""
+    requested_by_user_id: int | None = None
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
 
 
 class RecentRegistrationOut(BaseModel):

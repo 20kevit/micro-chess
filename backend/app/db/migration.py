@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 class SchemaVersion(Base):
@@ -192,12 +192,105 @@ def _migrate_v6_admin(conn) -> None:
     _ = conn
 
 
+def _migrate_v7_content(conn) -> None:
+    """Phase 7 content & generators: lifecycle columns on puzzles.
+
+    New tables (``generator_runs``, ``puzzle_status_history``,
+    ``puzzle_validations``, ``puzzle_reviews``) are created by
+    ``ensure_schema`` via ``Base.metadata.create_all`` on fresh and
+    existing databases alike. This step adds the lifecycle columns to
+    existing ``puzzles`` tables idempotently and backfills them:
+
+    * ``status`` from the legacy visibility flags (archived -> retired,
+      published -> published, else draft)
+    * ``source`` defaults to manual (runtime practice rows predate
+      provenance tracking; managed content records provenance going
+      forward)
+    * ``content_hash`` canonical dedup hash for rows carrying an answer
+    """
+    import json as _json
+
+    insp = inspect(conn)
+    tables = set(insp.get_table_names())
+    if "puzzles" not in tables:
+        return
+    puzzle_cols = {c["name"] for c in insp.get_columns("puzzles")}
+    # New columns are nullable on upgraded databases (fresh boots get
+    # the model nullability via create_all); every row is backfilled
+    # below, and new writes always set these fields explicitly.
+    if "status" not in puzzle_cols:
+        conn.execute(text("ALTER TABLE puzzles ADD COLUMN status VARCHAR(20)"))
+    if "source" not in puzzle_cols:
+        conn.execute(text("ALTER TABLE puzzles ADD COLUMN source VARCHAR(20)"))
+    if "source_reference" not in puzzle_cols:
+        conn.execute(text("ALTER TABLE puzzles ADD COLUMN source_reference VARCHAR(255)"))
+    if "generator_run_id" not in puzzle_cols:
+        conn.execute(text("ALTER TABLE puzzles ADD COLUMN generator_run_id INTEGER"))
+    if "difficulty" not in puzzle_cols:
+        conn.execute(text("ALTER TABLE puzzles ADD COLUMN difficulty INTEGER"))
+    if "target_rating" not in puzzle_cols:
+        conn.execute(text("ALTER TABLE puzzles ADD COLUMN target_rating FLOAT"))
+    if "content_hash" not in puzzle_cols:
+        conn.execute(text("ALTER TABLE puzzles ADD COLUMN content_hash VARCHAR(64)"))
+    if "retired_at" not in puzzle_cols:
+        conn.execute(text("ALTER TABLE puzzles ADD COLUMN retired_at DATETIME"))
+    # Backfill lifecycle state from the legacy visibility projection.
+    # Only NULL rows are touched, so re-running this step can never
+    # demote content that already advanced through the Phase 07
+    # lifecycle (validated/reviewed/approved rows keep draft-like
+    # visibility flags by design).
+    conn.execute(
+        text(
+            "UPDATE puzzles SET status = CASE "
+            "WHEN is_archived THEN 'retired' "
+            "WHEN is_published THEN 'published' "
+            "ELSE 'draft' END "
+            "WHERE status IS NULL"
+        )
+    )
+    conn.execute(text("UPDATE puzzles SET source = 'manual' WHERE source IS NULL"))
+    # Backfill canonical dedup hashes (best-effort; rows that cannot be
+    # canonicalized keep NULL and are simply skipped by dedup checks).
+    from app.modules.puzzles.validation import content_hash_for
+
+    rows = conn.execute(
+        text("SELECT id, exercise_slug, fen, answer_json FROM puzzles WHERE content_hash IS NULL")
+    ).fetchall()
+    for pid, slug, fen, answer in rows:
+        try:
+            parsed = answer
+            if isinstance(answer, str):
+                parsed = _json.loads(answer) if answer else {}
+            if not isinstance(parsed, dict):
+                continue
+            digest = content_hash_for(slug or "", fen, parsed)
+        except Exception:
+            continue
+        conn.execute(
+            text("UPDATE puzzles SET content_hash = :h WHERE id = :i"), {"h": digest, "i": pid}
+        )
+    for index_sql in (
+        "CREATE INDEX IF NOT EXISTS ix_puzzles_status ON puzzles (status)",
+        "CREATE INDEX IF NOT EXISTS ix_puzzles_content_hash ON puzzles (content_hash)",
+        "CREATE INDEX IF NOT EXISTS ix_puzzles_generator_run_id ON puzzles (generator_run_id)",
+        "CREATE INDEX IF NOT EXISTS ix_generator_runs_generator_code ON generator_runs (generator_code)",
+        "CREATE INDEX IF NOT EXISTS ix_generator_runs_status ON generator_runs (status)",
+    ):
+        try:
+            conn.execute(text(index_sql))
+        except Exception:
+            # Indexes also ship via create_all on fresh boots; a missing
+            # index must never block an upgrade.
+            logger.warning("content migration: could not ensure index %s", index_sql)
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
     (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
     (4, "phase-04 ratings: attempt rating snapshot columns", _migrate_v4_ratings),
     (5, "phase-05 gamification: attempt XP snapshot column", _migrate_v5_gamification),
     (6, "phase-06 administration: persistent audit log", _migrate_v6_admin),
+    (7, "phase-07 content & generators: puzzle lifecycle, provenance, generator jobs", _migrate_v7_content),
 ]
 
 

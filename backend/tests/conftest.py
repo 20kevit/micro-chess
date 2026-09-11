@@ -21,6 +21,7 @@ def db_session():
     from app.modules.chinese_board import models as _cb  # noqa: F401
     from app.modules.exercises import models as _ex  # noqa: F401
     from app.modules.gamification_engine import models as _g  # noqa: F401
+    from app.modules.generators import models as _gen  # noqa: F401
     from app.modules.get_out_of_check import models as _goc  # noqa: F401
     from app.modules.give_check import models as _gc  # noqa: F401
     from app.modules.legal_destinations import models as _ld  # noqa: F401

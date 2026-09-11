@@ -1,19 +1,23 @@
-"""Administration application service (Phase 6 foundation).
+"""Administration application service (Phase 6 foundation + Phase 7 content).
 
 Business rules live here; routers stay thin (auth context, capability
 checks, validation, response mapping). Every state-changing operation
 records a persistent audit row via ``record_audit`` (secret-free).
 
-Scope is deliberately the Phase 6 foundation only:
+Phase 7 content lifecycle (server-enforced, no frontend trust):
 
-* overview (read-only operational metrics)
-* users (search/inspect, suspend/reactivate, role assign/revoke)
-* exercises (inspect, metadata update, enable/disable)
-* puzzles (inspect, draft create/update, publish, retire)
-* audit visibility (read-only)
+```text
+draft -> validated -> reviewed -> approved -> published -> retired
+```
 
-Deferred to later phases: user deletion, exercise create/delete,
-puzzle validate/review/approve, generators, support, analytics.
+* validate: exercise-aware content validation must pass.
+* review: explicit human decision (approve / request_changes / reject).
+* approve: explicit sign-off of reviewed content.
+* publish: only approved content becomes player-visible.
+* retire: stops new delivery, preserves all history.
+
+Generated content enters as ``validated`` candidates through
+generation jobs and follows the same review/approval gates.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -28,14 +32,32 @@ from app.modules.admin.models import AuditLog
 __all__ = ["AuditLog", "Puzzle"]
 from app.modules.exercises import registry
 from app.modules.exercises.models import Exercise
+from app.modules.generators import service as generator_service
+from app.modules.generators.models import GeneratorRun
 from app.modules.player.models import PlayerProfile
 from app.modules.progress.models import Attempt
 from app.modules.puzzles import service as puzzle_service
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import (
+    STATUS_APPROVED,
+    STATUS_DRAFT,
+    STATUS_PUBLISHED,
+    STATUS_RETIRED,
+    STATUS_REVIEWED,
+    STATUS_VALIDATED,
+    Puzzle,
+    PuzzleReview,
+    PuzzleStatusHistory,
+    PuzzleValidation,
+)
+from app.modules.puzzles.validation import CONTENT_VALIDATOR_VERSION, validate_puzzle_fields
 from app.modules.users.models import CANONICAL_ROLES, User, UserRole
 
 USER_SORT_FIELDS = ("created_at", "username", "id")
-PUZZLE_STATUSES = ("draft", "published", "archived")
+# Admin filter vocabulary. "archived" stays accepted as an alias of the
+# canonical "retired" state (Phase 6 clients).
+PUZZLE_STATUSES = ("draft", "validated", "reviewed", "approved", "published", "retired", "archived")
+PUZZLE_SOURCES = ("manual", "imported")
+REVIEW_DECISIONS = ("approve", "request_changes", "reject")
 
 
 def _utcnow() -> datetime:
@@ -429,11 +451,41 @@ def is_exercise_playable(db: Session, slug: str) -> bool:
 
 
 def _puzzle_status(row: Puzzle) -> str:
-    if row.is_archived:
-        return "archived"
-    if row.is_published:
-        return "published"
-    return "draft"
+    # Canonical lifecycle state (backfilled for legacy rows by the v7
+    # migration; runtime rows enter via the model default).
+    return row.status or STATUS_DRAFT
+
+
+def _record_transition(
+    db: Session, *, actor_id: int, puzzle: Puzzle, to_status: str, reason: str = ""
+) -> None:
+    """Apply a lifecycle transition with history + flag sync.
+
+    Player-visibility booleans mirror the canonical status so existing
+    player queries keep working unchanged.
+    """
+    from_status = _puzzle_status(puzzle)
+    puzzle.status = to_status
+    if to_status == STATUS_PUBLISHED:
+        puzzle.is_published = True
+        puzzle.is_archived = False
+        puzzle.published_at = _utcnow()
+        puzzle.retired_at = None
+    elif to_status == STATUS_RETIRED:
+        puzzle.is_archived = True
+        puzzle.retired_at = _utcnow()
+    else:
+        puzzle.is_published = False
+        puzzle.is_archived = False
+    db.add(
+        PuzzleStatusHistory(
+            puzzle_id=puzzle.id,
+            from_status=from_status,
+            to_status=to_status,
+            changed_by_user_id=actor_id,
+            reason=reason[:500],
+        )
+    )
 
 
 def _known_exercise(db: Session, slug: str) -> bool:
@@ -455,12 +507,10 @@ def list_puzzles_admin(
     query = db.query(Puzzle)
     if exercise:
         query = query.filter(Puzzle.exercise_slug == exercise)
-    if status == "draft":
-        query = query.filter(Puzzle.is_published == False, Puzzle.is_archived == False)  # noqa: E712
-    elif status == "published":
-        query = query.filter(Puzzle.is_published == True, Puzzle.is_archived == False)  # noqa: E712
-    elif status == "archived":
-        query = query.filter(Puzzle.is_archived == True)  # noqa: E712
+    if status in ("draft", "validated", "reviewed", "approved", "published"):
+        query = query.filter(Puzzle.status == status, Puzzle.is_archived == False)  # noqa: E712
+    elif status in ("retired", "archived"):
+        query = query.filter(Puzzle.status == STATUS_RETIRED)
     total = query.count()
     rows = query.order_by(Puzzle.id).offset((page - 1) * page_size).limit(page_size).all()
     return rows, total
@@ -468,7 +518,8 @@ def list_puzzles_admin(
 
 def puzzle_admin_view(row: Puzzle) -> dict:
     """Full administrative view, including the definitive answer (needed
-    for review). Never reused by player-facing endpoints."""
+    for review) and lifecycle/provenance metadata. Never reused by
+    player-facing endpoints."""
     return {
         "id": row.id,
         "exercise_slug": row.exercise_slug,
@@ -484,7 +535,26 @@ def puzzle_admin_view(row: Puzzle) -> dict:
         "is_archived": bool(row.is_archived),
         "published_at": row.published_at,
         "created_at": row.created_at,
+        "source": row.source or "manual",
+        "source_reference": row.source_reference,
+        "generator_run_id": row.generator_run_id,
+        "difficulty": row.difficulty,
+        "target_rating": row.target_rating,
+        "retired_at": row.retired_at,
     }
+
+
+def _check_puzzle_metadata(difficulty, target_rating, initial_rating) -> None:
+    if difficulty is not None and (not isinstance(difficulty, int) or not 1 <= difficulty <= 5):
+        raise ValueError("invalid_difficulty")
+    for label, value in (("target_rating", target_rating), ("initial_rating", initial_rating)):
+        if value is not None:
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                raise ValueError(f"invalid_{label}")
+            if not 100.0 <= numeric <= 3000.0:
+                raise ValueError(f"invalid_{label}")
 
 
 def create_puzzle_draft(db: Session, *, actor_id: int, fields: dict) -> Puzzle:
@@ -493,17 +563,38 @@ def create_puzzle_draft(db: Session, *, actor_id: int, fields: dict) -> Puzzle:
         raise ValueError("unknown_exercise")
     if not _known_exercise(db, slug):
         raise ValueError("unknown_exercise")
+    source = (fields.get("source") or "manual").strip()
+    if source not in PUZZLE_SOURCES:
+        raise ValueError("invalid_source")
+    difficulty = fields.get("difficulty")
+    target_rating = fields.get("target_rating")
+    initial_rating = fields.get("initial_rating", 1200.0)
+    _check_puzzle_metadata(difficulty, target_rating, initial_rating)
+    try:
+        initial_rating = float(initial_rating)
+    except (TypeError, ValueError):
+        raise ValueError("invalid_initial_rating")
+    answer = fields.get("answer_json") or {}
+    fen = fields.get("fen")
+    from app.modules.puzzles.validation import content_hash_for
+
     puzzle = Puzzle(
         exercise_slug=slug,
-        fen=fields.get("fen"),
+        fen=fen,
         position_json=fields.get("position_json") or {},
-        answer_json=fields.get("answer_json") or {},
+        answer_json=answer,
         hint_json=fields.get("hint_json") or {},
         prompt_fa=(fields.get("prompt_fa") or "")[:500],
         explanation=(fields.get("explanation") or "")[:2000],
-        initial_rating=float(fields.get("initial_rating", 1200.0)),
+        initial_rating=initial_rating,
         is_published=False,
         is_archived=False,
+        status=STATUS_DRAFT,
+        source=source,
+        source_reference=(fields.get("source_reference") or None),
+        difficulty=difficulty,
+        target_rating=float(target_rating) if target_rating is not None else None,
+        content_hash=content_hash_for(slug, fen, answer),
     )
     db.add(puzzle)
     db.commit()
@@ -514,25 +605,37 @@ def create_puzzle_draft(db: Session, *, actor_id: int, fields: dict) -> Puzzle:
         action="puzzles.create",
         target_type="puzzle",
         target_id=puzzle.id,
-        metadata={"exercise_slug": slug},
+        metadata={"exercise_slug": slug, "source": source},
     )
     return puzzle
+
+
+def _meaning_keys_in(patch: dict) -> list[str]:
+    # Exercise reassignment is rejected separately (only when changed);
+    # an unchanged slug is a no-op, so it is not a meaning edit.
+    return [key for key in ("answer_json", "position_json", "fen") if key in patch]
 
 
 def update_puzzle(db: Session, *, actor_id: int, puzzle_id: int, patch: dict) -> Puzzle:
     puzzle = db.get(Puzzle, puzzle_id)
     if puzzle is None:
         raise ValueError("puzzle_not_found")
+    status = _puzzle_status(puzzle)
+    if status == STATUS_RETIRED:
+        # Retired content is production history; it is never edited.
+        raise ValueError("puzzle_immutable")
     if "exercise_slug" in patch and patch["exercise_slug"] != puzzle.exercise_slug:
         # Exercise association is part of the puzzle's stable identity and
         # historical references; it is never reassigned.
         raise ValueError("puzzle_immutable")
+    if _meaning_keys_in(patch) and status != STATUS_DRAFT:
+        # Meaning-defining fields lock once the puzzle leaves draft.
+        # To correct content, request changes (back to draft) and
+        # re-validate: history stays interpretable. (An unchanged
+        # exercise_slug is a harmless no-op, not a meaning edit.)
+        raise ValueError("puzzle_immutable")
     changes: dict = {}
-    if puzzle.is_published:
-        for key in ("answer_json", "position_json", "fen"):
-            if key in patch:
-                raise ValueError("puzzle_immutable")
-    else:
+    if status == STATUS_DRAFT:
         if "answer_json" in patch:
             puzzle.answer_json = patch["answer_json"] or {}
             changes["answer_json"] = True
@@ -552,8 +655,29 @@ def update_puzzle(db: Session, *, actor_id: int, puzzle_id: int, patch: dict) ->
         puzzle.explanation = (patch["explanation"] or "")[:2000]
         changes["explanation"] = True
     if "initial_rating" in patch:
+        _check_puzzle_metadata(None, None, patch["initial_rating"])
         puzzle.initial_rating = float(patch["initial_rating"])
         changes["initial_rating"] = puzzle.initial_rating
+    if "difficulty" in patch:
+        _check_puzzle_metadata(patch["difficulty"], None, None)
+        puzzle.difficulty = patch["difficulty"]
+        changes["difficulty"] = puzzle.difficulty
+    if "target_rating" in patch:
+        _check_puzzle_metadata(None, patch["target_rating"], None)
+        puzzle.target_rating = (
+            float(patch["target_rating"]) if patch["target_rating"] is not None else None
+        )
+        changes["target_rating"] = puzzle.target_rating
+    if "source_reference" in patch:
+        puzzle.source_reference = patch["source_reference"] or None
+        changes["source_reference"] = True
+    if "answer_json" in patch or "fen" in patch:
+        from app.modules.puzzles.validation import content_hash_for
+
+        puzzle.content_hash = content_hash_for(
+            puzzle.exercise_slug, puzzle.fen, puzzle.answer_json or {}
+        )
+        changes["content_hash"] = True
     if not changes:
         return puzzle
     db.commit()
@@ -569,21 +693,177 @@ def update_puzzle(db: Session, *, actor_id: int, puzzle_id: int, patch: dict) ->
     return puzzle
 
 
-def publish_puzzle(db: Session, *, actor_id: int, puzzle_id: int) -> tuple[Puzzle, bool]:
-    """Publish a draft. Gates: known exercise, non-empty answer, not
-    archived. Idempotent: republishing returns unchanged."""
+def validate_puzzle(db: Session, *, actor_id: int, puzzle_id: int) -> tuple[Puzzle, bool, dict]:
+    """Run exercise-aware validation. Passing content advances
+    draft -> validated; failing content returns to draft. Every run is
+    recorded and audited."""
     puzzle = db.get(Puzzle, puzzle_id)
     if puzzle is None:
         raise ValueError("puzzle_not_found")
-    if puzzle.is_archived:
+    status = _puzzle_status(puzzle)
+    if status not in (STATUS_DRAFT, STATUS_VALIDATED):
+        raise ValueError("invalid_transition")
+    outcome = validate_puzzle_fields(
+        db,
+        exercise_slug=puzzle.exercise_slug,
+        fen=puzzle.fen,
+        position_json=puzzle.position_json,
+        answer_json=puzzle.answer_json,
+        difficulty=puzzle.difficulty,
+        target_rating=puzzle.target_rating,
+        initial_rating=puzzle.initial_rating,
+        exclude_puzzle_id=puzzle.id,
+    )
+    db.add(
+        PuzzleValidation(
+            puzzle_id=puzzle.id,
+            validator_version=CONTENT_VALIDATOR_VERSION,
+            status="pass" if outcome.ok else "fail",
+            result_json={"errors": outcome.errors},
+            validated_by_user_id=actor_id,
+        )
+    )
+    changed = False
+    if outcome.ok and status == STATUS_DRAFT:
+        _record_transition(db, actor_id=actor_id, puzzle=puzzle, to_status=STATUS_VALIDATED)
+        changed = True
+    elif not outcome.ok and status == STATUS_VALIDATED:
+        _record_transition(
+            db, actor_id=actor_id, puzzle=puzzle, to_status=STATUS_DRAFT, reason="re-validation failed"
+        )
+        changed = True
+    else:
+        db.flush()
+    if outcome.ok:
+        puzzle.content_hash = outcome.content_hash
+    db.commit()
+    db.refresh(puzzle)
+    record_audit(
+        db,
+        actor_id=actor_id,
+        action="puzzles.validate",
+        target_type="puzzle",
+        target_id=puzzle.id,
+        metadata={
+            "exercise_slug": puzzle.exercise_slug,
+            "result": "pass" if outcome.ok else "fail",
+            "changed": changed,
+        },
+        result="ok" if outcome.ok else "fail",
+    )
+    return puzzle, changed, {"ok": outcome.ok, "errors": outcome.errors}
+
+
+def review_puzzle(
+    db: Session, *, actor_id: int, puzzle_id: int, decision: str, notes: str = ""
+) -> tuple[Puzzle, bool]:
+    """Explicit human review of validated content. Approve advances to
+    reviewed; request_changes/reject return the candidate to draft with
+    the decision preserved for traceability."""
+    puzzle = db.get(Puzzle, puzzle_id)
+    if puzzle is None:
+        raise ValueError("puzzle_not_found")
+    if decision not in REVIEW_DECISIONS:
+        raise ValueError("invalid_decision")
+    if _puzzle_status(puzzle) != STATUS_VALIDATED:
+        raise ValueError("invalid_transition")
+    clean_notes = (notes or "")[:2000]
+    db.add(
+        PuzzleReview(
+            puzzle_id=puzzle.id,
+            reviewer_user_id=actor_id,
+            decision=decision,
+            notes=clean_notes,
+        )
+    )
+    if decision == "approve":
+        _record_transition(db, actor_id=actor_id, puzzle=puzzle, to_status=STATUS_REVIEWED)
+    else:
+        _record_transition(
+            db, actor_id=actor_id, puzzle=puzzle, to_status=STATUS_DRAFT, reason=decision
+        )
+    db.commit()
+    db.refresh(puzzle)
+    record_audit(
+        db,
+        actor_id=actor_id,
+        action="puzzles.review",
+        target_type="puzzle",
+        target_id=puzzle.id,
+        metadata={"exercise_slug": puzzle.exercise_slug, "decision": decision},
+    )
+    return puzzle, True
+
+
+def approve_puzzle(db: Session, *, actor_id: int, puzzle_id: int) -> tuple[Puzzle, bool]:
+    """Explicit sign-off of reviewed content. Only approved content may
+    be published."""
+    puzzle = db.get(Puzzle, puzzle_id)
+    if puzzle is None:
+        raise ValueError("puzzle_not_found")
+    if _puzzle_status(puzzle) != STATUS_REVIEWED:
+        raise ValueError("invalid_transition")
+    _record_transition(db, actor_id=actor_id, puzzle=puzzle, to_status=STATUS_APPROVED)
+    db.commit()
+    db.refresh(puzzle)
+    record_audit(
+        db,
+        actor_id=actor_id,
+        action="puzzles.approve",
+        target_type="puzzle",
+        target_id=puzzle.id,
+        metadata={"exercise_slug": puzzle.exercise_slug},
+    )
+    return puzzle, True
+
+
+def publish_puzzle(db: Session, *, actor_id: int, puzzle_id: int) -> tuple[Puzzle, bool]:
+    """Publish approved content. Gates: approved lifecycle state, known
+    exercise, non-empty answer, and a final passing validation (guards
+    against duplicates that appeared while the puzzle awaited review).
+    Idempotent: republishing returns unchanged."""
+    puzzle = db.get(Puzzle, puzzle_id)
+    if puzzle is None:
+        raise ValueError("puzzle_not_found")
+    if _puzzle_status(puzzle) == STATUS_RETIRED:
         raise ValueError("puzzle_archived")
-    if puzzle.is_published:
+    if puzzle.is_published and _puzzle_status(puzzle) == STATUS_PUBLISHED:
         return puzzle, False
+    if _puzzle_status(puzzle) != STATUS_APPROVED:
+        # Approval must precede production use; there is no shortcut
+        # from draft/validated/reviewed to published.
+        raise ValueError("invalid_transition")
     if not _known_exercise(db, puzzle.exercise_slug):
         raise ValueError("unknown_exercise")
     if not puzzle.answer_json:
         raise ValueError("puzzle_answer_missing")
-    puzzle_service.publish(db, puzzle)
+    outcome = validate_puzzle_fields(
+        db,
+        exercise_slug=puzzle.exercise_slug,
+        fen=puzzle.fen,
+        position_json=puzzle.position_json,
+        answer_json=puzzle.answer_json,
+        difficulty=puzzle.difficulty,
+        target_rating=puzzle.target_rating,
+        initial_rating=puzzle.initial_rating,
+        exclude_puzzle_id=puzzle.id,
+    )
+    if not outcome.ok:
+        db.add(
+            PuzzleValidation(
+                puzzle_id=puzzle.id,
+                validator_version=CONTENT_VALIDATOR_VERSION,
+                status="fail",
+                result_json={"errors": outcome.errors, "at": "publish"},
+                validated_by_user_id=actor_id,
+            )
+        )
+        db.commit()
+        raise ValueError("validation_failed")
+    puzzle.content_hash = outcome.content_hash
+    _record_transition(db, actor_id=actor_id, puzzle=puzzle, to_status=STATUS_PUBLISHED)
+    db.commit()
+    db.refresh(puzzle)
     record_audit(
         db,
         actor_id=actor_id,
@@ -601,9 +881,21 @@ def retire_puzzle(db: Session, *, actor_id: int, puzzle_id: int) -> tuple[Puzzle
     puzzle = db.get(Puzzle, puzzle_id)
     if puzzle is None:
         raise ValueError("puzzle_not_found")
-    if puzzle.is_archived:
+    if _puzzle_status(puzzle) == STATUS_RETIRED:
         return puzzle, False
+    from_status = _puzzle_status(puzzle)
     puzzle_service.archive(db, puzzle)
+    db.add(
+        PuzzleStatusHistory(
+            puzzle_id=puzzle.id,
+            from_status=from_status,
+            to_status=STATUS_RETIRED,
+            changed_by_user_id=actor_id,
+            reason="retired",
+        )
+    )
+    db.commit()
+    db.refresh(puzzle)
     record_audit(
         db,
         actor_id=actor_id,
@@ -613,6 +905,150 @@ def retire_puzzle(db: Session, *, actor_id: int, puzzle_id: int) -> tuple[Puzzle
         metadata={"exercise_slug": puzzle.exercise_slug},
     )
     return puzzle, True
+
+
+def puzzle_history(db: Session, puzzle_id: int) -> dict:
+    """Inspectable lifecycle trail for one puzzle: transitions,
+    validation runs, and human reviews (newest last)."""
+    puzzle = db.get(Puzzle, puzzle_id)
+    if puzzle is None:
+        raise ValueError("puzzle_not_found")
+    transitions = (
+        db.query(PuzzleStatusHistory)
+        .filter(PuzzleStatusHistory.puzzle_id == puzzle.id)
+        .order_by(PuzzleStatusHistory.id)
+        .all()
+    )
+    validations = (
+        db.query(PuzzleValidation)
+        .filter(PuzzleValidation.puzzle_id == puzzle.id)
+        .order_by(PuzzleValidation.id)
+        .all()
+    )
+    reviews = (
+        db.query(PuzzleReview)
+        .filter(PuzzleReview.puzzle_id == puzzle.id)
+        .order_by(PuzzleReview.id)
+        .all()
+    )
+    return {
+        "puzzle_id": puzzle.id,
+        "status": _puzzle_status(puzzle),
+        "transitions": [
+            {
+                "id": row.id,
+                "from_status": row.from_status,
+                "to_status": row.to_status,
+                "changed_by_user_id": row.changed_by_user_id,
+                "reason": row.reason,
+                "created_at": row.created_at,
+            }
+            for row in transitions
+        ],
+        "validations": [
+            {
+                "id": row.id,
+                "validator_version": row.validator_version,
+                "status": row.status,
+                "result": row.result_json or {},
+                "validated_by_user_id": row.validated_by_user_id,
+                "created_at": row.created_at,
+            }
+            for row in validations
+        ],
+        "reviews": [
+            {
+                "id": row.id,
+                "reviewer_user_id": row.reviewer_user_id,
+                "decision": row.decision,
+                "notes": row.notes,
+                "created_at": row.created_at,
+            }
+            for row in reviews
+        ],
+    }
+
+
+# --- generators --------------------------------------------------------------
+
+
+def list_generators() -> list[dict]:
+    """Central generator registry view (code-defined; admins cannot
+    introduce arbitrary executable generators)."""
+    return [generator_service.generator_view(definition) for definition in generator_service.available_generators()]
+
+
+def run_generator(
+    db: Session,
+    *,
+    actor_id: int,
+    generator_code: str,
+    count: int,
+    seed: int | None = None,
+    target_rating: float | None = None,
+    difficulty: int | None = None,
+    config: dict | None = None,
+) -> GeneratorRun:
+    try:
+        run = generator_service.run_job(
+            db,
+            actor_id=actor_id,
+            generator_code=generator_code,
+            count=count,
+            seed=seed,
+            target_rating=target_rating,
+            difficulty=difficulty,
+            config=config,
+        )
+    except ValueError:
+        raise
+    record_audit(
+        db,
+        actor_id=actor_id,
+        action="generators.run",
+        target_type="generator_run",
+        target_id=run.id,
+        metadata={
+            "generator": run.generator_code,
+            "version": run.generator_version,
+            "status": run.status,
+            "accepted": run.accepted_count,
+            "rejected": run.rejected_count,
+        },
+        result="ok" if run.status == "completed" else "fail",
+    )
+    return run
+
+
+def list_generator_runs(
+    db: Session,
+    *,
+    generator: str | None = None,
+    exercise: str | None = None,
+    status: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> tuple[list[GeneratorRun], int]:
+    return generator_service.list_runs(
+        db, generator=generator, exercise=exercise, status=status, page=page, page_size=page_size
+    )
+
+
+def get_generator_run(db: Session, run_id: int) -> GeneratorRun | None:
+    return db.get(GeneratorRun, run_id)
+
+
+def cancel_generator_run(db: Session, *, actor_id: int, run_id: int) -> tuple[GeneratorRun, bool]:
+    run, changed = generator_service.cancel_job(db, actor_id=actor_id, run_id=run_id)
+    record_audit(
+        db,
+        actor_id=actor_id,
+        action="generators.cancel",
+        target_type="generator_run",
+        target_id=run.id,
+        metadata={"generator": run.generator_code},
+    )
+    return run, changed
 
 
 # --- audit visibility --------------------------------------------------------

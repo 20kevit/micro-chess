@@ -417,6 +417,34 @@ def test_admin_puzzle_lifecycle(client, db_session):
     assert upd.status_code == 200
     assert upd.json()["answer_json"] == {"moves": ["d2d4"]}
 
+    # Phase 07 lifecycle: publishing requires validation, review, and
+    # approval. Direct publish from draft is rejected server-side.
+    assert client.post(f"/api/v1/admin/puzzles/{pid}/publish", headers=headers).status_code == 409
+    assert client.post(f"/api/v1/admin/puzzles/{pid}/approve", headers=headers).status_code == 409
+
+    validated = client.post(f"/api/v1/admin/puzzles/{pid}/validate", headers=headers)
+    assert validated.status_code == 200
+    assert validated.json()["status"] == "validated"
+
+    # Meaning locks once validated: corrections need request_changes.
+    assert client.patch(f"/api/v1/admin/puzzles/{pid}", json={"answer_json": {"moves": ["x"]}}, headers=headers).status_code == 409
+    assert client.post(f"/api/v1/admin/puzzles/{pid}/publish", headers=headers).status_code == 409
+
+    reviewed = client.post(f"/api/v1/admin/puzzles/{pid}/review", json={"decision": "approve"}, headers=headers)
+    assert reviewed.status_code == 200
+    assert reviewed.json()["status"] == "reviewed"
+
+    approved = client.post(f"/api/v1/admin/puzzles/{pid}/approve", headers=headers)
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "approved"
+
+    # Lifecycle trail is inspectable by admins.
+    history = client.get(f"/api/v1/admin/puzzles/{pid}/history", headers=headers)
+    assert history.status_code == 200
+    assert [t["to_status"] for t in history.json()["transitions"]] == ["validated", "reviewed", "approved"]
+    assert history.json()["validations"][0]["status"] == "pass"
+    assert history.json()["reviews"][0]["decision"] == "approve"
+
     # Publish makes it player-visible (answer still hidden).
     pub = client.post(f"/api/v1/admin/puzzles/{pid}/publish", headers=headers)
     assert pub.status_code == 200
@@ -437,7 +465,7 @@ def test_admin_puzzle_lifecycle(client, db_session):
         "puzzle_id": pid, "answer": {"moves": ["d2d4"]}, "mode": "practice",
     }, headers=_bearer(player_token))
     retired = client.post(f"/api/v1/admin/puzzles/{pid}/retire", headers=headers)
-    assert retired.json()["status"] == "archived"
+    assert retired.json()["status"] == "retired"
     assert client.get(f"/api/v1/puzzles/{pid}", headers=_bearer(player_token)).status_code == 404
     history = client.get("/api/v1/me/training/attempts", headers=_bearer(player_token))
     assert len(history.json()) == 1
@@ -525,18 +553,22 @@ def test_player_cannot_read_audit(client, db_session):
 # --- migration --------------------------------------------------------------------
 
 
-def test_fresh_database_boots_to_v6_with_audit_table():
+def test_fresh_database_boots_to_v7_with_content_tables():
     from sqlalchemy import create_engine, inspect
     from sqlalchemy.pool import StaticPool
 
     from app.db.base import Base
     from app.db.migration import SCHEMA_VERSION, ensure_schema, get_schema_version
 
-    assert SCHEMA_VERSION == 6
+    assert SCHEMA_VERSION == 7
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    assert ensure_schema(engine) == 6
-    assert get_schema_version(engine) == 6
+    assert ensure_schema(engine) == 7
+    assert get_schema_version(engine) == 7
     assert "audit_logs" in inspect(engine).get_table_names()
     assert "audit_logs" in Base.metadata.tables
+    assert "generator_runs" in inspect(engine).get_table_names()
+    assert "puzzle_status_history" in inspect(engine).get_table_names()
+    assert "puzzle_validations" in inspect(engine).get_table_names()
+    assert "puzzle_reviews" in inspect(engine).get_table_names()
     # Idempotent re-run.
-    assert ensure_schema(engine) == 6
+    assert ensure_schema(engine) == 7
