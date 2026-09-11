@@ -43,6 +43,9 @@ class RateLimiter:
 
 auth_limiter = RateLimiter(per_minute=settings.auth_rate_limit_per_minute)
 
+# Phase 11: user-triggered support writes (ticket + message creation).
+support_limiter = RateLimiter(per_minute=settings.support_rate_limit_per_minute)
+
 
 def _client_key(request: Request) -> str:
     if request.client is not None:
@@ -55,3 +58,10 @@ def enforce_auth_rate_limit(request: Request) -> None:
     if not settings.rate_limit_enabled:
         return
     auth_limiter.check(_client_key(request))
+
+
+def enforce_support_rate_limit(request: Request) -> None:
+    """Dependency for user-triggered support writes (spam protection)."""
+    if not settings.rate_limit_enabled:
+        return
+    support_limiter.check(_client_key(request))

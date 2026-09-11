@@ -17,6 +17,8 @@ from app.core.pagination import DEFAULT_PAGE_SIZE, PageQuery, PageSizeQuery
 from app.modules.admin import schemas, service
 from app.modules.analytics import schemas as analytics_schemas
 from app.modules.analytics import service as analytics_service
+from app.modules.support import schemas as support_schemas
+from app.modules.support import service as support_service
 from app.modules.users.models import User
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -583,6 +585,92 @@ def get_puzzle_analytics(
     if detail is None:
         raise HTTPException(status_code=404, detail="puzzle_not_found")
     return detail
+
+
+# --- support (Phase 11, staff workflows over the support service) ---------
+
+
+def _support_error(exc: ValueError) -> HTTPException:
+    code = str(exc)
+    if code in ("ticket_not_found",):
+        return HTTPException(status_code=404, detail=code)
+    if code in ("invalid_message", "invalid_status"):
+        return HTTPException(status_code=422, detail=code)
+    if code in ("ticket_closed",):
+        return HTTPException(status_code=409, detail=code)
+    return HTTPException(status_code=400, detail=code)
+
+
+@router.get("/support/tickets", response_model=list[support_schemas.SupportTicketStaffOut])
+def list_support_tickets(
+    status: str | None = None,
+    page: PageQuery = 1,
+    page_size: PageSizeQuery = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.SUPPORT_READ)),
+):
+    _ = user
+    try:
+        rows, _ = support_service.list_all_tickets(
+            db, status=status, page=page, page_size=page_size
+        )
+    except ValueError as exc:
+        raise _support_error(exc)
+    return [support_service.ticket_view(row, include_owner=True) for row in rows]
+
+
+@router.get(
+    "/support/tickets/{ticket_id}",
+    response_model=support_schemas.SupportTicketStaffDetailOut,
+)
+def get_support_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.SUPPORT_READ)),
+):
+    _ = user
+    ticket = support_service.get_ticket(db, ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=404, detail="ticket_not_found")
+    return support_service.ticket_detail(db, ticket, include_owner=True)
+
+
+@router.post(
+    "/support/tickets/{ticket_id}/messages",
+    response_model=support_schemas.SupportMessageOut,
+    status_code=201,
+)
+def respond_to_support_ticket(
+    ticket_id: int,
+    body: support_schemas.SupportMessageIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.SUPPORT_RESPOND)),
+):
+    try:
+        message = support_service.add_staff_message(
+            db, ticket_id=ticket_id, staff_id=user.id, body=body.body
+        )
+    except ValueError as exc:
+        raise _support_error(exc)
+    return support_service.message_view(message)
+
+
+@router.post(
+    "/support/tickets/{ticket_id}/close",
+    response_model=support_schemas.SupportTicketStaffOut,
+)
+def close_support_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.SUPPORT_CLOSE)),
+):
+    try:
+        ticket, _ = support_service.close_ticket(
+            db, ticket_id=ticket_id, staff_id=user.id
+        )
+    except ValueError as exc:
+        raise _support_error(exc)
+    return support_service.ticket_view(ticket, include_owner=True)
 
 
 # --- audit ------------------------------------------------------------------

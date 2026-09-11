@@ -15,6 +15,7 @@ from app.modules.adaptive.router import coach_router as adaptive_coach_router
 from app.modules.adaptive.router import me_router as adaptive_router
 from app.modules.adaptive.router import parent_router as adaptive_parent_router
 from app.modules.auth.router import router as auth_router
+from app.modules.notifications.router import router as notifications_router
 from app.modules.balance_scale.router import router as balance_scale_router
 from app.modules.blindfold_calculation.router import router as blindfold_calculation_router
 from app.modules.blindfold_square_vision.router import router as square_vision_router
@@ -33,6 +34,7 @@ from app.modules.relationships.router import coach_router as coach_router
 from app.modules.relationships.router import own_router as relationships_own_router
 from app.modules.relationships.router import parent_router as parent_router
 from app.modules.relationships.router import router as relationships_router
+from app.modules.support.router import router as support_router
 from app.modules.progress.router import router as attempts_router
 from app.modules.puzzles.router import router as puzzles_router
 from app.modules.trapped_pieces.router import router as trapped_pieces_router
@@ -106,6 +108,8 @@ app.include_router(pathfinding_router, prefix=API_V1_PREFIX)
 app.include_router(obstacle_pathfinding_router, prefix=API_V1_PREFIX)
 app.include_router(piece_recognition_router, prefix=API_V1_PREFIX)
 app.include_router(player_router, prefix=API_V1_PREFIX)
+app.include_router(support_router, prefix=API_V1_PREFIX)
+app.include_router(notifications_router, prefix=API_V1_PREFIX)
 app.include_router(adaptive_router, prefix=API_V1_PREFIX)
 app.include_router(adaptive_coach_router, prefix=API_V1_PREFIX)
 app.include_router(adaptive_parent_router, prefix=API_V1_PREFIX)

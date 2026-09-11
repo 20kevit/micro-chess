@@ -631,10 +631,10 @@ def test_fresh_database_boots_to_v9_with_adaptive_table():
     from app.db.base import Base
     from app.db.migration import SCHEMA_VERSION, ensure_schema, get_schema_version
 
-    assert SCHEMA_VERSION == 9
+    assert SCHEMA_VERSION == 10
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    assert ensure_schema(engine) == 9
-    assert get_schema_version(engine) == 9
+    assert ensure_schema(engine) == 10
+    assert get_schema_version(engine) == 10
     assert "adaptive_recommendations" in inspect(engine).get_table_names()
     assert "adaptive_recommendations" in Base.metadata.tables
-    assert ensure_schema(engine) == 9  # idempotent re-run
+    assert ensure_schema(engine) == 10  # idempotent re-run

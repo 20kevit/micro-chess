@@ -100,6 +100,25 @@ def record_audit(
     return row
 
 
+def _notify_account_status(db: Session, *, user_id: int, suspended: bool) -> None:
+    """Best-effort mandatory account notice (Phase 11). Never fails the
+    administrative operation that triggered it."""
+    try:
+        from app.modules.notifications import service as notifications
+
+        event = "account.suspended" if suspended else "account.reactivated"
+        notifications.emit_event(
+            db,
+            user_id=user_id,
+            type=event,
+            title="account.suspended" if suspended else "account.reactivated",
+            body="",
+            dedup_key=f"account:{user_id}:{event}:{_utcnow().date().isoformat()}",
+        )
+    except Exception:  # noqa: BLE001 - notification must not break admin ops
+        db.rollback()
+
+
 # --- overview ---------------------------------------------------------------
 
 
@@ -271,6 +290,7 @@ def suspend_user(db: Session, *, actor_id: int, target_id: int) -> tuple[User, b
         target_id=target.id,
         metadata={"username": target.username or ""},
     )
+    _notify_account_status(db, user_id=target.id, suspended=True)
     return target, True
 
 
@@ -291,6 +311,7 @@ def reactivate_user(db: Session, *, actor_id: int, target_id: int) -> tuple[User
         target_id=target.id,
         metadata={"username": target.username or ""},
     )
+    _notify_account_status(db, user_id=target.id, suspended=False)
     return target, True
 
 

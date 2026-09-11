@@ -31,9 +31,11 @@ def db_session():
     from app.modules.pathfinding_obstacles import models as _pfo  # noqa: F401
     from app.modules.piece_recognition import models as _pr1  # noqa: F401
     from app.modules.player import models as _player  # noqa: F401
+    from app.modules.notifications import models as _notif  # noqa: F401
     from app.modules.progress import models as _pr  # noqa: F401
     from app.modules.puzzles import models as _pz  # noqa: F401
     from app.modules.relationships import models as _rel  # noqa: F401
+    from app.modules.support import models as _sup  # noqa: F401
     from app.modules.trapped_pieces import models as _tp  # noqa: F401
     from app.modules.undefended_pieces import models as _up  # noqa: F401
     from app.modules.users import models as _u  # noqa: F401
@@ -55,12 +57,14 @@ def db_session():
 
 @pytest.fixture(autouse=True)
 def _reset_auth_limiter():
-    """Isolate the in-memory auth rate limiter between tests."""
-    from app.core.rate_limit import auth_limiter
+    """Isolate the in-memory auth/support rate limiters between tests."""
+    from app.core.rate_limit import auth_limiter, support_limiter
 
     auth_limiter.reset()
+    support_limiter.reset()
     yield
     auth_limiter.reset()
+    support_limiter.reset()
 
 
 @pytest.fixture()

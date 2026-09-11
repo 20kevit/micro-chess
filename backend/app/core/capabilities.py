@@ -60,6 +60,11 @@ class Capability(str, Enum):
     ANALYTICS_READ_EXERCISE = "analytics.read_exercise"
     ANALYTICS_READ_PUZZLE = "analytics.read_puzzle"
     AUDIT_VIEW = "audit.view"
+    SUPPORT_CREATE = "support.create"
+    SUPPORT_READ_OWN = "support.read_own"
+    SUPPORT_READ = "support.read"
+    SUPPORT_RESPOND = "support.respond"
+    SUPPORT_CLOSE = "support.close"
     SUPPORT_MANAGE = "support.manage"
     RELATIONSHIPS_MANAGE = "relationships.manage"
     RELATIONSHIPS_CREATE = "relationships.create"
@@ -83,6 +88,12 @@ _PLAYER_CAPABILITIES = frozenset(
         Capability.RELATIONSHIPS_CREATE,
         Capability.RELATIONSHIPS_ACCEPT,
         Capability.RELATIONSHIPS_REVOKE,
+        # Phase 11: every account may open its own support requests and
+        # read/reply to them. Staff capabilities (read/respond/close/
+        # manage) stay ADMIN-held; object checks in the support service
+        # enforce ownership for the *_own capabilities.
+        Capability.SUPPORT_CREATE,
+        Capability.SUPPORT_READ_OWN,
     }
 )
 
