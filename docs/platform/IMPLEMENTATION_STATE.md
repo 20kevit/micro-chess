@@ -37,6 +37,7 @@ verified. Phase 04 (Ratings) completed and verified. Phase 05
 (Content & Generators) completed and verified. Phase 08
 (Analytics) completed and verified. Phase 09 (Relationships)
 completed and verified. Phase 10 (Adaptive Training Foundation)
+completed and verified. Phase 11 (Support & Notifications)
 completed and verified. No later phase started.
 
 | Area                         | Status      |
@@ -51,7 +52,7 @@ completed and verified. No later phase started.
 | Analytics                    | VERIFIED    |
 | Relationships                | VERIFIED    |
 | Adaptive Training Foundation | VERIFIED    |
-| Support & Notifications      | NOT_STARTED |
+| Support & Notifications      | VERIFIED    |
 
 Foundation primitives that later phases build on (password hashing +
 policy, JWT sessions, capability registry, token transport, audit
@@ -72,6 +73,90 @@ Existing exercises verified preserved after Phase 03:
 ---
 
 ## 5. Evidence
+
+Phase 11 support & notifications (all verified by tests + live runtime checks):
+
+* Support (`backend/app/modules/support/`, schema v10): tickets owned
+  by exactly one account (guest support not enabled — no product
+  requirement); lifecycle exactly `open -> answered -> closed`
+  (owner replies move `answered` back to `open`; `closed` is terminal
+  and idempotent; first staff response/close records
+  `assigned_admin_id`). Creation carries the initial owner message
+  (subject ≤200, message ≤2000, category free-form ≤50 — no invented
+  taxonomy); messages are append-only with a server-derived staff/user
+  flag (owner views never expose admin identities). Capabilities are
+  new `support.create/read_own` (every account) plus
+  `support.read/respond/close` (ADMIN-held; `support.manage` already
+  existed). Creation + owner replies are rate-limited
+  (`support_rate_limit_per_minute`, centralized setting + shared
+  limiter); every state change is audited (`support.create/reply/
+  respond/close`, secret-free).
+* Notifications (`backend/app/modules/notifications/`, the module's
+  only tables): strict `event -> notification -> delivery` separation —
+  domain code emits an event, the service applies the preference
+  decision, persists the notification, then delivers through a channel
+  provider. Categories are exactly `support` (default-on,
+  disableable) and `account` (mandatory, never disableable; missing
+  preference rows default to enabled; evaluation is server-side).
+  Event types are exactly `support.response`, `support.closed`,
+  `account.suspended`, `account.reactivated` (only triggers: staff
+  support actions + suspend/reactivate hooks in the admin service;
+  emission is best-effort and can never fail the business operation).
+  Deduplication is a UNIQUE `dedup_key` (IntegrityError collapses to
+  the existing row). Deliveries are one row per (notification,
+  channel) with provider-independent `pending/sent/delivered/failed`
+  status, attempt counts, and payload-free error summaries; retries
+  update the same row. Provider abstraction (`providers.py`) keeps
+  vendor SDKs out of the domain — only `in_app` is registered
+  (external channels remain future per the Phase 11 spec).
+* API (thin routers, `/api/v1`, error envelope, bounded pagination):
+  `POST /support/tickets`, `GET /me/support/tickets[/{id}]`,
+  `POST /me/support/tickets/{id}/messages` (owner-only; foreign ids
+  404, anon 401), `GET /admin/support/tickets[/{id}]`,
+  `POST /admin/support/tickets/{id}/messages|/close` (staff caps),
+  `GET /me/notifications[?unread_only]`,
+  `GET /me/notifications/unread-count`,
+  `POST /me/notifications/{id}/read` (owner-only, idempotent),
+  `GET|PATCH /me/notification-preferences` (mandatory rejection is
+  422). No client notification-write endpoint exists.
+* Schema v10: fresh boots to v10 (`support_tickets`,
+  `support_messages`, `notifications`, `notification_deliveries`,
+  `notification_preferences` via `create_all`); v1–v9 DBs upgrade
+  with data preserved (no backfill, no fabricated history); legacy
+  upgrade-contract tests bumped `== 9` → `== 10`; idempotency +
+  downgrade refusal covered. Only portable column types (compiled on
+  SQLite + PostgreSQL dialects in tests).
+* Frontend: `/support` (create form + status list with Persian
+  labels), `/support/:id` (conversation + reply box hidden when
+  closed), `/notifications` (unread filter, mark-read, preference
+  switches with mandatory locking), `/admin/support` (queue with
+  status filter + conversation + respond/close with confirmation),
+  header bell with server-owned unread badge (refreshed on
+  navigation, no polling) + support link, admin dashboard link,
+  `supportApi`/`notificationsApi`/`adminApi.support` transport, ~40
+  Persian strings in `fa.ts`; RTL preserved, 44px targets,
+  loading/empty/error states. Backend remains the sole authorizer.
+  14 new frontend tests (4 transport + 10 page).
+* Runtime verified live on a fresh DB (23 checks): register ×3 →
+  create/list (owner + admin views) → staff respond → owner
+  `support.response` notice + unread 1 → owner reply reopens →
+  close → `support.closed` notice → mark read → prefs matrix +
+  opt-out + mandatory 422 → cross-user 404 / player-admin 403 /
+  anon 401 → suspend/reactivate notices covered by tests →
+  dashboard/catalog/admin-overview regressions green → schema v10
+  with the v8→v10 migration chain.
+* `tests/test_support_notifications.py` (21 tests): creation,
+  ownership, pagination, conversation, staff lifecycle, capability
+  matrix, read/unread, preferences (incl. mandatory + suppression),
+  dedup, delivery failure/retry, provider isolation, account
+  triggers, migration, portability.
+* Intentional deferrals: guest support (no product requirement),
+  email/push/Telegram/external providers (provider seam is ready),
+  ticket reopening (closed is terminal per the capability list —
+  no reopen capability exists), admin assignment endpoint
+  (first responder auto-records), support attachments, coach/parent
+  notification surfaces, adaptive/gamification notification triggers
+  (only the specified support + account events emit).
 
 Phase 10 adaptive training foundation (all verified by tests + live runtime checks):
 
@@ -726,13 +811,13 @@ Required follow-up: Small UI notice when a product flow requires it.
 
 ## 7. Testing State
 
-* backend tests: 1099 passed, 2 pre-existing failures (`pytest`;
+* backend tests: 1120 passed, 2 pre-existing failures (`pytest`;
   the 2 failures are `test_gamification.py` streak tests that also fail
   on pristine pre-Phase-10 HEAD — a real-date/timezone edge between
   `date.today()` and server UTC dates, unrelated to this phase and left
-  untouched; includes 33 new adaptive tests in
-  `tests/test_adaptive.py` plus the Phase 10 v9-upgrade contract
-  updates; other suites include 28 account tests in
+  untouched; includes 21 new support/notification tests in
+  `tests/test_support_notifications.py` plus the Phase 11 v10-upgrade
+  contract updates; other suites include 28 account tests in
   `tests/test_accounts.py`, 15 player-platform tests in
   `tests/test_player_platform.py`, 19 rating tests in
   `tests/test_ratings.py`, 27 gamification tests in
@@ -740,16 +825,18 @@ Required follow-up: Small UI notice when a product flow requires it.
   `tests/test_admin.py`, 18 content/generator tests in
   `tests/test_content_lifecycle.py`, 21 analytics tests in
   `tests/test_analytics.py`, 19 relationship tests in
-  `tests/test_relationships.py`, plus the Phase 10 v9-upgrade contract
+  `tests/test_relationships.py`, 33 adaptive tests in
+  `tests/test_adaptive.py` plus the Phase 11 v10-upgrade contract
   updates)
-* frontend tests: 319 passed (`npm test`, 36 files; includes 10
+* frontend tests: 333 passed (`npm test`, 40 files; includes 10
   auth-context/login/protected-account tests, 14 player
   transport/page/nav tests, 6 rating transport/section tests, 7
   gamification transport/section tests, 15 admin
   transport/guard/page/nav tests, 4 content-lifecycle/
   generator transport/page tests, 8 analytics section/page tests,
-  17 relationship transport/page tests, and 9 new adaptive
-  transport/section tests)
+  17 relationship transport/page tests, 9 adaptive
+  transport/section tests, and 14 new support/notification
+  transport/page tests)
 * typecheck: `npm run typecheck` clean
 * build: `npm run build` succeeds (pre-existing chunk-size warning only)
 * migration verification: fresh-boot, idempotency, data preservation,
