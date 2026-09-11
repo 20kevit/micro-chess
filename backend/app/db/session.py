@@ -4,10 +4,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
-from app.db.base import Base
 
 # Future PostgreSQL migration: only DATABASE_URL changes. Models use
-# portable column types (no SQLite-specific DDL). Add Alembic then.
+# portable column types (no SQLite-specific DDL). Schema evolution goes
+# through app.db.migration steps, guarded by the schema_version row.
 connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
 
 engine = create_engine(settings.database_url, connect_args=connect_args)
@@ -15,16 +15,6 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 def init_db() -> None:
-    # Import models so metadata is populated before create_all.
-    from app.modules.balance_scale import models as _bs  # noqa: F401
-    from app.modules.blindfold_calculation import models as _bc  # noqa: F401
-    from app.modules.blindfold_square_vision import models as _bsv  # noqa: F401
-    from app.modules.exercises import models as _ex  # noqa: F401
-    from app.modules.legal_destinations import models as _ld  # noqa: F401
-    from app.modules.material_comparison import models as _hs  # noqa: F401
-    from app.modules.piece_recognition import models as _pr1  # noqa: F401
-    from app.modules.progress import models as _pr  # noqa: F401
-    from app.modules.puzzles import models as _pz  # noqa: F401
-    from app.modules.users import models as _u  # noqa: F401
+    from app.db.migration import ensure_schema
 
-    Base.metadata.create_all(bind=engine)
+    ensure_schema(engine)

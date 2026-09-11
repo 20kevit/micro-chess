@@ -45,9 +45,10 @@ cd backend
 python -m app.modules.pin.seed
 ```
 
-Dev database note: tables are created with `create_all` (no migrations at this
-stage), so after model columns change, stop the server, delete the gitignored
-`backend/microchess.db`, restart, and re-run the seed above.
+Dev database note: schema is managed by `app/db/migration.py`
+(`ensure_schema` runs on startup and records `schema_version`; reruns are
+safe and preserve data). For a clean dev reset, stop the server, delete
+the gitignored `backend/microchess.db`, restart, and re-run the seed above.
 
 ## Quality gates
 
