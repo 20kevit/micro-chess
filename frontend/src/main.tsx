@@ -30,7 +30,9 @@ import { LegalDestinationsPage } from "./pages/LegalDestinationsPage";
 import { MaterialComparisonPage } from "./pages/MaterialComparisonPage";
 import { OpeningTrapsPage } from "./pages/OpeningTrapsPage";
 import { ReverseOpeningPage } from "./pages/ReverseOpeningPage";
+import { CoachStudentsPage, ParentChildrenPage } from "./pages/MentorStudentsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { RelationshipsPage } from "./pages/RelationshipsPage";
 import { PathfindingPage } from "./pages/PathfindingPage";
 import { PathfindingObstaclesPage } from "./pages/PathfindingObstaclesPage";
 import { PieceRecognitionPage } from "./pages/PieceRecognitionPage";
@@ -73,6 +75,30 @@ const router = createBrowserRouter([
         element: (
           <RequireAuth>
             <ProfilePage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/relationships",
+        element: (
+          <RequireAuth>
+            <RelationshipsPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/coach/students",
+        element: (
+          <RequireAuth>
+            <CoachStudentsPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/parent/children",
+        element: (
+          <RequireAuth>
+            <ParentChildrenPage />
           </RequireAuth>
         ),
       },

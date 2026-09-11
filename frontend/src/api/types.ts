@@ -581,6 +581,48 @@ export interface AdminPuzzleAnalytics {
   avg_response_ms: number | null;
 }
 
+// Relationships (mirrors backend modules/relationships/schemas.py).
+// Transport shapes only; authorization stays server-side.
+export type RelationshipKind = "coach" | "parent";
+export type RelationshipStatus = "pending" | "active" | "revoked";
+
+export interface Relationship {
+  id: number;
+  kind: RelationshipKind;
+  status: RelationshipStatus;
+  mentor_user_id: number;
+  student_user_id: number;
+  other_user_id: number;
+  other_username: string;
+  other_display_name: string;
+  created_by_user_id: number | null;
+  created_at: string;
+  accepted_at: string | null;
+  revoked_at: string | null;
+}
+
+export interface RelatedStudent {
+  id: number;
+  username: string;
+  display_name: string;
+}
+
+export type AssignmentStatus = "assigned" | "completed" | "cancelled";
+
+export interface Assignment {
+  id: number;
+  coach_user_id: number;
+  student_user_id: number;
+  relationship_id: number;
+  exercise_slug: string;
+  note: string;
+  due_at: string | null;
+  status: AssignmentStatus;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
 // Authentication state (mirrors backend users/schemas.py UserOut).
 // The server owns roles/capabilities; the client only renders them.
 export interface AuthUser {

@@ -11,6 +11,7 @@ import type {
   AdminPuzzleAnalytics,
   AdminUser,
   AdminUserDetail,
+  Assignment,
   AttemptMode,
   AttemptResponse,
   AuthToken,
@@ -34,6 +35,8 @@ import type {
   RatingHistoryResponse,
   RatingsResponse,
   ReconstructionStepResponse,
+  RelatedStudent,
+  Relationship,
   SpeedReport,
   SpeedSession,
   SpeedSubmitResponse,
@@ -953,6 +956,13 @@ export const api = {
     request<PlayerAnalytics>(`/api/v1/me/analytics/exercises/${slug}${analyticsQuery(params)}`),
   dashboard: () => request<Dashboard>("/api/v1/me/dashboard"),
   exerciseDetail: (slug: string) => request<Exercise>(`/api/v1/exercises/${slug}`),
+  // Own assignments from an authorized coach (read + mark completed).
+  myAssignments: () => request<Assignment[]>("/api/v1/me/assignments"),
+  completeAssignment: (id: number) =>
+    request<Assignment>(`/api/v1/me/assignments/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "completed" }),
+    }),
   // Guest identity transport (server-controlled temporary sessions).
   createGuestSession: () =>
     request<{ guest_token: string; expires_at: string }>("/api/v1/guest/session", {
@@ -967,6 +977,90 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ guest_token: guestToken }),
     }),
+};
+
+// Relationships transport (Phase 9). UX only — every endpoint
+// authorizes server-side via capability + active relationship.
+export const relationshipsApi = {
+  list: (params?: { kind?: string; status?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.kind) query.set("kind", params.kind);
+    if (params?.status) query.set("status", params.status);
+    const suffix = query.toString();
+    return request<Relationship[]>(`/api/v1/relationships${suffix ? `?${suffix}` : ""}`);
+  },
+  create: (body: { kind: string; other_username: string }) =>
+    request<Relationship>("/api/v1/relationships", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  accept: (id: number) =>
+    request<Relationship>(`/api/v1/relationships/${id}/accept`, { method: "POST" }),
+  revoke: (id: number) =>
+    request<Relationship>(`/api/v1/relationships/${id}/revoke`, { method: "POST" }),
+};
+
+function studentReads(base: string) {
+  return {
+    students: () => request<RelatedStudent[]>(`${base}/students`),
+    student: (id: number) => request<RelatedStudent>(`${base}/students/${id}`),
+    progress: (id: number) => request<ProgressSummary>(`${base}/students/${id}/progress`),
+    attempts: (id: number) => request<HistoryAttempt[]>(`${base}/students/${id}/attempts`),
+    ratings: (id: number) => request<RatingsResponse>(`${base}/students/${id}/ratings`),
+    gamification: (id: number) => request<GamificationSummary>(`${base}/students/${id}/gamification`),
+    achievements: (id: number) => request<AchievementsResponse>(`${base}/students/${id}/achievements`),
+    analytics: (id: number, params?: { period?: string }) => {
+      const query = new URLSearchParams();
+      if (params?.period) query.set("period", params.period);
+      const suffix = query.toString();
+      return request<PlayerAnalytics>(`${base}/students/${id}/analytics${suffix ? `?${suffix}` : ""}`);
+    },
+  };
+}
+
+function childrenReads(base: string) {
+  return {
+    children: () => request<RelatedStudent[]>(`${base}/children`),
+    child: (id: number) => request<RelatedStudent>(`${base}/children/${id}`),
+    progress: (id: number) => request<ProgressSummary>(`${base}/children/${id}/progress`),
+    attempts: (id: number) => request<HistoryAttempt[]>(`${base}/children/${id}/attempts`),
+    ratings: (id: number) => request<RatingsResponse>(`${base}/children/${id}/ratings`),
+    gamification: (id: number) => request<GamificationSummary>(`${base}/children/${id}/gamification`),
+    achievements: (id: number) => request<AchievementsResponse>(`${base}/children/${id}/achievements`),
+    analytics: (id: number, params?: { period?: string }) => {
+      const query = new URLSearchParams();
+      if (params?.period) query.set("period", params.period);
+      const suffix = query.toString();
+      return request<PlayerAnalytics>(`${base}/children/${id}/analytics${suffix ? `?${suffix}` : ""}`);
+    },
+    assignments: (id: number) => request<Assignment[]>(`${base}/children/${id}/assignments`),
+  };
+}
+
+// Coach reads (active coach-student relationship required server-side)
+// plus assignment management (blocked without an active relationship).
+export const coachApi = {
+  ...studentReads("/api/v1/coach"),
+  assignments: (studentId?: number) =>
+    request<Assignment[]>(
+      `/api/v1/coach/assignments${studentId !== undefined ? `?student_id=${studentId}` : ""}`,
+    ),
+  createAssignment: (body: { student_id: number; exercise_slug: string; note?: string; due_at?: string }) =>
+    request<Assignment>("/api/v1/coach/assignments", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateAssignment: (id: number, status: string) =>
+    request<Assignment>(`/api/v1/coach/assignments/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+};
+
+// Parent reads (active parent-student relationship required server-side).
+// Assignment visibility is read-only; parents never manage assignments.
+export const parentApi = {
+  ...childrenReads("/api/v1/parent"),
 };
 
 // Administration transport (Phase 6). UX only — every endpoint

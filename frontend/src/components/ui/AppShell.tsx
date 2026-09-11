@@ -74,6 +74,19 @@ export function AppShell() {
             <NavLink to="/profile" className={link}>
               {t("nav.profile")}
             </NavLink>
+            <NavLink to="/relationships" className={link}>
+              {t("nav.relationships")}
+            </NavLink>
+            {user.roles?.includes("COACH") ? (
+              <NavLink to="/coach/students" className={link}>
+                {t("nav.coach")}
+              </NavLink>
+            ) : null}
+            {user.roles?.includes("PARENT") ? (
+              <NavLink to="/parent/children" className={link}>
+                {t("nav.parent")}
+              </NavLink>
+            ) : null}
             {isAdminRole(user.roles) ? (
               <NavLink to="/admin" className={link}>
                 {t("nav.admin")}
