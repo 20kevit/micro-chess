@@ -32,7 +32,8 @@ BLOCKED
 Phase 01 (Foundation) completed and verified. Phase 02 (Accounts)
 completed and verified. Phase 03 (Player Platform) completed and
 verified. Phase 04 (Ratings) completed and verified. Phase 05
-(Gamification foundation) completed and verified. No later phase
+(Gamification foundation) completed and verified. Phase 06
+(Administration foundation) completed and verified. No later phase
 started.
 
 | Area                         | Status      |
@@ -42,7 +43,7 @@ started.
 | Player Platform              | VERIFIED    |
 | Ratings                      | VERIFIED    |
 | Gamification                 | VERIFIED    |
-| Administration               | NOT_STARTED |
+| Administration               | VERIFIED    |
 | Content & Generators         | NOT_STARTED |
 | Analytics                    | NOT_STARTED |
 | Relationships                | NOT_STARTED |
@@ -68,6 +69,68 @@ Existing exercises verified preserved after Phase 03:
 ---
 
 ## 5. Evidence
+
+Phase 06 administration foundation (all verified by tests + live runtime checks):
+
+* Capabilities (`core/capabilities.py`): granular Phase 6 additions —
+  `users.read_private/suspend/reactivate`, `roles.assign/revoke`,
+  `exercises.create/update/enable/disable/delete`,
+  `puzzles.update/retire`, `admin.overview`. ADMIN holds all (existing
+  `frozenset(Capability)` mapping); PLAYER/COACH/PARENT sets unchanged.
+  Admin cross-user reads use manage-scope caps (`users.manage`,
+  `exercises.manage`, `puzzles.manage`, `users.read_private`) because
+  every account holds `users/exercises/puzzles.read` for its own
+  `/me`/catalog endpoints — guarding admin lists with those would leak.
+* Admin API (`modules/admin/`, `/api/v1/admin`, 15 endpoints, thin
+  router + `service.py` business rules): `GET /dashboard` (read-only
+  counts + recent registrations/audit, no secrets), user
+  search/filter/pagination (`search`/`role`/`status`, whitelisted
+  sort/order, bounded page size), user detail (identity + profile +
+  roles + attempt count; never password hashes/emails/tokens),
+  `suspend`/`reactivate` (idempotent; suspension fails closed on next
+  token use, no session rewrite needed), role assign/revoke
+  (canonical roles only, idempotent, final-ADMIN removal → 409),
+  exercise inspect + metadata update + enable/disable (slug immutable;
+  enabling requires a registered implementation; disabling hides the
+  catalog entry and makes `submit_attempt` refuse new attempts with
+  `exercise_not_available` while history stays readable), puzzle
+  draft/create + update (answer/position/FEN/exercise immutable once
+  published) + `publish` (gates: known exercise, non-empty answer) +
+  `retire`/archive (idempotent; retired content hidden from players,
+  attempts/ratings/analytics references preserved), audit list/detail
+  (read-only; PUT/DELETE → 405). `tests/test_admin.py` (28 tests).
+* Audit (`modules/admin/models.py` `audit_logs` + `record_audit`):
+  every privileged transition (suspend/reactivate, role assign/revoke,
+  exercise update, puzzle create/update/publish/retire) persists
+  actor/action/target/timestamp/secret-free context and emits the
+  Phase 1 log primitive; ordinary player requests create no rows.
+* Schema v6: `ensure_schema` fresh-boots to v6 (new `audit_logs` table
+  via `create_all`) and upgrades v1–v5 DBs with data preserved (legacy
+  upgrade-contract tests bumped `== 5` → `== 6`; no backfill, no
+  fabricated history); idempotency + downgrade refusal covered.
+* Frontend: `/admin` (overview), `/admin/users` (search/filter/detail/
+  suspend/reactivate/role buttons with confirmations),
+  `/admin/exercises` (enable/disable + title edit),
+  `/admin/puzzles` (filter + draft create + publish/retire),
+  `RequireAdmin` UX guard + `مدیریت` nav tab only for ADMIN roles,
+  `adminApi` transport, ~40 Persian strings in `fa.ts`; RTL preserved,
+  44px targets, loading/empty/error states. Backend remains the sole
+  authorizer. 15 new frontend tests (transport + guard + pages + nav).
+* Runtime verified live on a fresh DB (37 checks): health → register →
+  player 403 / anon 401 on admin APIs → promote → dashboard 200 →
+  user search/detail (leak-free) → suspend (login 401, token dead) →
+  reactivate → role assign (+422 invalid) → exercise disable (catalog
+  hides) → puzzle draft/publish (visible w/o answer)/retire (404 for
+  players) → player APIs intact (profile/progress/gamification/
+  ratings/dashboard/achievements) → audit entries present, non-admin
+  403 → schema stamped v6 with `audit_logs`.
+* Intentional deferrals: user deletion (suspension is the reversible
+  path; retention policy undefined), exercise create/delete, puzzle
+  validate/review/approve (Phase 7 lifecycle), generators, support
+  tickets, admin analytics (Phase 8), coach/parent relationships
+  (Phase 9), speed-session-start gating for disabled exercises
+  (submissions are refused server-side; start-gating across the 15
+  exercise routers deferred to avoid touching exercise code).
 
 Phase 05 gamification foundation (all verified by tests + live runtime checks):
 
@@ -376,16 +439,17 @@ Required follow-up: Small UI notice when a product flow requires it.
 
 ## 7. Testing State
 
-* backend tests: 981 passed (`pytest`; includes 28 account tests in
+* backend tests: 1009 passed (`pytest`; includes 28 account tests in
   `tests/test_accounts.py`, 15 player-platform tests in
   `tests/test_player_platform.py`, 19 rating tests in
   `tests/test_ratings.py`, 27 gamification tests in
-  `tests/test_gamification.py`, plus the Phase 05 v5-upgrade contract
-  updates)
-* frontend tests: 266 passed (`npm test`, 27 files; includes 10
+  `tests/test_gamification.py`, 28 new admin tests in
+  `tests/test_admin.py`, plus the Phase 06 v6-upgrade contract updates)
+* frontend tests: 281 passed (`npm test`, 29 files; includes 10
   auth-context/login/protected-account tests, 14 player
-  transport/page/nav tests, 6 rating transport/section tests, and 7
-  new gamification transport/section tests)
+  transport/page/nav tests, 6 rating transport/section tests, 7
+  gamification transport/section tests, and 15 new admin
+  transport/guard/page/nav tests)
 * typecheck: `npm run typecheck` clean
 * build: `npm run build` succeeds (pre-existing chunk-size warning only)
 * migration verification: fresh-boot, idempotency, data preservation,
