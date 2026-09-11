@@ -54,8 +54,23 @@ export function faPercent(ratio: number): string {
 }
 
 export function faDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "�?";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "�?";
   return d.toLocaleDateString("fa-IR");
+}
+
+// Adaptive recommendation reason text. Unknown codes fall back to the
+// raw code so a future server-side addition never breaks rendering.
+export function adaptiveReasonLabel(reason: string): string {
+  const key = `adaptive.reason.${reason}` as FaKey;
+  const text = t(key);
+  return text === key ? reason : text;
+}
+
+// Observed-difficulty text. Derived-platform labels only, never answers.
+export function observedDifficultyLabel(label: string): string {
+  const key = `adaptive.observed.${label}` as FaKey;
+  const text = t(key);
+  return text === key ? label : text;
 }

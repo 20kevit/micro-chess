@@ -637,3 +637,50 @@ export interface AuthToken {
   access_token: string;
   token_type: string;
 }
+
+// Adaptive training (Phase 10). Display-only: every signal, reason, and
+// candidate comes from the server; the client never computes policy.
+export interface AdaptiveExerciseSignals {
+  exercise: string;
+  attempts: number;
+  accuracy: number;
+  recent_accuracy: number | null;
+  recent_failures: number;
+  repeated_mistakes: number;
+  avg_response_ms: number | null;
+  days_since_last: number | null;
+  rating: number | null;
+  provisional: boolean | null;
+  games: number;
+  rating_trend: number;
+  reason: string;
+}
+
+export interface AdaptiveOverview {
+  exercises: AdaptiveExerciseSignals[];
+  recommended_exercise: string | null;
+  reason: string | null;
+}
+
+export interface AdaptiveNext {
+  puzzle: Puzzle;
+  reason: string;
+  ability_rating: number;
+  target_rating: number;
+  observed_difficulty: string;
+  recommendation_id: number;
+  fallback: boolean;
+}
+
+export interface AdaptiveRecommendation {
+  id: number;
+  exercise_slug: string;
+  puzzle_id: number;
+  reason: string;
+  ability_rating: number;
+  target_rating: number;
+  seed: number | null;
+  status: string;
+  result: string | null;
+  created_at: string;
+}

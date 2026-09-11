@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiDetail, coachApi, parentApi } from "../api/client";
 import type {
   AchievementsResponse,
+  AdaptiveOverview,
   Assignment,
   GamificationSummary,
   HistoryAttempt,
@@ -15,7 +16,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { t } from "../i18n";
-import { faDate, faNum, faPercent } from "../lib/playerDisplay";
+import { adaptiveReasonLabel, exerciseTitle, faDate, faNum, faPercent } from "../lib/playerDisplay";
 
 type Kind = "coach" | "parent";
 
@@ -26,6 +27,7 @@ interface Detail {
   gamification: GamificationSummary | null;
   achievements: AchievementsResponse | null;
   analytics: PlayerAnalytics | null;
+  adaptive: AdaptiveOverview | null;
   assignments: Assignment[];
 }
 
@@ -77,18 +79,21 @@ export function MentorStudentsPage({ kind }: { kind: Kind }) {
     setDetailFailed(false);
     setNotice("");
     try {
-      const [progress, attempts, ratings, gamification, achievements, analytics] = await Promise.all([
+      const [progress, attempts, ratings, gamification, achievements, analytics, adaptive] = await Promise.all([
         reads.progress(student.id),
         reads.attempts(student.id),
         reads.ratings(student.id),
         reads.gamification(student.id),
         reads.achievements(student.id),
         reads.analytics(student.id, { period: "30d" }),
+        // Derived adaptive state only (no recommendation rows are created
+        // by viewing; issuance stays owner-only on /me/adaptive).
+        reads.adaptive(student.id),
       ]);
       const assignments = isCoach
         ? await coachApi.assignments(student.id)
         : await parentApi.assignments(student.id);
-      setDetail({ progress, attempts: attempts.slice(0, 5), ratings, gamification, achievements, analytics, assignments });
+      setDetail({ progress, attempts: attempts.slice(0, 5), ratings, gamification, achievements, analytics, adaptive, assignments });
     } catch {
       setDetailFailed(true);
     }
@@ -197,6 +202,22 @@ export function MentorStudentsPage({ kind }: { kind: Kind }) {
               {t("player.accuracy")}: {faPercent(detail.analytics?.totals.accuracy ?? 0)} ·{" "}
               {t("analytics.xpEarned")}: {faNum(detail.analytics?.xp.earned_in_period ?? 0)}
             </p>
+          </Card>
+          <Card>
+            <h2 className="mb-2 text-lg font-black text-stone-900">{t("adaptive.title")}</h2>
+            {detail.adaptive?.recommended_exercise ? (
+              <p className="text-sm text-stone-600">
+                {exerciseTitle(detail.adaptive.recommended_exercise)}
+                {detail.adaptive.reason ? (
+                  <>
+                    {" · "}
+                    <Badge>{adaptiveReasonLabel(detail.adaptive.reason)}</Badge>
+                  </>
+                ) : null}
+              </p>
+            ) : (
+              <p className="text-sm text-stone-500">{t("adaptive.empty")}</p>
+            )}
           </Card>
           <Card>
             <h2 className="mb-2 text-lg font-black text-stone-900">

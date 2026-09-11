@@ -1,6 +1,9 @@
 // Thin HTTP client. Backend is authoritative; this only transports data.
 import type {
   AchievementsResponse,
+  AdaptiveNext,
+  AdaptiveOverview,
+  AdaptiveRecommendation,
   AdminAuditRecord,
   AdminExercise,
   AdminExerciseAnalytics,
@@ -955,6 +958,18 @@ export const api = {
   getExerciseAnalytics: (slug: string, params?: { period?: string; date_from?: string; date_to?: string }) =>
     request<PlayerAnalytics>(`/api/v1/me/analytics/exercises/${slug}${analyticsQuery(params)}`),
   dashboard: () => request<Dashboard>("/api/v1/me/dashboard"),
+  // Adaptive training (Phase 10). Transport only: signals, reasons,
+  // and candidates are server-computed; outcome posts only advance the
+  // learner's own recommendation lifecycle.
+  adaptiveOverview: () => request<AdaptiveOverview>("/api/v1/me/adaptive/overview"),
+  adaptiveNext: (exercise: string) =>
+    request<AdaptiveNext>(`/api/v1/me/adaptive/next?exercise=${encodeURIComponent(exercise)}`),
+  adaptiveOutcome: (id: number, body: { status: string; result?: string }) =>
+    request<AdaptiveRecommendation>(`/api/v1/me/adaptive/outcomes/${id}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  adaptiveHistory: () => request<AdaptiveRecommendation[]>("/api/v1/me/adaptive/history"),
   exerciseDetail: (slug: string) => request<Exercise>(`/api/v1/exercises/${slug}`),
   // Own assignments from an authorized coach (read + mark completed).
   myAssignments: () => request<Assignment[]>("/api/v1/me/assignments"),
@@ -1015,6 +1030,7 @@ function studentReads(base: string) {
       const suffix = query.toString();
       return request<PlayerAnalytics>(`${base}/students/${id}/analytics${suffix ? `?${suffix}` : ""}`);
     },
+    adaptive: (id: number) => request<AdaptiveOverview>(`${base}/students/${id}/adaptive/overview`),
   };
 }
 
@@ -1033,6 +1049,7 @@ function childrenReads(base: string) {
       const suffix = query.toString();
       return request<PlayerAnalytics>(`${base}/children/${id}/analytics${suffix ? `?${suffix}` : ""}`);
     },
+    adaptive: (id: number) => request<AdaptiveOverview>(`${base}/children/${id}/adaptive/overview`),
     assignments: (id: number) => request<Assignment[]>(`${base}/children/${id}/assignments`),
   };
 }

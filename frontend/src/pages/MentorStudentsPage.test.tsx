@@ -15,6 +15,7 @@ vi.mock("../api/client", () => ({
     gamification: vi.fn(),
     achievements: vi.fn(),
     analytics: vi.fn(),
+    adaptive: vi.fn(),
     assignments: vi.fn(),
     createAssignment: vi.fn(),
     updateAssignment: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("../api/client", () => ({
     gamification: vi.fn(),
     achievements: vi.fn(),
     analytics: vi.fn(),
+    adaptive: vi.fn(),
     assignments: vi.fn(),
   },
   apiDetail: () => "",
@@ -37,7 +39,7 @@ const mockedParent = vi.mocked(parentApi, true);
 
 const student = { id: 9, username: "kid_01", display_name: "بچه" };
 
-function detailStubs(reads: { progress: ReturnType<typeof vi.fn>; attempts: ReturnType<typeof vi.fn>; ratings: ReturnType<typeof vi.fn>; gamification: ReturnType<typeof vi.fn>; achievements: ReturnType<typeof vi.fn>; analytics: ReturnType<typeof vi.fn>; assignments: ReturnType<typeof vi.fn> }) {
+function detailStubs(reads: { progress: ReturnType<typeof vi.fn>; attempts: ReturnType<typeof vi.fn>; ratings: ReturnType<typeof vi.fn>; gamification: ReturnType<typeof vi.fn>; achievements: ReturnType<typeof vi.fn>; analytics: ReturnType<typeof vi.fn>; adaptive: ReturnType<typeof vi.fn>; assignments: ReturnType<typeof vi.fn> }) {
   reads.progress.mockResolvedValue({ attempts: 4, correct: 3, accuracy: 0.75, exercises: [] });
   reads.attempts.mockResolvedValue([]);
   reads.ratings.mockResolvedValue({ items: [] });
@@ -52,6 +54,7 @@ function detailStubs(reads: { progress: ReturnType<typeof vi.fn>; attempts: Retu
     totals: { attempts: 4, accuracy: 0.75, active_days: 2 },
     xp: { earned_in_period: 40 },
   });
+  reads.adaptive.mockResolvedValue({ exercises: [], recommended_exercise: null, reason: null });
   reads.assignments.mockResolvedValue([]);
 }
 
