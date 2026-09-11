@@ -62,7 +62,11 @@ export interface AttemptResponse {
   result: AttemptResult;
   score: number;
   feedback_key: string;
+  // Server-authoritative rating snapshot (Phase 4). All three travel
+  // together for rated attempts; all three are null for practice.
+  rating_before: number | null;
   rating_delta: number | null;
+  rating_after: number | null;
   detail: {
     correct: string[];
     missed: string[];
@@ -169,6 +173,10 @@ export interface HistoryAttempt {
   score: number;
   duration_ms: number | null;
   hints_used: string[];
+  // Rating snapshot for rated attempts (all null for practice/unrated).
+  rating_before: number | null;
+  rating_delta: number | null;
+  rating_after: number | null;
   created_at: string;
 }
 
@@ -191,6 +199,36 @@ export interface Dashboard {
   profile: PlayerProfile;
   progress: ProgressSummary;
   recent_attempts: HistoryAttempt[];
+}
+
+// Per-exercise MicroChess rating (mirrors backend player/schemas RatingOut).
+// Display-only: the server owns every value; nothing here is trusted for logic.
+export interface PlayerRating {
+  exercise: string;
+  rating: number;
+  rating_deviation: number;
+  provisional: boolean;
+  attempts_count: number;
+  updated_at: string | null;
+}
+
+export interface RatingsResponse {
+  items: PlayerRating[];
+}
+
+export interface RatingHistoryItem {
+  attempt_id: number;
+  before: number;
+  delta: number;
+  after: number;
+  rating_deviation_before: number;
+  rating_deviation_after: number;
+  reason: string;
+  occurred_at: string;
+}
+
+export interface RatingHistoryResponse {
+  items: RatingHistoryItem[];
 }
 
 // Authentication state (mirrors backend users/schemas.py UserOut).

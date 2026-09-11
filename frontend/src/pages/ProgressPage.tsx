@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, apiStatus } from "../api/client";
-import type { AttemptMode, HistoryAttempt, ProgressSummary } from "../api/types";
+import type { AttemptMode, HistoryAttempt, PlayerRating, ProgressSummary } from "../api/types";
+import { RatingsSection } from "../components/player/RatingsSection";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -15,6 +16,8 @@ const PAGE_SIZE = 20;
 export function ProgressPage() {
   const [progress, setProgress] = useState<ProgressSummary | null>(null);
   const [history, setHistory] = useState<HistoryAttempt[]>([]);
+  const [ratings, setRatings] = useState<PlayerRating[] | null>(null);
+  const [ratingsFailed, setRatingsFailed] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [exercise, setExercise] = useState("");
@@ -28,6 +31,20 @@ export function ProgressPage() {
     let alive = true;
     setLoading(true);
     setFailed(false);
+    setRatings(null);
+    setRatingsFailed(false);
+    // Ratings load independently: a ratings failure shows a section-level
+    // error without hiding progress and history.
+    api
+      .getRatings()
+      .then((res) => {
+        if (!alive) return;
+        setRatings(res.items);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setRatingsFailed(true);
+      });
     Promise.all([api.progress(), api.trainingAttempts({ page: 1, page_size: PAGE_SIZE })])
       .then(([summary, first]) => {
         if (!alive) return;
@@ -113,6 +130,18 @@ export function ProgressPage() {
             <p className="mt-1 text-xs text-stone-500">{t("player.accuracy")}</p>
           </Card>
         </div>
+        <RatingsSection
+          ratings={ratings}
+          failed={ratingsFailed}
+          onRetry={() => {
+            setRatings(null);
+            setRatingsFailed(false);
+            api
+              .getRatings()
+              .then((res) => setRatings(res.items))
+              .catch(() => setRatingsFailed(true));
+          }}
+        />
         <Card>
           <h2 className="font-black">{t("player.perExercise")}</h2>
           {progress.exercises.length === 0 ? (

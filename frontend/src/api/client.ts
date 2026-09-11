@@ -11,8 +11,11 @@ import type {
   HistoryAttempt,
   PathStepResponse,
   PlayerProfile,
+  PlayerRating,
   ProgressSummary,
   Puzzle,
+  RatingHistoryResponse,
+  RatingsResponse,
   ReconstructionStepResponse,
   SpeedReport,
   SpeedSession,
@@ -901,6 +904,12 @@ export const api = {
   trainingAttempt: (id: number) => request<HistoryAttempt>(`/api/v1/me/training/attempts/${id}`),
   progress: () => request<ProgressSummary>("/api/v1/me/progress"),
   exerciseProgress: (slug: string) => request<ExerciseProgress>(`/api/v1/me/progress/${slug}`),
+  // Player ratings (Phase 4). Read-only display data; the server owns
+  // every value and there is no client-facing rating-write endpoint.
+  getRatings: () => request<RatingsResponse>("/api/v1/me/ratings"),
+  getExerciseRating: (slug: string) => request<PlayerRating>(`/api/v1/me/ratings/${slug}`),
+  getRatingHistory: (slug: string) =>
+    request<RatingHistoryResponse>(`/api/v1/me/ratings/${slug}/history`),
   dashboard: () => request<Dashboard>("/api/v1/me/dashboard"),
   exerciseDetail: (slug: string) => request<Exercise>(`/api/v1/exercises/${slug}`),
   // Guest identity transport (server-controlled temporary sessions).
