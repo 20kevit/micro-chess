@@ -37,6 +37,9 @@ class Attempt(Base):
     rating_before: Mapped[float | None] = mapped_column(Float, nullable=True)
     rating_delta: Mapped[float | None] = mapped_column(Float, nullable=True)
     rating_after: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # XP snapshot for qualifying attempts (server-authoritative; Phase 5).
+    # Non-qualifying attempts (guests, terminal states) keep this NULL.
+    xp_awarded: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Client-reported start of the attempt (nullable for old rows).
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Milliseconds between started_at and submission. None when unknown.

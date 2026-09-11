@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 class SchemaVersion(Base):
@@ -159,10 +159,32 @@ def _migrate_v4_ratings(conn) -> None:
             conn.execute(text("ALTER TABLE attempts ADD COLUMN rating_after FLOAT"))
 
 
+def _migrate_v5_gamification(conn) -> None:
+    """Phase 5 gamification: XP snapshot column on attempts.
+
+    New tables (``player_gamification_state``, ``xp_events``,
+    ``player_streaks``, ``player_achievements``) are created by
+    ``ensure_schema`` via ``Base.metadata.create_all`` on fresh and
+    existing databases alike, and existing attempts/ratings are never
+    rewritten (no backfill, no fabricated XP history). SQLite
+    ``ALTER TABLE ... ADD COLUMN`` cannot add a non-NULL column without
+    a default, and the XP snapshot is legitimately NULL for all
+    pre-gamification rows, so a plain nullable column is added
+    idempotently when missing.
+    """
+    insp = inspect(conn)
+    tables = set(insp.get_table_names())
+    if "attempts" in tables:
+        attempt_cols = {c["name"] for c in insp.get_columns("attempts")}
+        if "xp_awarded" not in attempt_cols:
+            conn.execute(text("ALTER TABLE attempts ADD COLUMN xp_awarded INTEGER"))
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
     (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
     (4, "phase-04 ratings: attempt rating snapshot columns", _migrate_v4_ratings),
+    (5, "phase-05 gamification: attempt XP snapshot column", _migrate_v5_gamification),
 ]
 
 

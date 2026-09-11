@@ -27,6 +27,7 @@ def test_import_models_covers_all_exercise_tables():
     assert "app.modules.users.models" in imported
     assert "app.modules.captures.models" in imported
     assert "app.modules.trapped_pieces.models" in imported
+    assert "app.modules.gamification_engine.models" in imported
     for table in (
         "users",
         "user_roles",
@@ -34,6 +35,12 @@ def test_import_models_covers_all_exercise_tables():
         "guest_sessions",
         "player_profiles",
         "player_external_identities",
+        "player_ratings",
+        "rating_events",
+        "player_gamification_state",
+        "xp_events",
+        "player_streaks",
+        "player_achievements",
         "exercises",
         "puzzles",
         "attempts",
