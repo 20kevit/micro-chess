@@ -1,7 +1,9 @@
 """Attempt submission: Puzzle -> Validation -> Score -> Rating -> Feedback.
 
 Backend is authoritative. Frontend never decides correctness.
-Practice attempts never affect rating (rating_delta stays None).
+Practice attempts never affect rating (rating snapshot stays NULL).
+Rated attempts update the player's per-exercise rating through the
+rating engine; attempt, rating, and rating event commit atomically.
 """
 
 from datetime import datetime, timezone
@@ -12,7 +14,7 @@ from app.modules.exercises import registry
 from app.modules.feedback_engine.service import feedback_key_for
 from app.modules.progress.models import Attempt
 from app.modules.puzzles.models import Puzzle
-from app.modules.rating_engine.service import preview_rating_delta
+from app.modules.rating_engine import service as rating_service
 from app.modules.rule_engine.base import AttemptMode, AttemptResult, ValidationResult
 
 CLIENT_TERMINAL_RESULTS = {
@@ -77,16 +79,6 @@ def submit_attempt(
     # (e.g. per-square scoring), else the shared result -> score default.
     # Never trusted from the client. May be negative; never clamped here.
     score = registry.score_for_answer(puzzle.exercise_slug, validation)
-    rating_delta: float | None = None
-    if mode == AttemptMode.RATED and user_id is not None and result in (
-        AttemptResult.CORRECT,
-        AttemptResult.PARTIAL,
-        AttemptResult.WRONG,
-    ):
-        # Placeholder until Glicko-2 lands; records intent without real math.
-        # hints_used and puzzle initial_rating are persisted so the future
-        # engine can account for hint usage and puzzle difficulty.
-        rating_delta = preview_rating_delta(score=score)
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     if user_id is not None and guest_session_id is not None:
@@ -100,12 +92,29 @@ def submit_attempt(
         result=result.value,
         answer_json=answer,
         score=score,
-        rating_delta=rating_delta,
+        rating_delta=None,
         started_at=started_at.replace(tzinfo=None) if started_at and started_at.tzinfo else started_at,
         duration_ms=_duration_ms(started_at, now),
         hints_used=used_hints,
     )
     db.add(attempt)
+    db.flush()
+
+    # Server-decided rated/unrated: only an authenticated user's validated
+    # correct/partial/wrong attempt in rated mode touches ratings. The
+    # rating application flushes (no commit); the single commit below
+    # persists attempt + rating + event atomically.
+    if rating_service.is_rating_eligible(mode=mode, user_id=user_id, result=result.value):
+        assert user_id is not None
+        rating_service.apply_rated_attempt(
+            db,
+            user_id=user_id,
+            exercise_slug=puzzle.exercise_slug,
+            attempt=attempt,
+            result=result.value,
+            puzzle_rating=puzzle.initial_rating,
+        )
+
     db.commit()
     db.refresh(attempt)
     return attempt, feedback_key, detail

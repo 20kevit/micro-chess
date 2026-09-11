@@ -28,7 +28,11 @@ class AttemptOut(BaseModel):
     result: str
     score: float
     feedback_key: str = ""
+    # Server-authoritative rating snapshot (Phase 4). All three are set
+    # together for rated attempts; all three stay NULL for practice.
+    rating_before: float | None = None
     rating_delta: float | None = None
+    rating_after: float | None = None
     # Structured validation detail, e.g. {"correct": [...], "missed": [...], "wrong": [...]}.
     detail: dict = {}
     hints_used: list[str] = []
