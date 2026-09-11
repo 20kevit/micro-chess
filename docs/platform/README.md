@@ -303,7 +303,6 @@ An implementation agent working on the platform must:
 18. Do not modify large read-only source datasets such as the puzzle database unless the relevant specification explicitly requires it.
 19. Do not treat generated content as production content without the defined validation/review/publishing process.
 20. Update implementation state after meaningful milestones.
-21. Continue through the dependency graph defined by `MASTER_PLAN.md` unless a genuine blocker requires stopping.
 
 ---
 
