@@ -6,6 +6,7 @@ import pytest
 
 from app.core.audit import audit_event
 from app.core.config import Settings
+from app.core.logging import RequestIdFormatter, request_id_var
 
 
 def test_dev_defaults_are_usable():
@@ -46,3 +47,15 @@ def test_audit_event_logs_without_secrets(caplog):
     assert "auth.login" in caplog.text
     assert "password" not in caplog.text
     assert "token" not in caplog.text
+
+
+def test_request_id_formatter_defaults_outside_requests():
+    token = request_id_var.set("-")
+    try:
+        record = logging.LogRecord("test", logging.INFO, __file__, 1, "hello", (), None)
+        formatted = RequestIdFormatter(
+            "%(levelname)s [req=%(microchess_request_id)s] %(message)s"
+        ).format(record)
+        assert formatted == "INFO [req=-] hello"
+    finally:
+        request_id_var.reset(token)

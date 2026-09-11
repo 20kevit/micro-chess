@@ -14,25 +14,28 @@ from starlette.requests import Request
 
 request_id_var: ContextVar[str] = ContextVar("microchess_request_id", default="-")
 
+_LOG_FORMAT = "%(asctime)s %(levelname)s [req=%(microchess_request_id)s] %(name)s: %(message)s"
+
+
+class RequestIdFormatter(logging.Formatter):
+    """Fills the request id from context, defaulting to "-" outside requests."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        if not hasattr(record, "microchess_request_id"):
+            record.microchess_request_id = request_id_var.get()  # type: ignore[attr-defined]
+        return super().format(record)
+
 
 def configure_logging(level: str = "INFO") -> None:
-    logging.basicConfig(
-        level=getattr(logging, level.upper(), logging.INFO),
-        format="%(asctime)s %(levelname)s [req=%(microchess_request_id)s] %(name)s: %(message)s",
-        defaults={"microchess_request_id": "-"},
-    )
-
-
-class _RequestIdFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        record.microchess_request_id = request_id_var.get()  # type: ignore[attr-defined]
-        return True
-
-
-def attach_request_id_filter() -> None:
     root = logging.getLogger()
-    if not any(isinstance(f, _RequestIdFilter) for f in root.filters):
-        root.addFilter(_RequestIdFilter())
+    if root.handlers:
+        # Host (tests, uvicorn workers with preset logging) owns handlers;
+        # request ids still propagate via the middleware context var.
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(RequestIdFormatter(_LOG_FORMAT))
+    root.addHandler(handler)
+    root.setLevel(getattr(logging, level.upper(), logging.INFO))
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):

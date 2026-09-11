@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.api import API_V1_PREFIX
 from app.core.config import settings
 from app.core.errors import register_error_handlers
-from app.core.logging import RequestIdMiddleware, attach_request_id_filter, configure_logging
+from app.core.logging import RequestIdMiddleware, configure_logging
 from app.db.session import init_db
 from app.modules.auth.router import router as auth_router
 from app.modules.balance_scale.router import router as balance_scale_router
@@ -57,7 +57,6 @@ import app.modules.castling_rights as _castling_rights  # noqa: F401
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     configure_logging(settings.log_level)
-    attach_request_id_filter()
     settings.ensure_ready()
     init_db()
     yield
