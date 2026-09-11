@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "../api/client";
-import type { AdminPuzzle } from "../api/types";
+import type { AdminPuzzle, PuzzleHistory } from "../api/types";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -8,14 +8,24 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { t } from "../i18n";
 
 function statusLabel(status: string): string {
+  if (status === "validated") return t("admin.statusValidated");
+  if (status === "reviewed") return t("admin.statusReviewed");
+  if (status === "approved") return t("admin.statusApproved");
   if (status === "published") return t("admin.statusPublished");
-  if (status === "archived") return t("admin.statusArchived");
+  if (status === "retired" || status === "archived") return t("admin.statusRetired");
   return t("admin.statusDraft");
 }
 
-// Puzzle lifecycle foundation: drafts, publish, retire. Published
-// content is immutable in meaning; retirement preserves history.
-// Full validate/review/approve belongs to the later content phase.
+function sourceLabel(source: string): string {
+  if (source === "generated") return t("admin.sourceGenerated");
+  if (source === "imported") return t("admin.sourceImported");
+  return t("admin.sourceManual");
+}
+
+// Puzzle lifecycle: draft → validated → reviewed → approved →
+// published → retired. Every transition is server-enforced; the UI
+// only reflects server state. Published answers stay immutable and
+// retirement preserves history.
 export function AdminPuzzlesPage() {
   const [rows, setRows] = useState<AdminPuzzle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +36,8 @@ export function AdminPuzzlesPage() {
   const [notice, setNotice] = useState("");
   const [newSlug, setNewSlug] = useState("");
   const [newPrompt, setNewPrompt] = useState("");
+  const [history, setHistory] = useState<Record<number, PuzzleHistory>>({});
+  const [historyOpen, setHistoryOpen] = useState<number | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -50,11 +62,11 @@ export function AdminPuzzlesPage() {
     load();
   }, [load]);
 
-  async function onPublish(id: number) {
+  async function act(fn: () => Promise<unknown>) {
     setBusy(true);
     setNotice("");
     try {
-      await adminApi.publishPuzzle(id);
+      await fn();
       load();
     } catch {
       setNotice(t("common.error"));
@@ -63,13 +75,17 @@ export function AdminPuzzlesPage() {
     }
   }
 
-  async function onRetire(id: number) {
-    if (!window.confirm(t("admin.retireConfirm"))) return;
+  async function onHistory(id: number) {
+    if (historyOpen === id) {
+      setHistoryOpen(null);
+      return;
+    }
     setBusy(true);
     setNotice("");
     try {
-      await adminApi.retirePuzzle(id);
-      load();
+      const detail = await adminApi.puzzleHistory(id);
+      setHistory((prev) => ({ ...prev, [id]: detail }));
+      setHistoryOpen(id);
     } catch {
       setNotice(t("common.error"));
     } finally {
@@ -82,9 +98,7 @@ export function AdminPuzzlesPage() {
       setNotice(t("common.error"));
       return;
     }
-    setBusy(true);
-    setNotice("");
-    try {
+    await act(async () => {
       await adminApi.createPuzzle({
         exercise_slug: newSlug.trim(),
         prompt_fa: newPrompt,
@@ -92,19 +106,15 @@ export function AdminPuzzlesPage() {
       });
       setNewSlug("");
       setNewPrompt("");
-      load();
-    } catch {
-      setNotice(t("common.error"));
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   return (
     <div>
       <PageHeader title={t("admin.puzzles")} subtitle={t("admin.subtitle")} />
       <Card>
-        <div className="grid grid-cols-2 gap-2">
+        <p className="text-xs text-stone-500">{t("admin.lifecycleHint")}</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
           <input
             value={exercise}
             onChange={(e) => setExercise(e.target.value)}
@@ -119,8 +129,11 @@ export function AdminPuzzlesPage() {
           >
             <option value="">{t("admin.allStatuses")}</option>
             <option value="draft">{t("admin.statusDraft")}</option>
+            <option value="validated">{t("admin.statusValidated")}</option>
+            <option value="reviewed">{t("admin.statusReviewed")}</option>
+            <option value="approved">{t("admin.statusApproved")}</option>
             <option value="published">{t("admin.statusPublished")}</option>
-            <option value="archived">{t("admin.statusArchived")}</option>
+            <option value="retired">{t("admin.statusRetired")}</option>
           </select>
         </div>
         <div className="mt-2 flex flex-col gap-2">
@@ -172,19 +185,60 @@ export function AdminPuzzlesPage() {
                   <Badge>{statusLabel(p.status)}</Badge>
                 </div>
                 {p.prompt_fa ? <p className="mt-1 text-sm text-stone-500">{p.prompt_fa}</p> : null}
+                <p className="mt-1 text-xs text-stone-500">
+                  {t("admin.source")}: {sourceLabel(p.source)}
+                  {p.difficulty ? ` · ${t("admin.difficulty")}: ${p.difficulty}` : null}
+                </p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {p.status === "draft" ? (
-                    <Button disabled={busy} onClick={() => void onPublish(p.id)}>
+                    <Button disabled={busy} onClick={() => void act(() => adminApi.validatePuzzle(p.id))}>
+                      {t("admin.validate")}
+                    </Button>
+                  ) : (
+                    <span />
+                  )}
+                  {p.status === "validated" ? (
+                    <>
+                      <Button
+                        disabled={busy}
+                        onClick={() => void act(() => adminApi.reviewPuzzle(p.id, { decision: "approve" }))}
+                      >
+                        {t("admin.reviewApprove")}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => void act(() => adminApi.reviewPuzzle(p.id, { decision: "request_changes" }))}
+                      >
+                        {t("admin.reviewRequestChanges")}
+                      </Button>
+                    </>
+                  ) : null}
+                  {p.status === "reviewed" ? (
+                    <Button disabled={busy} onClick={() => void act(() => adminApi.approvePuzzle(p.id))}>
+                      {t("admin.approve")}
+                    </Button>
+                  ) : (
+                    <span />
+                  )}
+                  {p.status === "approved" ? (
+                    <Button disabled={busy} onClick={() => void act(() => adminApi.publishPuzzle(p.id))}>
                       {t("admin.publish")}
                     </Button>
                   ) : (
                     <span />
                   )}
-                  {p.status !== "archived" ? (
+                  <Button variant="secondary" disabled={busy} onClick={() => void onHistory(p.id)}>
+                    {t("admin.history")}
+                  </Button>
+                  {p.status !== "retired" && p.status !== "archived" ? (
                     <Button
                       variant="secondary"
                       disabled={busy}
-                      onClick={() => void onRetire(p.id)}
+                      onClick={() => {
+                        if (!window.confirm(t("admin.retireConfirm"))) return;
+                        void act(() => adminApi.retirePuzzle(p.id));
+                      }}
                     >
                       {t("admin.retire")}
                     </Button>
@@ -192,6 +246,31 @@ export function AdminPuzzlesPage() {
                     <span />
                   )}
                 </div>
+                {historyOpen === p.id && history[p.id] ? (
+                  <div className="mt-2 rounded-xl bg-stone-50 p-3 text-xs" dir="ltr">
+                    <p className="font-bold" dir="rtl">
+                      {t("admin.history")}
+                    </p>
+                    <ul className="mt-1 flex flex-col gap-1">
+                      {history[p.id].transitions.map((tr) => (
+                        <li key={tr.id}>
+                          {tr.from_status} → {tr.to_status}
+                        </li>
+                      ))}
+                      {history[p.id].validations.map((v) => (
+                        <li key={`v${v.id}`}>
+                          validation: {v.status}
+                          {(v.result.errors ?? []).map((e) => e.code).join(", ")
+                            ? ` (${(v.result.errors ?? []).map((e) => e.code).join(", ")})`
+                            : null}
+                        </li>
+                      ))}
+                      {history[p.id].reviews.map((r) => (
+                        <li key={`r${r.id}`}>review: {r.decision}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </Card>
             </li>
           ))}

@@ -133,6 +133,11 @@ export function AdminDashboardPage() {
               {t("admin.puzzles")}
             </Button>
           </Link>
+          <Link to="/admin/generators" className="block">
+            <Button variant="secondary" className="w-full">
+              {t("admin.generators")}
+            </Button>
+          </Link>
         </div>
       </div>
     </div>

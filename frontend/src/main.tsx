@@ -12,6 +12,7 @@ import { RequireAuth } from "./lib/require-auth";
 import { RequireAdmin } from "./lib/require-admin";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { AdminExercisesPage } from "./pages/AdminExercisesPage";
+import { AdminGeneratorsPage } from "./pages/AdminGeneratorsPage";
 import { AdminPuzzlesPage } from "./pages/AdminPuzzlesPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { BalanceScalePage } from "./pages/BalanceScalePage";
@@ -122,6 +123,14 @@ const router = createBrowserRouter([
         element: (
           <RequireAdmin>
             <AdminPuzzlesPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/generators",
+        element: (
+          <RequireAdmin>
+            <AdminGeneratorsPage />
           </RequireAdmin>
         ),
       },

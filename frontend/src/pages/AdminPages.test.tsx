@@ -7,6 +7,7 @@ import { AppShell } from "../components/ui/AppShell";
 import { useAuth } from "../lib/auth-context";
 import { RequireAdmin } from "../lib/require-admin";
 import { AdminDashboardPage } from "./AdminDashboardPage";
+import { AdminGeneratorsPage } from "./AdminGeneratorsPage";
 import { AdminPuzzlesPage } from "./AdminPuzzlesPage";
 import { AdminUsersPage } from "./AdminUsersPage";
 import { LoginPage } from "./LoginPage";
@@ -32,8 +33,17 @@ vi.mock("../api/client", async (importOriginal) => {
       puzzle: vi.fn(),
       createPuzzle: vi.fn(),
       updatePuzzle: vi.fn(),
+      validatePuzzle: vi.fn(),
+      reviewPuzzle: vi.fn(),
+      approvePuzzle: vi.fn(),
+      puzzleHistory: vi.fn(),
       publishPuzzle: vi.fn(),
       retirePuzzle: vi.fn(),
+      generators: vi.fn(),
+      runGenerator: vi.fn(),
+      generatorRuns: vi.fn(),
+      generatorRun: vi.fn(),
+      cancelGeneratorRun: vi.fn(),
       audit: vi.fn(),
     },
   };
@@ -207,6 +217,85 @@ describe("admin puzzles page", () => {
     );
     await waitFor(() => expect(screen.getByText("موردی نیست.")).toBeTruthy());
     expect(screen.getByText("ساخت پیش‌نویس")).toBeTruthy();
+  });
+
+  it("offers the lifecycle actions matching server state", async () => {
+    mockedUseAuth.mockReturnValue(base({ user: ADMIN }));
+    mockedAdmin.puzzles.mockResolvedValue([
+      {
+        id: 1, exercise_slug: "pin", status: "draft", fen: null, position_json: {},
+        answer_json: {}, hint_json: {}, prompt_fa: "", explanation: "",
+        initial_rating: 1200, is_published: false, is_archived: false,
+        published_at: null, created_at: "", source: "manual", source_reference: null,
+        generator_run_id: null, difficulty: null, target_rating: null, retired_at: null,
+      },
+      {
+        id: 2, exercise_slug: "pin", status: "validated", fen: null, position_json: {},
+        answer_json: {}, hint_json: {}, prompt_fa: "", explanation: "",
+        initial_rating: 1200, is_published: false, is_archived: false,
+        published_at: null, created_at: "", source: "generated", source_reference: null,
+        generator_run_id: 3, difficulty: 2, target_rating: 950, retired_at: null,
+      },
+      {
+        id: 3, exercise_slug: "pin", status: "approved", fen: null, position_json: {},
+        answer_json: {}, hint_json: {}, prompt_fa: "", explanation: "",
+        initial_rating: 1200, is_published: false, is_archived: false,
+        published_at: null, created_at: "", source: "manual", source_reference: null,
+        generator_run_id: null, difficulty: null, target_rating: null, retired_at: null,
+      },
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/admin/puzzles"]}>
+        <AdminPuzzlesPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText("اعتبارسنجی")).toBeTruthy());
+    expect(screen.getByText("تأیید بازبینی")).toBeTruthy();
+    expect(screen.getByText("بازگردانی برای اصلاح")).toBeTruthy();
+    expect(screen.getByText("انتشار")).toBeTruthy();
+    // Each lifecycle word appears once in the filter <select> and once
+    // per matching badge, so both must be present at least twice.
+    expect(screen.getAllByText("اعتبارسنجی‌شده").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/مولد/)).toBeTruthy();
+  });
+});
+
+describe("admin generators page", () => {
+  it("shows the run form and the run history", async () => {
+    mockedUseAuth.mockReturnValue(base({ user: ADMIN }));
+    mockedAdmin.generators.mockResolvedValue([
+      { code: "captures-v1", exercise_slug: "captures", version: "1.0.0", description: "", config_schema: {}, status: "active" },
+    ]);
+    mockedAdmin.generatorRuns.mockResolvedValue([
+      {
+        id: 4, generator_code: "captures-v1", generator_version: "1.0.0",
+        exercise_slug: "captures", status: "completed", requested_count: 2,
+        generated_count: 2, validated_count: 2, accepted_count: 2, rejected_count: 0,
+        seed: 7, target_rating: null, difficulty: null, config: {},
+        result: { accepted_puzzle_ids: [10, 11], rejected: [] }, error: "",
+        requested_by_user_id: 1, created_at: "", updated_at: "", completed_at: "",
+      },
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/admin/generators"]}>
+        <AdminGeneratorsPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText("اجرای مولد")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("اجراهای مولد")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("completed")).toBeTruthy());
+  });
+
+  it("shows the empty state when no runs exist", async () => {
+    mockedUseAuth.mockReturnValue(base({ user: ADMIN }));
+    mockedAdmin.generators.mockResolvedValue([]);
+    mockedAdmin.generatorRuns.mockResolvedValue([]);
+    render(
+      <MemoryRouter initialEntries={["/admin/generators"]}>
+        <AdminGeneratorsPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText("موردی نیست.")).toBeTruthy());
   });
 });
 

@@ -17,12 +17,15 @@ import type {
   Exercise,
   ExerciseProgress,
   GamificationSummary,
+  Generator,
+  GeneratorRun,
   HistoryAttempt,
   PathStepResponse,
   PlayerProfile,
   PlayerRating,
   ProgressSummary,
   Puzzle,
+  PuzzleHistory,
   RatingHistoryResponse,
   RatingsResponse,
   ReconstructionStepResponse,
@@ -1008,8 +1011,32 @@ export const adminApi = {
     }),
   publishPuzzle: (id: number) =>
     request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}/publish`, { method: "POST" }),
+  validatePuzzle: (id: number) =>
+    request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}/validate`, { method: "POST" }),
+  reviewPuzzle: (id: number, body: { decision: string; notes?: string }) =>
+    request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}/review`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  approvePuzzle: (id: number) =>
+    request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}/approve`, { method: "POST" }),
+  puzzleHistory: (id: number) => request<PuzzleHistory>(`/api/v1/admin/puzzles/${id}/history`),
   retirePuzzle: (id: number) =>
     request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}/retire`, { method: "POST" }),
+  generators: () => request<Generator[]>("/api/v1/admin/generators"),
+  runGenerator: (
+    code: string,
+    body: { count: number; seed?: number; target_rating?: number; difficulty?: number; config?: Record<string, unknown> },
+  ) =>
+    request<GeneratorRun>(`/api/v1/admin/generators/${code}/runs`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  generatorRuns: (params?: { generator?: string; exercise?: string; status?: string; page?: number; page_size?: number }) =>
+    request<GeneratorRun[]>(`/api/v1/admin/generator-runs${adminQuery(params)}`),
+  generatorRun: (id: number) => request<GeneratorRun>(`/api/v1/admin/generator-runs/${id}`),
+  cancelGeneratorRun: (id: number) =>
+    request<GeneratorRun>(`/api/v1/admin/generator-runs/${id}/cancel`, { method: "POST" }),
   audit: (params?: { action?: string; target_type?: string; page?: number; page_size?: number }) =>
     request<AdminAuditRecord[]>(`/api/v1/admin/audit${adminQuery(params)}`),
 };

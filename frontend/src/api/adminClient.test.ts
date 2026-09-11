@@ -70,10 +70,36 @@ describe("admin transport", () => {
     await adminApi.createPuzzle({ exercise_slug: "pin", prompt_fa: "سوال" });
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/admin/puzzles");
     expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("POST");
+    await adminApi.validatePuzzle(9);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/v1/admin/puzzles/9/validate");
+    await adminApi.reviewPuzzle(9, { decision: "approve" });
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/v1/admin/puzzles/9/review");
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ decision: "approve" });
+    await adminApi.approvePuzzle(9);
+    expect(fetchMock.mock.calls[3]?.[0]).toBe("/api/v1/admin/puzzles/9/approve");
+    await adminApi.puzzleHistory(9);
+    expect(fetchMock.mock.calls[4]?.[0]).toBe("/api/v1/admin/puzzles/9/history");
     await adminApi.publishPuzzle(9);
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/v1/admin/puzzles/9/publish");
+    expect(fetchMock.mock.calls[5]?.[0]).toBe("/api/v1/admin/puzzles/9/publish");
     await adminApi.retirePuzzle(9);
-    expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/v1/admin/puzzles/9/retire");
+    expect(fetchMock.mock.calls[6]?.[0]).toBe("/api/v1/admin/puzzles/9/retire");
+  });
+
+  it("drives generator jobs through dedicated endpoints", async () => {
+    const fetchMock = makeFetchMock({ id: 4, status: "completed" });
+    vi.stubGlobal("fetch", fetchMock);
+    await adminApi.generators();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/admin/generators");
+    await adminApi.runGenerator("captures-v1", { count: 2, seed: 7 });
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/v1/admin/generators/captures-v1/runs");
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ count: 2, seed: 7 });
+    await adminApi.generatorRuns({ generator: "captures-v1" });
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/api/v1/admin/generator-runs?");
+    await adminApi.generatorRun(4);
+    expect(fetchMock.mock.calls[3]?.[0]).toBe("/api/v1/admin/generator-runs/4");
+    await adminApi.cancelGeneratorRun(4);
+    expect(fetchMock.mock.calls[4]?.[0]).toBe("/api/v1/admin/generator-runs/4/cancel");
   });
 
   it("propagates authorization failures to the UI", async () => {

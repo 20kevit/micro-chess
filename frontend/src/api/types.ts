@@ -325,6 +325,79 @@ export interface AdminPuzzle {
   is_archived: boolean;
   published_at: string | null;
   created_at: string;
+  // Phase 07 lifecycle + provenance metadata (display only; the
+  // server owns every transition).
+  source: string;
+  source_reference: string | null;
+  generator_run_id: number | null;
+  difficulty: number | null;
+  target_rating: number | null;
+  retired_at: string | null;
+}
+
+export interface PuzzleHistory {
+  puzzle_id: number;
+  status: string;
+  transitions: Array<{
+    id: number;
+    from_status: string;
+    to_status: string;
+    changed_by_user_id: number | null;
+    reason: string;
+    created_at: string;
+  }>;
+  validations: Array<{
+    id: number;
+    validator_version: string;
+    status: string;
+    result: { errors?: Array<{ code: string; detail?: string }> };
+    validated_by_user_id: number | null;
+    created_at: string;
+  }>;
+  reviews: Array<{
+    id: number;
+    reviewer_user_id: number | null;
+    decision: string;
+    notes: string;
+    created_at: string;
+  }>;
+}
+
+// Content generators (mirrors backend modules/generators). Display
+// and transport shapes only; generation always runs server-side.
+export interface Generator {
+  code: string;
+  exercise_slug: string;
+  version: string;
+  description: string;
+  config_schema: Record<string, unknown>;
+  status: string;
+}
+
+export interface GeneratorRun {
+  id: number;
+  generator_code: string;
+  generator_version: string;
+  exercise_slug: string;
+  status: string;
+  requested_count: number;
+  generated_count: number;
+  validated_count: number;
+  accepted_count: number;
+  rejected_count: number;
+  seed: number | null;
+  target_rating: number | null;
+  difficulty: number | null;
+  config: Record<string, unknown>;
+  result: {
+    accepted_puzzle_ids?: number[];
+    rejected?: Array<{ index: number; reason: string; detail?: string; errors?: unknown }>;
+  };
+  error: string;
+  requested_by_user_id: number | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
 }
 
 export interface AdminOverview {
