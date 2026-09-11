@@ -14,6 +14,8 @@ vi.mock("../api/client", () => ({
     getGamification: vi.fn(),
     getAchievements: vi.fn(),
     getXpHistory: vi.fn(),
+    getAnalytics: vi.fn(),
+    getAnalyticsComparison: vi.fn(),
   },
   apiStatus: () => null,
 }));
@@ -50,6 +52,54 @@ beforeEach(() => {
   });
   mockedApi.getAchievements.mockResolvedValue({ items: [] });
   mockedApi.getXpHistory.mockResolvedValue({ items: [] });
+  mockedApi.getAnalytics.mockResolvedValue({
+    period: "7d",
+    start: null,
+    end: "2026-09-11T00:00:00",
+    exercise: null,
+    totals: {
+      attempts: 0,
+      correct: 0,
+      partial: 0,
+      wrong: 0,
+      terminal: 0,
+      accuracy: 0,
+      avg_response_ms: null,
+      total_practice_ms: 0,
+      active_days: 0,
+    },
+    by_mode: [],
+    by_exercise: [],
+    daily: [],
+    ratings: [],
+    xp: { earned_in_period: 0, events_in_period: 0, total: 0, level: 1 },
+    streak: { current: 0, longest: 0 },
+  });
+  mockedApi.getAnalyticsComparison.mockResolvedValue({
+    period: "7d",
+    exercise: null,
+    current: {
+      start: "2026-09-04T00:00:00",
+      end: "2026-09-11T00:00:00",
+      attempts: 0,
+      accuracy: 0,
+      avg_response_ms: null,
+      active_days: 0,
+      xp_earned: 0,
+      rating_delta: 0,
+    },
+    previous: {
+      start: "2026-08-28T00:00:00",
+      end: "2026-09-04T00:00:00",
+      attempts: 0,
+      accuracy: 0,
+      avg_response_ms: null,
+      active_days: 0,
+      xp_earned: 0,
+      rating_delta: 0,
+    },
+    delta: { attempts: 0, accuracy: 0, active_days: 0, xp_earned: 0, rating_delta: 0 },
+  });
 });
 
 function renderPage() {

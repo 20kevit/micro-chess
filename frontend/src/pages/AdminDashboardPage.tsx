@@ -123,6 +123,11 @@ export function AdminDashboardPage() {
           )}
         </Card>
         <div className="grid grid-cols-2 gap-2">
+          <Link to="/admin/analytics" className="block">
+            <Button variant="secondary" className="w-full">
+              {t("admin.analytics")}
+            </Button>
+          </Link>
           <Link to="/admin/exercises" className="block">
             <Button variant="secondary" className="w-full">
               {t("admin.exercises")}

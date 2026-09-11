@@ -10,6 +10,7 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { AuthProvider } from "./lib/auth-context";
 import { RequireAuth } from "./lib/require-auth";
 import { RequireAdmin } from "./lib/require-admin";
+import { AdminAnalyticsPage } from "./pages/AdminAnalyticsPage";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { AdminExercisesPage } from "./pages/AdminExercisesPage";
 import { AdminGeneratorsPage } from "./pages/AdminGeneratorsPage";
@@ -99,6 +100,14 @@ const router = createBrowserRouter([
         element: (
           <RequireAdmin>
             <AdminDashboardPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/analytics",
+        element: (
+          <RequireAdmin>
+            <AdminAnalyticsPage />
           </RequireAdmin>
         ),
       },

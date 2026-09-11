@@ -3,9 +3,12 @@ import type {
   AchievementsResponse,
   AdminAuditRecord,
   AdminExercise,
+  AdminExerciseAnalytics,
   AdminExerciseDetail,
   AdminOverview,
+  AdminPlatformAnalytics,
   AdminPuzzle,
+  AdminPuzzleAnalytics,
   AdminUser,
   AdminUserDetail,
   AttemptMode,
@@ -21,6 +24,8 @@ import type {
   GeneratorRun,
   HistoryAttempt,
   PathStepResponse,
+  PlayerAnalytics,
+  PlayerComparison,
   PlayerProfile,
   PlayerRating,
   ProgressSummary,
@@ -125,6 +130,15 @@ export function apiCode(e: unknown): string {
   return e instanceof Error && typeof (e as ApiError).code === "string"
     ? (e as ApiError).code
     : "";
+}
+
+function analyticsQuery(params?: Record<string, string | undefined>): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value !== undefined && value !== "") query.set(key, value);
+  }
+  const suffix = query.toString();
+  return suffix ? `?${suffix}` : "";
 }
 
 export const api = {
@@ -929,6 +943,14 @@ export const api = {
   getGamification: () => request<GamificationSummary>("/api/v1/me/gamification"),
   getXpHistory: () => request<XpHistoryResponse>("/api/v1/me/gamification/xp"),
   getAchievements: () => request<AchievementsResponse>("/api/v1/me/achievements"),
+  // Player analytics (Phase 8). Read-only derived metrics; the server
+  // owns every value, period semantics, and ownership scope.
+  getAnalytics: (params?: { period?: string; date_from?: string; date_to?: string; exercise?: string }) =>
+    request<PlayerAnalytics>(`/api/v1/me/analytics${analyticsQuery(params)}`),
+  getAnalyticsComparison: (params?: { period?: string; date_from?: string; date_to?: string; exercise?: string }) =>
+    request<PlayerComparison>(`/api/v1/me/analytics/comparison${analyticsQuery(params)}`),
+  getExerciseAnalytics: (slug: string, params?: { period?: string; date_from?: string; date_to?: string }) =>
+    request<PlayerAnalytics>(`/api/v1/me/analytics/exercises/${slug}${analyticsQuery(params)}`),
   dashboard: () => request<Dashboard>("/api/v1/me/dashboard"),
   exerciseDetail: (slug: string) => request<Exercise>(`/api/v1/exercises/${slug}`),
   // Guest identity transport (server-controlled temporary sessions).
@@ -1039,4 +1061,12 @@ export const adminApi = {
     request<GeneratorRun>(`/api/v1/admin/generator-runs/${id}/cancel`, { method: "POST" }),
   audit: (params?: { action?: string; target_type?: string; page?: number; page_size?: number }) =>
     request<AdminAuditRecord[]>(`/api/v1/admin/audit${adminQuery(params)}`),
+  // Admin analytics (Phase 8). Aggregate read-only metrics; every
+  // endpoint authorizes server-side via analytics.read_* capabilities.
+  platformAnalytics: (params?: { period?: string; date_from?: string; date_to?: string }) =>
+    request<AdminPlatformAnalytics>(`/api/v1/admin/analytics${adminQuery(params)}`),
+  exerciseAnalytics: (params?: { period?: string; date_from?: string; date_to?: string }) =>
+    request<AdminExerciseAnalytics[]>(`/api/v1/admin/analytics/exercises${adminQuery(params)}`),
+  puzzleAnalytics: (params?: { period?: string; exercise?: string; page?: number; page_size?: number }) =>
+    request<AdminPuzzleAnalytics[]>(`/api/v1/admin/analytics/puzzles${adminQuery(params)}`),
 };

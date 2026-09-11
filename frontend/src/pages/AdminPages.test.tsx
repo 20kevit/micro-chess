@@ -45,6 +45,9 @@ vi.mock("../api/client", async (importOriginal) => {
       generatorRun: vi.fn(),
       cancelGeneratorRun: vi.fn(),
       audit: vi.fn(),
+      platformAnalytics: vi.fn(),
+      exerciseAnalytics: vi.fn(),
+      puzzleAnalytics: vi.fn(),
     },
   };
 });

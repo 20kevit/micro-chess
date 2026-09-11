@@ -439,6 +439,148 @@ export interface AdminAuditRecord {
   created_at: string;
 }
 
+// Player analytics (mirrors backend modules/analytics/schemas.py).
+// Display-only: every number is server-derived; nothing here is trusted.
+export type AnalyticsPeriod = "7d" | "30d" | "90d" | "all" | "custom";
+
+export interface AnalyticsModeBreakdown {
+  mode: string;
+  attempts: number;
+  correct: number;
+  accuracy: number;
+}
+
+export interface AnalyticsExerciseBreakdown {
+  exercise: string;
+  attempts: number;
+  correct: number;
+  accuracy: number;
+  avg_response_ms: number | null;
+  last_practiced_at: string | null;
+}
+
+export interface AnalyticsTotals {
+  attempts: number;
+  correct: number;
+  partial: number;
+  wrong: number;
+  terminal: number;
+  accuracy: number;
+  avg_response_ms: number | null;
+  total_practice_ms: number;
+  active_days: number;
+}
+
+export interface AnalyticsDailyBucket {
+  bucket_start: string;
+  attempts: number;
+  correct: number;
+  accuracy: number;
+  xp: number;
+}
+
+export interface AnalyticsRatingTrend {
+  exercise: string;
+  current: number | null;
+  provisional: boolean | null;
+  games: number;
+  events_in_period: number;
+  delta_in_period: number;
+}
+
+export interface PlayerAnalytics {
+  period: string;
+  start: string | null;
+  end: string;
+  exercise: string | null;
+  totals: AnalyticsTotals;
+  by_mode: AnalyticsModeBreakdown[];
+  by_exercise: AnalyticsExerciseBreakdown[];
+  daily: AnalyticsDailyBucket[];
+  ratings: AnalyticsRatingTrend[];
+  xp: { earned_in_period: number; events_in_period: number; total: number; level: number };
+  streak: { current: number; longest: number };
+}
+
+export interface PlayerComparison {
+  period: string;
+  exercise: string | null;
+  current: {
+    start: string;
+    end: string;
+    attempts: number;
+    accuracy: number;
+    avg_response_ms: number | null;
+    active_days: number;
+    xp_earned: number;
+    rating_delta: number;
+  };
+  previous: {
+    start: string;
+    end: string;
+    attempts: number;
+    accuracy: number;
+    avg_response_ms: number | null;
+    active_days: number;
+    xp_earned: number;
+    rating_delta: number;
+  };
+  delta: { attempts: number; accuracy: number; active_days: number; xp_earned: number; rating_delta: number };
+}
+
+// Admin analytics (mirrors backend admin analytics schemas). Display and
+// transport shapes only; authorization stays server-side.
+export interface AdminPlatformAnalytics {
+  period: string;
+  start: string | null;
+  end: string;
+  users_total: number;
+  new_registrations: number;
+  active_users: number;
+  totals: AnalyticsTotals;
+  by_mode: AnalyticsModeBreakdown[];
+  exercise_usage: Array<AnalyticsExerciseBreakdown & { unique_players: number }>;
+  daily: AnalyticsDailyBucket[];
+  ratings: { events_in_period: number; delta_sum_in_period: number; current_rows: number };
+  xp: { earned_in_period: number; events_in_period: number };
+  comparison: { attempts: number; accuracy: number; active_users: number; xp_earned: number } | null;
+}
+
+export interface AdminExerciseAnalytics {
+  exercise: string;
+  is_active: boolean | null;
+  attempts: number;
+  unique_players: number;
+  correct: number;
+  partial: number;
+  wrong: number;
+  accuracy: number;
+  avg_response_ms: number | null;
+  active_days: number;
+  puzzles_total: number;
+  puzzles_published: number;
+  rating_events_in_period: number;
+  rating_delta_sum_in_period: number;
+  current_ratings: number;
+  current_rating_avg: number | null;
+}
+
+export interface AdminPuzzleAnalytics {
+  puzzle_id: number;
+  exercise_slug: string;
+  status: string;
+  difficulty: number | null;
+  initial_rating: number;
+  attempts: number;
+  correct: number;
+  accuracy: number;
+  failure_rate: number;
+  unique_players: number;
+  repeated_failures: number;
+  observed_difficulty: string;
+  avg_response_ms: number | null;
+}
+
 // Authentication state (mirrors backend users/schemas.py UserOut).
 // The server owns roles/capabilities; the client only renders them.
 export interface AuthUser {

@@ -9,6 +9,7 @@ import type {
   ProgressSummary,
   XpHistoryItem,
 } from "../api/types";
+import { AnalyticsSection } from "../components/player/AnalyticsSection";
 import { GamificationSection } from "../components/player/GamificationSection";
 import { RatingsSection } from "../components/player/RatingsSection";
 import { Badge } from "../components/ui/Badge";
@@ -192,6 +193,7 @@ export function ProgressPage() {
           failed={gamificationFailed}
           onRetry={retryGamification}
         />
+        <AnalyticsSection />
         <Card>
           <h2 className="font-black">{t("player.perExercise")}</h2>
           {progress.exercises.length === 0 ? (
