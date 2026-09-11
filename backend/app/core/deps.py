@@ -2,7 +2,7 @@
 
 from collections.abc import Generator
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -39,9 +39,3 @@ def get_current_user_optional(
     if user_id is None:
         return None
     return db.get(User, int(user_id))
-
-
-def require_user(user: "User | None" = Depends(get_current_user_optional)) -> "User":
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="auth_required")
-    return user
