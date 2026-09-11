@@ -406,7 +406,7 @@ def _phase1_database():
 def test_phase1_database_upgrades_without_data_loss():
     engine = _phase1_database()
     assert get_schema_version(engine) is None
-    assert ensure_schema(engine) == SCHEMA_VERSION == 4
+    assert ensure_schema(engine) == SCHEMA_VERSION == 5
 
     session = sessionmaker(bind=engine)()
     try:
@@ -421,7 +421,7 @@ def test_phase1_database_upgrades_without_data_loss():
     finally:
         session.close()
     # Idempotent re-run keeps everything.
-    assert ensure_schema(engine) == 4
+    assert ensure_schema(engine) == 5
     session = sessionmaker(bind=engine)()
     try:
         assert session.query(User).count() == 2

@@ -495,12 +495,21 @@ def _v3_style_engine():
     tables = [
         table
         for name, table in Base.metadata.tables.items()
-        if name not in ("player_ratings", "rating_events")
+        if name
+        not in (
+            "player_ratings",
+            "rating_events",
+            "player_gamification_state",
+            "xp_events",
+            "player_streaks",
+            "player_achievements",
+        )
     ]
     Base.metadata.create_all(bind=engine, tables=tables)
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE attempts DROP COLUMN rating_before"))
         conn.execute(text("ALTER TABLE attempts DROP COLUMN rating_after"))
+        conn.execute(text("ALTER TABLE attempts DROP COLUMN xp_awarded"))
         conn.execute(text("DELETE FROM schema_version"))
         conn.execute(
             text("INSERT INTO schema_version (version, applied_at) VALUES (3, '2026-01-01T00:00:00')")
@@ -508,7 +517,7 @@ def _v3_style_engine():
     return engine
 
 
-def test_phase3_database_upgrades_to_v4_preserving_data():
+def test_phase3_database_upgrades_to_v5_preserving_data():
     from app.modules.exercises.models import Exercise
     from app.modules.progress.models import Attempt
     from app.modules.puzzles.models import Puzzle
@@ -545,14 +554,14 @@ def test_phase3_database_upgrades_to_v4_preserving_data():
             {"u": user_id, "p": puzzle_id},
         )
 
-    assert ensure_schema(engine) == SCHEMA_VERSION == 4
-    assert ensure_schema(engine) == 4  # idempotent re-run
+    assert ensure_schema(engine) == SCHEMA_VERSION == 5
+    assert ensure_schema(engine) == 5  # idempotent re-run
 
     names = inspect(engine).get_table_names()
     assert "player_ratings" in names
     assert "rating_events" in names
     cols = {c["name"] for c in inspect(engine).get_columns("attempts")}
-    assert {"rating_before", "rating_delta", "rating_after"} <= cols
+    assert {"rating_before", "rating_delta", "rating_after", "xp_awarded"} <= cols
 
     session = sessionmaker(bind=engine)()
     try:
@@ -561,6 +570,7 @@ def test_phase3_database_upgrades_to_v4_preserving_data():
         attempt = session.query(Attempt).one()
         assert attempt.result == "correct"
         assert attempt.rating_before is None  # no fabricated history
+        assert attempt.xp_awarded is None  # no fabricated XP
         assert session.query(RatingEvent).count() == 0
     finally:
         session.close()
