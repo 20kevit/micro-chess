@@ -1,76 +1,84 @@
-# MicroChess Platform API Contracts
+# MicroChess Platform — API Contracts
 
-## 1. Purpose
+## 1. Document Status
 
-This document defines the target API contract for the MicroChess platform.
+**Status:** Accepted
+**Document Type:** Target API Contract
+**Scope:** Platform API behavior, resource contracts, authorization boundaries, and cross-cutting API rules
 
-It covers:
+This document defines the **target API contract** for the MicroChess platform.
 
-* API conventions
-* authentication and sessions
-* guest access and guest migration
-* player profiles
-* exercises and training
-* attempts and sessions
-* ratings
-* gamification
-* analytics
-* content and puzzles
-* generators
-* administration
-* support
-* coach/student relationships
-* parent/student relationships
-* pagination, filtering, and sorting
-* errors
-* authorization
-* idempotency
-* server authority
-* API versioning
+It does not imply that every endpoint currently exists.
 
-This document defines the **target API contract**.
+The repository remains the source of truth for the current implementation.
 
-It does not assume that every endpoint currently exists.
+Before implementing or changing an API, the agent MUST inspect:
 
-Before implementation, the agent MUST inspect:
+* existing FastAPI routes
+* Pydantic schemas
+* application/domain services
+* persistence/repositories
+* authentication/session implementation
+* frontend API client
+* existing exercise-specific APIs
+* existing tests
 
-* existing API routes
-* existing Pydantic schemas
-* existing application/services
-* existing authentication/session implementation
-* existing frontend API client
-* existing exercise-specific API contracts
-
-Existing working behavior must be preserved unless an intentional change is explicitly documented and tested.
+Existing working behavior must be preserved unless an intentional change is required, documented, and tested.
 
 ---
 
-# 2. API Design Principles
+# 2. API Authority
+
+API requirements are governed by:
+
+1. accepted ADRs
+2. `MASTER_PLAN.md`
+3. the most specific applicable domain specification
+4. `API_CONTRACTS.md`
+5. active phase specification
+6. repository implementation
+
+If two accepted specifications conflict, the agent MUST identify the conflict instead of silently choosing one.
+
+This document defines API behavior.
+
+It does not define:
+
+* domain algorithms
+* database schema
+* UI design
+* implementation architecture in full
+* current repository state
+
+Those belong to their respective canonical documents.
+
+---
+
+# 3. API Design Principles
 
 The API MUST be:
 
 * predictable
 * explicit
+* typed
 * versionable
 * secure
-* typed
-* consistent
 * server-authoritative
-* suitable for guest and authenticated users
+* compatible with guest and authenticated users
 * suitable for the React frontend
-* extensible for future clients
+* extensible without premature infrastructure
 
-The API should use standard HTTP semantics.
+The API SHOULD use standard HTTP semantics.
 
-HTTP methods describe request intent, while HTTP status codes communicate the result class.
+Routes/controllers MUST remain thin.
 
-FastAPI can expose these contracts directly through OpenAPI, so implemented response models and status codes should remain synchronized with the documented contract.
+Business rules belong in application/domain layers.
 
 ---
 
-# 3. API Base Path
+# 4. API Versioning
 
-The preferred target API prefix is:
+The preferred public API prefix is:
 
 ```text
 /api/v1
@@ -79,80 +87,62 @@ The preferred target API prefix is:
 Examples:
 
 ```text
-/api/v1/auth/register
 /api/v1/auth/login
 /api/v1/me
 /api/v1/exercises
+/api/v1/training/sessions
 /api/v1/training/attempts
 ```
 
-The exact prefix MUST be reconciled with the existing repository before implementation.
+The agent MUST reconcile this with the existing repository before introducing or changing the API prefix.
 
-Do not introduce a second competing API prefix.
+A second competing API prefix MUST NOT be introduced.
 
----
-
-# 4. Versioning
-
-The public API is versioned.
-
-Initial target:
-
-```text
-v1
-```
-
-Breaking changes require either:
+Breaking changes require:
 
 * a new API version, or
-* an explicitly documented migration strategy that preserves existing clients.
+* an explicit compatibility/migration strategy.
 
-Examples of breaking changes:
+Breaking changes include:
 
 * removing a response field
-* changing the meaning of an existing field
+* changing field meaning
+* changing a field type incompatibly
 * changing authentication semantics
 * changing required request fields
-* changing the meaning of an endpoint
-* changing an existing field's type incompatibly
+* changing endpoint meaning
 
-Non-breaking additions may generally remain within the same API version.
+Compatible response fields may generally be added without a new API version.
 
 ---
 
 # 5. HTTP Methods
 
-Use HTTP methods according to their intended semantics.
+Use standard semantics:
 
-Typical mapping:
+| Method   | Typical use          |
+| -------- | -------------------- |
+| `GET`    | Read/query           |
+| `POST`   | Create/submit/action |
+| `PUT`    | Full replacement     |
+| `PATCH`  | Partial update       |
+| `DELETE` | Delete/deactivate    |
 
-```text
-GET     Read
-POST    Create / submit / perform an action
-PUT     Replace
-PATCH   Partial update
-DELETE  Delete / deactivate
-```
+Action endpoints are appropriate when an operation represents a real domain action.
 
-Not every business action needs to be represented as a generic CRUD update.
-
-Action endpoints are acceptable when the operation is genuinely an action.
-
-For example:
+Example:
 
 ```http
 POST /api/v1/training/attempts
 ```
 
-is preferable to pretending that answer submission is simply a generic database update.
+is preferable to pretending that answer submission is a generic CRUD update.
 
 ---
 
-# 6. Identity, Authentication, and Authorization
+# 6. Identity Model
 
-The API distinguishes between:
-
-### Authenticated identities
+The canonical persisted roles are:
 
 ```text
 PLAYER
@@ -161,33 +151,30 @@ PARENT
 ADMIN
 ```
 
-These are the canonical persisted roles.
+Guest is **not** a persisted role.
 
-### Guest access
+A guest is a temporary training identity represented by a server-controlled guest session/credential.
 
-Guest is **not a persisted role**.
+The API must distinguish:
 
-A guest is a temporary unauthenticated training identity/session with a limited capability set.
+```text
+Authentication
+Who is making the request?
 
-Authentication answers:
+Authorization
+Is this identity allowed to perform the operation?
 
-> Who is making the request?
+Object authorization
+Is this specific resource within the caller's allowed scope?
+```
 
-Authorization answers:
-
-> Is this identity allowed to perform this operation on this resource?
-
-Object-level authorization additionally answers:
-
-> Is this particular resource within the caller's allowed scope?
-
-The API MUST enforce all three where applicable.
+All applicable checks MUST be enforced server-side.
 
 ---
 
-# 7. Authentication Endpoints
+# 7. Authentication
 
-## 7.1 Register
+## 7.1 Registration
 
 ```http
 POST /api/v1/auth/register
@@ -207,7 +194,7 @@ Initial registration requires only:
 * username
 * password
 
-The following are NOT required for initial registration:
+Initial registration does not require:
 
 * email
 * phone
@@ -216,27 +203,13 @@ The following are NOT required for initial registration:
 * Lichess identity
 * Chess.com identity
 
-The response establishes an authenticated account/session according to the actual authentication architecture.
+The server creates the authenticated account/session according to the selected authentication architecture.
 
-Example:
-
-```json
-{
-  "user": {
-    "id": "...",
-    "username": "player123"
-  },
-  "session": {
-    "authenticated": true
-  }
-}
-```
-
-The exact session representation is implementation-dependent.
+The response MUST NOT expose sensitive authentication material unnecessarily.
 
 ---
 
-# 8. Login
+## 7.2 Login
 
 ```http
 POST /api/v1/auth/login
@@ -251,19 +224,17 @@ Request:
 }
 ```
 
-Successful login establishes the authenticated session.
+Successful login establishes an authenticated session.
 
-Invalid credentials MUST NOT reveal whether:
+Invalid credentials MUST use a generic failure response and MUST NOT reveal whether:
 
 * the username exists
-* the password was almost correct
+* the password was nearly correct
 * another account has related information
-
-Authentication failure responses must follow the security policy.
 
 ---
 
-# 9. Logout
+## 7.3 Logout
 
 ```http
 POST /api/v1/auth/logout
@@ -275,11 +246,11 @@ Successful logout:
 204 No Content
 ```
 
-Logout invalidates the current authenticated session or equivalent credential.
+The current authenticated session/credential becomes invalid.
 
 ---
 
-# 10. Current User
+## 7.4 Current User
 
 ```http
 GET /api/v1/me
@@ -292,34 +263,33 @@ Example:
   "user": {
     "id": "...",
     "username": "...",
-    "roles": ["player"]
+    "roles": ["PLAYER"]
   },
-  "profile": {
-    "display_name": "...",
-    "avatar": null
-  }
+  "profile": {}
 }
 ```
 
-The response MUST NOT expose private information the caller is not authorized to see.
+Only authorized information may be returned.
 
-Roles returned by this endpoint are persisted roles only.
+Guest access MUST NOT be represented as:
 
-A guest MUST NOT appear as a `guest` role.
+```json
+{
+  "roles": ["GUEST"]
+}
+```
 
 ---
 
-# 11. Guest Session
+# 8. Guest Sessions
 
-Guests may use training without creating an account.
-
-Target endpoint:
+## 8.1 Create Guest Session
 
 ```http
 POST /api/v1/guest/session
 ```
 
-Response:
+Example response:
 
 ```json
 {
@@ -329,21 +299,19 @@ Response:
 }
 ```
 
-The server establishes the guest credential through the selected session mechanism.
+The server establishes the guest identity through the selected session/credential mechanism.
 
-The client MUST NOT receive internal database identifiers or secrets unless explicitly required by the protocol.
+The client MUST NOT be trusted to provide a guest database identifier as proof of ownership.
 
-Guest credentials MUST be treated as untrusted bearer/session credentials and protected according to the security architecture.
+Internal identifiers or secrets MUST NOT be exposed unless required by the protocol.
 
 ---
 
-# 12. Guest Session State
+## 8.2 Current Guest Session
 
 ```http
 GET /api/v1/guest/session
 ```
-
-Returns the current guest state when a valid guest session exists.
 
 Example:
 
@@ -357,89 +325,57 @@ Example:
 }
 ```
 
-An absent or expired guest session should not expose information about another guest.
+Expired or absent guest sessions MUST NOT expose another guest's information.
 
 ---
 
-# 13. Guest Migration
+# 9. Guest Migration
 
-Guest training data may be migrated into an authenticated account.
-
-Target endpoint:
+Guest training data may be migrated to an authenticated account.
 
 ```http
 POST /api/v1/guest/migrate
 ```
 
-The request should contain only the minimum information necessary to identify the guest session under the actual transport mechanism.
+The guest identity MUST be derived from the current server-controlled guest credential/session.
 
-If the guest credential is already carried by the session/cookie/header, the client SHOULD NOT separately submit a guest database identifier.
+The client MUST NOT submit arbitrary ownership identifiers.
 
-Example:
+The client MUST NOT submit authoritative values such as:
 
-```json
-{}
-```
-
-The server determines which guest data belongs to the authenticated account.
-
-The client MUST NOT submit migration instructions containing:
-
-* rating totals
-* XP totals
+* rating
+* rating delta
+* XP
 * achievements
-* arbitrary attempt history
-* arbitrary session ownership
-* arbitrary reward state
+* attempt history
+* reward state
+* session ownership
 
-The server performs the authoritative migration.
-
----
-
-# 14. Guest Migration Semantics
+The server performs the migration.
 
 Migration MUST be:
 
 * atomic
 * idempotent
 * replay-resistant
-* auditable
 * ownership-checked
+* auditable where required
 
-A retry MUST NOT create:
+A retry MUST NOT create duplicate:
 
-```text
-duplicate attempts
-duplicate rating changes
-duplicate XP
-duplicate achievements
-```
+* attempts
+* rating events
+* XP awards
+* achievements
+* migrated sessions
 
-A successful migration should establish a terminal migration state so that repeated requests cannot repeat the operation.
-
-Example:
-
-```json
-{
-  "migration": {
-    "status": "completed"
-  },
-  "migrated": {
-    "attempts": 42,
-    "ratings": 5,
-    "xp": 180,
-    "achievements": 2
-  }
-}
-```
-
-The exact response may be simplified.
+After successful migration, the guest migration state becomes terminal.
 
 ---
 
-# 15. Player Profile
+# 10. Profiles
 
-## Get Own Profile
+## Own Profile
 
 ```http
 GET /api/v1/me/profile
@@ -461,15 +397,17 @@ Example:
 }
 ```
 
-Only explicitly permitted profile fields may be modified.
+Only explicitly writable fields may be modified.
 
-Server-managed fields MUST NOT be writable through this endpoint.
+Server-managed fields MUST NOT be writable through the profile API.
 
 ---
 
-# 16. External Chess Identities
+# 11. External Chess Identities
 
-External chess identities are profile data and are separate from MicroChess ratings.
+External chess identities are profile information.
+
+They are separate from MicroChess exercise ratings.
 
 ## List
 
@@ -494,7 +432,7 @@ Example:
 }
 ```
 
-Supported providers may include:
+Possible providers include:
 
 ```text
 fide
@@ -502,53 +440,37 @@ lichess
 chess_com
 ```
 
-The exact provider registry is implementation-defined.
+The provider registry is implementation-defined.
 
-Self-reported ratings remain unverified unless an explicit verification mechanism exists.
+Self-reported ratings remain unverified unless a supported verification mechanism exists.
 
----
-
-# 17. Update External Identity
+## Update
 
 ```http
 PATCH /api/v1/me/chess-identities/{identity_id}
 ```
 
-Only permitted fields may be changed.
-
 Verification state MUST NOT be client-controlled.
 
-The client MUST NOT be able to submit:
-
-```json
-{
-  "is_verified": true
-}
-```
-
-and cause the server to trust the identity.
-
----
-
-# 18. Remove External Identity
+## Remove
 
 ```http
 DELETE /api/v1/me/chess-identities/{identity_id}
 ```
 
-Only the owning player or explicitly authorized administrator may perform this operation.
-
-Object ownership MUST be checked.
+Ownership MUST be checked.
 
 ---
 
-# 19. Exercise Catalog
+# 12. Exercise Catalog
+
+## List Exercises
 
 ```http
 GET /api/v1/exercises
 ```
 
-The catalog returns exercises available to the current caller.
+The response contains exercises available to the current caller.
 
 Example:
 
@@ -566,19 +488,25 @@ Example:
 }
 ```
 
-Disabled, unpublished, or otherwise unavailable exercises MUST NOT accidentally appear as playable exercises to ordinary users.
+Unavailable exercises MUST NOT accidentally become playable.
 
-The API may expose metadata for an exercise that is visible but not currently playable if the product requires it.
+An exercise may be visible as:
+
+* unavailable
+* disabled
+* coming soon
+
+when the product requires such presentation.
 
 ---
 
-# 20. Exercise Detail
+## Exercise Detail
 
 ```http
 GET /api/v1/exercises/{exercise_slug}
 ```
 
-Returns appropriate exercise metadata, including:
+May return:
 
 * stable identifier
 * localized metadata
@@ -587,13 +515,17 @@ Returns appropriate exercise metadata, including:
 * relevant configuration
 * current player state where appropriate
 
-The response MUST NOT expose hidden puzzle answers or server-only validation data.
+It MUST NOT expose:
+
+* hidden answers
+* server-only validation data
+* authoritative solution data
 
 ---
 
-# 21. Exercise Session Creation
+# 13. Training Sessions
 
-If an exercise requires an explicit training session:
+If an exercise uses explicit sessions:
 
 ```http
 POST /api/v1/exercises/{exercise_slug}/sessions
@@ -617,21 +549,48 @@ or:
 
 The server creates the authoritative session.
 
-The client MUST NOT choose:
+The client MUST NOT determine:
 
+* authoritative start time
+* expiration
 * score
-* authoritative start timestamp
-* rating
-* puzzle solution
-* final duration
-* XP
 * correctness
-
-The server determines these values.
+* rating
+* rating delta
+* XP
+* final duration
+* puzzle solution
 
 ---
 
-# 22. Session Response
+# 14. Question Instances
+
+A training session may contain one or more question instances.
+
+A **question instance** represents the concrete server-issued question presented to the player during a session.
+
+It is intentionally distinct from the underlying puzzle/content identifier.
+
+Conceptually:
+
+```text
+Puzzle / Content
+      ↓
+Question Instance
+      ↓
+Attempt
+```
+
+The question instance binds the delivered question to:
+
+* session
+* exercise
+* mode
+* content
+* delivery state
+* server-side timing/context where applicable
+
+The client receives only the data required to render and answer that instance.
 
 Example:
 
@@ -644,49 +603,51 @@ Example:
     "started_at": "..."
   },
   "question": {
-    "id": "...",
+    "instance_id": "...",
     "payload": {}
   }
 }
 ```
 
-`question.payload` is exercise-specific.
+The client MUST use the question instance identifier when submitting an answer.
 
-The payload MUST contain only information necessary for the client to render and answer the question.
-
----
-
-# 23. Puzzle and Question Delivery
-
-The API MUST return only information required to play the exercise.
-
-It MUST NOT expose hidden authoritative answers.
-
-Example for a pin exercise:
-
-Allowed:
-
-```json
-{
-  "position": "...",
-  "side_to_move": "white",
-  "selection_count": 3
-}
-```
-
-Forbidden:
-
-```json
-{
-  "correct_answer": ["e2", "e4", "e7"]
-}
-```
-
-The same principle applies to all exercise types.
+The client MUST NOT use a raw puzzle/content identifier as a substitute for the question instance when the session uses question instances.
 
 ---
 
-# 24. Attempt Submission
+# 15. Question Payload
+
+Question payloads are exercise-specific.
+
+Example:
+
+```json
+{
+  "instance_id": "...",
+  "payload": {
+    "position": "...",
+    "side_to_move": "white"
+  }
+}
+```
+
+Payloads MUST contain only information required by the client.
+
+Hidden authoritative answers MUST NOT be included.
+
+Forbidden example:
+
+```json
+{
+  "correct_answer": ["e2", "e4"]
+}
+```
+
+This rule applies to every exercise type.
+
+---
+
+# 16. Attempt Submission
 
 Core endpoint:
 
@@ -694,19 +655,18 @@ Core endpoint:
 POST /api/v1/training/attempts
 ```
 
-Example:
+Preferred request:
 
 ```json
 {
   "session_id": "...",
-  "puzzle_id": "...",
-  "answer": {}
+  "question_instance_id": "...",
+  "answer": {},
+  "idempotency_key": "..."
 }
 ```
 
-The exact answer schema is exercise-specific.
-
-The client submits only the answer and required request metadata.
+`answer` is exercise-specific.
 
 The server determines:
 
@@ -715,45 +675,74 @@ The server determines:
 * response time
 * rating change
 * XP
-* achievement consequences
+* achievements
 * authoritative feedback
-* next training state
+* resulting training state
+
+The client MUST NOT submit authoritative result values.
 
 ---
 
-# 25. Attempt Validation
+# 17. Attempt Validation
 
-The server MUST validate:
+For every attempt, the server MUST validate as applicable:
 
 1. caller identity
 2. guest/authenticated ownership
 3. session validity
-4. exercise validity
-5. puzzle/question validity
-6. mode validity
-7. answer schema
-8. answer correctness
-9. timing where applicable
-10. submission uniqueness/idempotency
+4. question-instance ownership
+5. exercise validity
+6. content/question validity
+7. mode validity
+8. answer schema
+9. answer correctness
+10. timing
 11. content availability
 12. authorization
+13. idempotency
+14. session state
 
-The server MUST ignore client-provided authoritative values such as:
+The server MUST reject an attempt when the question instance:
 
-```text
-score
-correctness
-rating
-rating_delta
-xp
-elapsed_time
-```
-
-when those values are calculated by the server.
+* belongs to another session
+* belongs to another user/guest
+* has expired
+* is already terminal
+* is invalid
+* is unavailable
+* has already been submitted where repeat submission is forbidden
 
 ---
 
-# 26. Attempt Response
+# 18. Attempt Idempotency
+
+Attempt submission MUST be idempotent.
+
+The client SHOULD provide:
+
+```text
+idempotency_key
+```
+
+The server MUST bind the key to the relevant authenticated/guest identity and operation context.
+
+A repeated request with the same valid idempotency key MUST NOT produce another authoritative result.
+
+It MUST NOT create duplicate:
+
+* attempts
+* rating events
+* XP
+* achievements
+* streak activity
+
+The server may return the original result.
+
+An idempotency key MUST NOT allow one identity to replay another identity's operation.
+
+---
+
+# 19. Attempt Response
 
 Example:
 
@@ -761,6 +750,7 @@ Example:
 {
   "attempt": {
     "id": "...",
+    "question_instance_id": "...",
     "correct": true,
     "score": 5,
     "response_time_ms": 2140
@@ -779,31 +769,32 @@ Example:
 }
 ```
 
-Fields are returned according to the capabilities enabled for the current user and exercise.
+Returned fields depend on the active product capabilities.
 
 The response MUST represent server-authoritative results.
 
 ---
 
-# 27. Speed Mode Timing
+# 20. Speed Mode
 
-Speed mode timing is server-authoritative.
+Speed-mode timing is server-authoritative.
 
 The client may display a local countdown for UX.
 
 The server determines:
 
 * session start
+* deadline
 * expiration
-* whether a submission was within the allowed time
-* final session duration
+* whether submission was on time
+* final duration
 * final score
 
-The client cannot extend a session by submitting a different timestamp.
+Client-provided timestamps MUST NOT override server timing.
 
 ---
 
-# 28. Training History
+# 21. Training History
 
 ## Own Attempts
 
@@ -811,7 +802,7 @@ The client cannot extend a session by submitting a different timestamp.
 GET /api/v1/me/training/attempts
 ```
 
-Supported filters may include:
+Possible filters:
 
 ```text
 exercise
@@ -827,31 +818,33 @@ Example:
 GET /api/v1/me/training/attempts?exercise=pin&mode=speed
 ```
 
-The response represents historical training facts and MUST NOT silently recalculate historical results from current configuration.
+Historical responses MUST represent facts as they occurred.
+
+The API MUST NOT silently recalculate historical results using current exercise/rating configuration.
 
 ---
 
-# 29. Attempt Detail
+## Attempt Detail
 
 ```http
 GET /api/v1/me/training/attempts/{attempt_id}
 ```
 
-The response must expose only information the player is allowed to see.
+Only authorized information may be returned.
 
-Historical fields should represent the state relevant to the attempt at the time it occurred.
+Historical fields should represent the relevant state at the time of the attempt.
 
-Private server-only validation data and hidden answers MUST remain excluded.
+Hidden solutions and private server validation data MUST remain excluded.
 
 ---
 
-# 30. Training Sessions
+## Sessions
 
 ```http
 GET /api/v1/me/training/sessions
 ```
 
-Supported filters:
+Possible filters:
 
 ```text
 exercise
@@ -866,13 +859,21 @@ Session detail:
 GET /api/v1/me/training/sessions/{session_id}
 ```
 
-A session may expose aggregate information derived from its attempts.
+A session may expose aggregate information derived from attempts.
 
 It MUST NOT expose hidden answer data.
 
 ---
 
-# 31. Ratings
+# 22. Ratings
+
+MicroChess ratings are independent per applicable exercise.
+
+They are separate from:
+
+* FIDE ratings
+* Lichess ratings
+* Chess.com ratings
 
 ## Current Ratings
 
@@ -895,37 +896,29 @@ Example:
 }
 ```
 
-Each exercise has an independent MicroChess rating.
-
-MicroChess ratings are separate from external FIDE/Lichess/Chess.com ratings.
-
----
-
-# 32. Exercise Rating
+## Exercise Rating
 
 ```http
 GET /api/v1/me/ratings/{exercise_slug}
 ```
 
-Returns, where applicable:
+May return:
 
 * current rating
 * provisional state
-* attempts count
-* uncertainty/development information if exposed
+* attempt count
+* uncertainty/development information
 * latest update
 
-The exact rating algorithm is defined by the training/rating domain specification, not by the API layer.
+The rating algorithm is defined by the rating domain, not the API contract.
 
----
-
-# 33. Rating History
+## Rating History
 
 ```http
 GET /api/v1/me/ratings/{exercise_slug}/history
 ```
 
-Filters:
+Possible filters:
 
 ```text
 date_from
@@ -950,9 +943,15 @@ Example:
 
 Rating history is read-only to ordinary clients.
 
+There is no generic client-facing rating-write endpoint.
+
 ---
 
-# 34. Gamification Summary
+# 23. Gamification
+
+Gamification state is server-controlled.
+
+## Summary
 
 ```http
 GET /api/v1/me/gamification
@@ -974,137 +973,120 @@ Example:
 }
 ```
 
-The response represents server-calculated gamification state.
-
----
-
-# 35. XP History
+## XP History
 
 ```http
 GET /api/v1/me/gamification/xp
 ```
 
-Supported filters may include:
+XP records are historical reward facts.
+
+Clients cannot create, modify, or delete XP.
+
+There must not be an endpoint such as:
 
 ```text
-date_from
-date_to
-source_type
+POST /api/v1/xp
 ```
 
-XP awards are historical reward records.
-
-The client cannot create, modify, or delete XP awards.
-
-Do not expose a generic client-facing endpoint such as:
-
-```text
-POST /xp
-```
-
----
-
-# 36. Achievements
-
-## Available Achievements
+## Achievements
 
 ```http
 GET /api/v1/achievements
-```
-
-## Own Achievements
-
-```http
 GET /api/v1/me/achievements
 ```
 
-Example:
+Unlocking is server-controlled.
 
-```json
-{
-  "items": [
-    {
-      "code": "first_pin",
-      "unlocked": true,
-      "unlocked_at": "..."
-    }
-  ]
-}
-```
-
-Achievement eligibility and unlocking are server-controlled.
-
----
-
-# 37. Goals
+## Goals
 
 ```http
 GET /api/v1/me/goals
 ```
 
-Returns current daily/weekly goals and progress.
+Goal progress and completion are server-calculated.
 
-Goal completion is server-calculated.
-
-The client cannot mark a goal as complete.
-
----
-
-# 38. Streak
+## Streak
 
 ```http
 GET /api/v1/me/streak
-```
-
-Example:
-
-```json
-{
-  "current": 5,
-  "longest": 12,
-  "last_activity_date": "..."
-}
 ```
 
 The server determines qualifying activity.
 
 ---
 
-# 39. Player Dashboard
+# 24. Player Dashboard
 
 ```http
 GET /api/v1/me/dashboard
 ```
 
-Possible response:
+The dashboard may aggregate:
 
-```json
-{
-  "profile": {},
-  "ratings": [],
-  "recent_activity": [],
-  "gamification": {},
-  "goals": [],
-  "streak": {},
-  "recommended": []
-}
-```
+* profile
+* ratings
+* recent activity
+* gamification
+* goals
+* streak
+* progress
+* recommendations when available
 
-The dashboard is a read/query operation.
+The dashboard is a read model.
 
-It is an aggregation/read model and MUST NOT become a second source of business truth.
+It MUST NOT become a second source of business truth.
 
-Recommendations are optional until the adaptive-training subsystem defines them.
+Recommendations are optional until adaptive-training behavior is implemented.
 
 ---
 
-# 40. Player Analytics
+# 25. Player Progress and Basic Summaries
+
+Player-facing progress belongs to the player platform.
+
+Examples may include:
+
+```http
+GET /api/v1/me/progress
+GET /api/v1/me/progress/{exercise_slug}
+```
+
+These endpoints may provide:
+
+* completion
+* attempts
+* basic accuracy
+* current mastery
+* recent activity
+* basic improvement indicators
+
+These are **player-product summaries**, not the complete analytics platform.
+
+The full analytics system belongs to the Analytics domain and Phase 8.
+
+---
+
+# 26. Analytics
+
+Analytics are derived/read-only views over authoritative data.
+
+They MUST NOT modify:
+
+* attempts
+* ratings
+* XP
+* achievements
+* puzzle state
+* exercise configuration
+
+## Player Analytics
 
 ```http
 GET /api/v1/me/analytics
 ```
 
-Supported standard periods:
+Standard periods:
 
 ```text
 7d
@@ -1114,7 +1096,7 @@ all
 custom
 ```
 
-Supported filters:
+Possible filters:
 
 ```text
 period
@@ -1125,40 +1107,7 @@ exercise
 
 The server defines timezone and period semantics.
 
----
-
-# 41. Analytics Response
-
-Example:
-
-```json
-{
-  "period": {
-    "from": "...",
-    "to": "..."
-  },
-  "summary": {
-    "attempts": 120,
-    "accuracy": 0.81,
-    "training_time_ms": 420000,
-    "active_days": 6,
-    "xp": 480
-  },
-  "rating": {
-    "start": 1400,
-    "end": 1478,
-    "delta": 78
-  }
-}
-```
-
-Analytics are derived from authoritative training, rating, and gamification records.
-
-Analytics responses MUST NOT modify those records.
-
----
-
-# 42. Analytics Comparison
+## Comparison
 
 ```http
 GET /api/v1/me/analytics/comparison
@@ -1170,25 +1119,7 @@ Example:
 ?current=7d&previous=7d
 ```
 
-Example response:
-
-```json
-{
-  "current": {},
-  "previous": {},
-  "changes": {
-    "accuracy": 0.07,
-    "attempts": 12,
-    "training_time_ms": 30000
-  }
-}
-```
-
-The server defines comparison periods.
-
----
-
-# 43. Exercise Analytics for Players
+## Exercise Analytics
 
 ```http
 GET /api/v1/me/analytics/exercises/{exercise_slug}
@@ -1204,25 +1135,21 @@ Possible metrics:
 * completion
 * improvement
 * recent performance
-* mastery where available
+* mastery
 
-The endpoint returns only data belonging to the current player.
-
----
-
-# 44. Puzzle Analytics for Players
+## Puzzle Analytics
 
 ```http
 GET /api/v1/me/analytics/puzzles/{puzzle_id}
 ```
 
-Players may see appropriate personal statistics for puzzles they have attempted.
+Only personal information may be returned.
 
-The endpoint MUST NOT expose hidden solution information merely because analytics are requested.
+The endpoint MUST NOT expose hidden solutions.
 
 ---
 
-# 45. Leaderboards
+# 27. Leaderboards
 
 ```http
 GET /api/v1/leaderboards
@@ -1238,7 +1165,7 @@ page
 page_size
 ```
 
-Possible leaderboard types:
+Possible types:
 
 ```text
 rating
@@ -1247,13 +1174,13 @@ streak
 challenge
 ```
 
-Only supported leaderboard types should be accepted.
+Only supported types are accepted.
 
-Privacy, eligibility, ranking scope, and visibility rules are enforced server-side.
+Privacy, eligibility, visibility, and ranking scope are server-controlled.
 
 ---
 
-# 46. Public Profile
+# 28. Public Profiles
 
 If public profiles are enabled:
 
@@ -1261,15 +1188,21 @@ If public profiles are enabled:
 GET /api/v1/players/{username}
 ```
 
-Only explicitly public information is returned.
+Only explicitly public information may be returned.
 
-Private analytics, contact information, private notes, and sensitive profile data MUST NOT leak.
+The endpoint MUST NOT expose:
+
+* private analytics
+* contact information
+* private notes
+* credentials
+* unrelated user information
 
 ---
 
-# 47. Admin API Boundary
+# 29. Administration API
 
-Admin endpoints use:
+Admin APIs use:
 
 ```text
 /api/v1/admin
@@ -1278,6 +1211,7 @@ Admin endpoints use:
 Examples:
 
 ```text
+/api/v1/admin/dashboard
 /api/v1/admin/users
 /api/v1/admin/exercises
 /api/v1/admin/puzzles
@@ -1290,38 +1224,39 @@ Every admin endpoint requires explicit backend authorization.
 
 Frontend route guards are not security controls.
 
+Admin APIs MUST use application/domain workflows rather than direct database manipulation.
+
 ---
 
-# 48. Admin Dashboard
+# 30. Admin Dashboard
 
 ```http
 GET /api/v1/admin/dashboard
 ```
 
-May return:
+May expose aggregated operational information such as:
 
 * user counts
-* active users
-* recent activity
-* exercise activity
+* activity
+* exercise usage
 * puzzle statistics
 * support status
 * generator status
-* system health indicators
+* system indicators
 
-This is an aggregated read operation.
-
-It MUST NOT mutate platform state merely by being requested.
+The endpoint is read-only.
 
 ---
 
-# 49. Admin Users
+# 31. Admin Users
+
+## List
 
 ```http
 GET /api/v1/admin/users
 ```
 
-Filters:
+Possible filters:
 
 ```text
 search
@@ -1333,77 +1268,67 @@ created_to
 
 Pagination is mandatory.
 
-The server must enforce reasonable limits.
-
----
-
-# 50. Admin User Detail
+## Detail
 
 ```http
 GET /api/v1/admin/users/{user_id}
 ```
 
-The response may expose useful administrative information.
-
-It MUST NOT return:
+Must never expose:
 
 * password hashes
 * session tokens
 * reset tokens
 * authentication secrets
-* unnecessary sensitive credentials
+* unnecessary credentials
 
----
-
-# 51. Admin User Status
-
-Possible actions:
+## Suspend
 
 ```http
 POST /api/v1/admin/users/{user_id}/suspend
 ```
 
+## Reactivate
+
 ```http
 POST /api/v1/admin/users/{user_id}/reactivate
 ```
 
-These are privileged state-changing operations.
+State-changing admin operations MUST:
 
-They must:
-
-* enforce authorization
+* authorize the administrator
 * validate state transitions
-* preserve historical records
-* create appropriate audit records
+* preserve history
+* create required audit records
 
 ---
 
-# 52. Admin Roles
+# 32. Admin Roles
+
+## Current Roles
 
 ```http
 GET /api/v1/admin/users/{user_id}/roles
 ```
 
-Role assignment:
+## Assign Role
 
 ```http
 POST /api/v1/admin/users/{user_id}/roles
 ```
 
-Request:
+Example:
 
 ```json
 {
-  "role": "coach"
+  "role": "COACH"
 }
 ```
 
-Role changes must use the authorization/application layer.
+The server MUST validate:
 
-The server must verify:
-
-* acting administrator authorization
-* target user validity
+* acting administrator capability
+* target user
 * valid role
 * self-protection rules
 * final-admin protection where applicable
@@ -1412,50 +1337,40 @@ The client cannot grant itself a role.
 
 ---
 
-# 53. Admin Exercises
+# 33. Admin Exercise Management
+
+Exercise administration belongs to the administration/content boundaries.
+
+Possible endpoints:
 
 ```http
 GET /api/v1/admin/exercises
-```
-
-```http
 GET /api/v1/admin/exercises/{exercise_id}
-```
-
-Exercise metadata may include:
-
-* status
-* ordering
-* difficulty configuration
-* rating configuration
-* supported modes
-* implementation availability
-* puzzle count
-* usage statistics
-
----
-
-# 54. Admin Exercise Update
-
-```http
 PATCH /api/v1/admin/exercises/{exercise_id}
 ```
 
-Editable fields depend on the exercise configuration and lifecycle.
+Exercise changes MUST pass through the appropriate application/domain workflow.
 
-Changes MUST pass through the Content/application layer.
+Admin routes MUST NOT directly update database rows to bypass domain rules.
 
-Admin routes MUST NOT directly modify database rows to bypass domain rules.
+Phase 6 provides administrative foundation.
+
+Phase 7 owns the complete content lifecycle.
 
 ---
 
-# 55. Admin Puzzles
+# 34. Admin Puzzle Management
+
+Possible endpoints:
 
 ```http
 GET /api/v1/admin/puzzles
+GET /api/v1/admin/puzzles/{puzzle_id}
+POST /api/v1/admin/puzzles
+PATCH /api/v1/admin/puzzles/{puzzle_id}
 ```
 
-Filters:
+Possible filters:
 
 ```text
 exercise
@@ -1470,304 +1385,141 @@ created_to
 
 Pagination is mandatory.
 
----
-
-# 56. Admin Puzzle Detail
-
-```http
-GET /api/v1/admin/puzzles/{puzzle_id}
-```
-
-May include:
-
-* content
-* lifecycle state
-* validation results
-* reviews
-* statistics
-* generation source
-* tags
-* version information
-* history
-
-Admin responses may expose information that ordinary players must never receive.
+Puzzle mutations MUST pass through content validation and lifecycle rules.
 
 ---
 
-# 57. Manual Puzzle Creation
+# 35. Content Lifecycle
 
-```http
-POST /api/v1/admin/puzzles
+The API must respect the content lifecycle:
+
+```text
+Draft
+  ↓
+Created / Generated
+  ↓
+Validated
+  ↓
+Reviewed
+  ↓
+Approved
+  ↓
+Published
+  ↓
+Active
+  ↓
+Retired
 ```
 
-The request contains exercise-specific content.
+Not every state requires a dedicated endpoint.
 
-The server must:
+State transitions must be explicit domain actions where necessary.
 
-1. validate request schema
-2. validate exercise rules
-3. validate uniqueness where required
-4. assign the appropriate initial lifecycle state
-5. record creator information
-6. create appropriate audit history
-
-Creation does not imply publication.
+The API MUST NOT allow arbitrary status manipulation that bypasses lifecycle validation.
 
 ---
 
-# 58. Puzzle Validation
+# 36. Publishing
 
-```http
-POST /api/v1/admin/puzzles/{puzzle_id}/validate
-```
-
-Example:
-
-```json
-{
-  "status": "valid",
-  "checks": []
-}
-```
-
-Validation results may be persisted where useful.
-
-Validation MUST NOT silently publish a puzzle.
-
----
-
-# 59. Puzzle Review
-
-```http
-POST /api/v1/admin/puzzles/{puzzle_id}/review
-```
-
-Request:
-
-```json
-{
-  "decision": "approved",
-  "notes": "..."
-}
-```
-
-Only authorized reviewers may perform the operation.
-
-The exact valid decisions depend on the content lifecycle.
-
----
-
-# 60. Puzzle Publication
+Where explicit publishing is required:
 
 ```http
 POST /api/v1/admin/puzzles/{puzzle_id}/publish
 ```
 
-Publishing MUST verify all required prerequisites.
+Publishing MUST validate:
 
-Typical prerequisites include:
+* content validity
+* required metadata
+* lifecycle state
+* approval requirements
+* authorization
 
-```text
-validated
-reviewed
-approved
-```
-
-The exact prerequisites are defined by the content policy.
-
-Publishing is an explicit privileged action.
+Publishing a generated puzzle does not bypass review/approval requirements.
 
 ---
 
-# 61. Puzzle Retirement
+# 37. Retiring Content
+
+Where applicable:
 
 ```http
 POST /api/v1/admin/puzzles/{puzzle_id}/retire
 ```
 
-Retirement MUST NOT destroy historical attempts referencing the puzzle.
+Retirement MUST preserve historical training records.
 
-The puzzle becomes unavailable for new play according to the content policy.
-
-Historical analytics and attempts remain intact.
+Retiring content MUST NOT rewrite past attempts.
 
 ---
 
-# 62. Generator Catalog
+# 38. Generators
+
+Generator management belongs to Phase 7.
+
+Possible endpoints:
 
 ```http
 GET /api/v1/admin/generators
-```
-
-Returns registered generators and their capabilities.
-
----
-
-# 63. Generator Detail
-
-```http
 GET /api/v1/admin/generators/{generator_id}
-```
-
-May expose:
-
-* supported exercise
-* configuration schema
-* generator version
-* active state
-* supported constraints
-
-Generator configuration exposed to administrators must not expose secrets.
-
----
-
-# 64. Generator Run
-
-```http
 POST /api/v1/admin/generators/{generator_id}/runs
-```
-
-Example:
-
-```json
-{
-  "exercise_id": "...",
-  "target_rating": 1400,
-  "target_difficulty": 3,
-  "count": 100,
-  "constraints": {}
-}
-```
-
-`target_rating` and `target_difficulty` are generation targets, not guarantees.
-
-Generated content MUST enter the content validation/review workflow.
-
-Generation MUST NOT automatically publish content.
-
----
-
-# 65. Generator Run Status
-
-```http
+GET /api/v1/admin/generator-runs
 GET /api/v1/admin/generator-runs/{run_id}
 ```
 
-Possible statuses:
+A generator run may specify:
+
+* generator
+* exercise
+* target rating
+* difficulty
+* constraints
+* batch size
+
+Generated content is not automatically production content.
+
+The generator pipeline must support:
 
 ```text
-queued
-running
-completed
-partial
-failed
-cancelled
+generate
+→ validate
+→ deduplicate
+→ review
+→ approve
+→ publish
 ```
 
-If generation is asynchronous, creation may return:
-
-```http
-202 Accepted
-```
-
-The run status endpoint is authoritative for processing state.
+Target rating/difficulty are objectives, not guarantees.
 
 ---
 
-# 66. Generated Content Workflow
+# 39. Generator Run Safety
 
-Generated content follows the same controlled publication boundary as manually created content.
+Generator operations MUST be:
 
-Typical flow:
+* authorized
+* bounded
+* observable
+* repeat-safe where appropriate
+* protected against unbounded resource consumption
 
-```text
-generator run
-     ↓
-generated
-     ↓
-validated
-     ↓
-preview
-     ↓
-review
-     ↓
-approved
-     ↓
-published
-     ↓
-active
-```
-
-Generation does not imply approval or publication.
+The API MUST NOT expose arbitrary executable generator configuration from untrusted clients.
 
 ---
 
-# 67. Admin Analytics
+# 40. Admin Analytics
+
+Admin analytics belong to the analytics/content/administration boundaries.
+
+Possible endpoints:
 
 ```http
 GET /api/v1/admin/analytics
-```
-
-Filters:
-
-```text
-period
-exercise
-puzzle
-date_from
-date_to
-```
-
-Possible metrics:
-
-* total attempts
-* unique players
-* accuracy
-* average response time
-* rating distribution
-* rating change
-* retention
-* active users
-* exercise usage
-* puzzle performance
-
-Analytics endpoints are read-only.
-
----
-
-# 68. Exercise Analytics
-
-```http
 GET /api/v1/admin/analytics/exercises/{exercise_id}
-```
-
-Possible response:
-
-```json
-{
-  "attempts": 5000,
-  "unique_players": 420,
-  "accuracy": 0.71,
-  "avg_response_time_ms": 3200,
-  "observed_difficulty": 1435
-}
-```
-
-`observed_difficulty` is derived analytics data.
-
-It MUST NOT silently modify the exercise or puzzle configuration.
-
-Difficulty calibration remains a separate future/content workflow.
-
----
-
-# 69. Puzzle Analytics
-
-```http
 GET /api/v1/admin/analytics/puzzles/{puzzle_id}
 ```
 
-Possible metrics:
+Possible metrics include:
 
 * attempts
 * unique players
@@ -1775,13 +1527,39 @@ Possible metrics:
 * response time
 * rating distribution
 * observed difficulty
-* recent trend
+* trends
 
-Analytics MUST NOT automatically retire, publish, or otherwise mutate puzzle state unless an explicit authorized workflow performs that action.
+Analytics MUST NOT automatically mutate content.
+
+For example, requesting puzzle analytics must not automatically:
+
+* publish
+* retire
+* modify
+* reprioritize
+
+a puzzle.
 
 ---
 
-# 70. Support API
+# 41. Audit API
+
+Where administrative audit is exposed:
+
+```http
+GET /api/v1/admin/audit
+GET /api/v1/admin/audit/{audit_id}
+```
+
+Audit records are read-only to ordinary administrative clients unless a dedicated controlled maintenance workflow exists.
+
+Sensitive audit information must follow the security policy.
+
+---
+
+# 42. Support API
+
+Support is part of the administration foundation.
 
 ## Create Ticket
 
@@ -1798,65 +1576,42 @@ Request:
 }
 ```
 
-Guests may be allowed to create tickets according to the support policy.
+Guest support may be enabled when the support policy allows it.
 
-Guest tickets must have an appropriate ownership mechanism that does not rely on trusting a client-supplied user ID.
+Guest ownership MUST be derived from the server-controlled guest identity.
 
----
-
-# 71. Own Support Tickets
+## Own Tickets
 
 ```http
 GET /api/v1/me/support/tickets
-```
-
-Ticket detail:
-
-```http
 GET /api/v1/me/support/tickets/{ticket_id}
 ```
 
-Authenticated users may access only their own tickets.
+Users may access only their own tickets.
 
-Guest ticket access, if supported, must use the guest/session ownership mechanism rather than a client-supplied identity.
-
----
-
-# 72. Admin Support
+## Admin Tickets
 
 ```http
 GET /api/v1/admin/support/tickets
-```
-
-```http
 GET /api/v1/admin/support/tickets/{ticket_id}
-```
-
-Reply:
-
-```http
 POST /api/v1/admin/support/tickets/{ticket_id}/messages
-```
-
-Close:
-
-```http
 POST /api/v1/admin/support/tickets/{ticket_id}/close
 ```
 
-Privileged support actions must be authorized and auditable.
+Privileged support operations MUST be authorized and auditable.
+
+Notifications are not a separate canonical API phase in this plan.
 
 ---
 
-# 73. Coach API
+# 43. Coach API
 
-Initial infrastructure may expose:
+Coach/student functionality belongs to the Relationships phase.
+
+Possible endpoints:
 
 ```http
 GET /api/v1/coach/students
-```
-
-```http
 GET /api/v1/coach/students/{student_id}
 ```
 
@@ -1868,89 +1623,78 @@ Access requires:
 * object-level authorization
 * privacy rules
 
-Being a coach does not grant access to every player.
+Being a coach does not grant access to all players.
 
 ---
 
-# 74. Coach Assignments
+# 44. Coach Assignments
+
+Possible endpoints:
 
 ```http
 POST /api/v1/coach/assignments
-```
-
-```http
 GET /api/v1/coach/assignments
-```
-
-```http
 PATCH /api/v1/coach/assignments/{assignment_id}
-```
-
-```http
 DELETE /api/v1/coach/assignments/{assignment_id}
 ```
 
-Only the appropriate coach may create or modify assignments.
-
 Assignments must remain scoped to authorized students.
+
+Only authorized coaches may create or modify their assignments.
 
 ---
 
-# 75. Coach Student Analytics
+# 45. Coach Analytics
+
+Possible endpoint:
 
 ```http
 GET /api/v1/coach/students/{student_id}/analytics
 ```
 
-The endpoint MUST enforce:
+Access requires:
 
 1. active relationship
 2. appropriate capability
-3. student privacy settings
+3. privacy permission
 4. object-level authorization
-5. allowed analytics scope
+5. permitted analytics scope
 
 Revoked relationships MUST NOT retain ordinary ongoing access.
 
 ---
 
-# 76. Parent API
+# 46. Parent API
 
-Parent endpoints may be introduced when the parent/student relationship workflow is implemented.
+Parent/student endpoints belong to the Relationships phase.
 
-Target endpoints:
+Possible endpoints:
 
 ```http
 GET /api/v1/parent/children
-```
-
-```http
 GET /api/v1/parent/children/{student_id}
-```
-
-```http
 GET /api/v1/parent/children/{student_id}/analytics
 ```
 
-Parent access requires an appropriate active relationship and authorization.
+Parent access requires an active authorized relationship.
 
-Parent access is not equivalent to administrator access.
+Parent access is not administrator access.
 
 Parents MUST NOT receive:
 
 * passwords
 * authentication tokens
 * private credentials
-* unrelated users' information
+* unrelated user information
 * unrestricted administrative information
 
 ---
 
-# 77. Pagination
+# 47. Pagination
 
 List endpoints MUST use a consistent pagination strategy.
 
-The initial implementation may use:
+Initial strategy:
 
 ```text
 page
@@ -1965,17 +1709,9 @@ GET /api/v1/admin/users?page=2&page_size=25
 
 The server MUST enforce a maximum page size.
 
-Clients MUST NOT be able to request unlimited records.
+Clients MUST NOT request unlimited records.
 
-Cursor pagination may be introduced later for endpoints where offset pagination becomes inefficient.
-
-The implementation should not introduce cursor pagination everywhere without an actual requirement.
-
----
-
-# 78. Pagination Response
-
-Preferred offset-pagination shape:
+Preferred response:
 
 ```json
 {
@@ -1989,15 +1725,17 @@ Preferred offset-pagination shape:
 }
 ```
 
-The exact shape should be reconciled with existing API conventions before implementation.
+The exact response shape must be reconciled with existing repository conventions before implementation.
 
-Do not create a second incompatible pagination format for existing endpoints.
+Cursor pagination may be introduced later only where justified by measured requirements.
+
+Do not introduce cursor pagination globally without evidence.
 
 ---
 
-# 79. Filtering
+# 48. Filtering
 
-Filters should use predictable query parameters.
+Filters use explicit query parameters.
 
 Example:
 
@@ -2005,13 +1743,13 @@ Example:
 GET /api/v1/admin/puzzles?exercise=pin&status=published&difficulty=3
 ```
 
-Do not create dozens of bespoke endpoint variants for simple filtering.
+Filterable fields MUST be explicitly whitelisted.
 
-Filter fields MUST be explicitly whitelisted.
+Do not create arbitrary database-column filtering.
 
 ---
 
-# 80. Sorting
+# 49. Sorting
 
 Where useful:
 
@@ -2026,13 +1764,13 @@ Example:
 GET /api/v1/admin/users?sort=created_at&order=desc
 ```
 
-The server MUST whitelist sortable fields.
+Sortable fields MUST be whitelisted.
 
-The client MUST NOT be able to inject arbitrary SQL expressions.
+Clients MUST NOT be able to inject SQL expressions.
 
 ---
 
-# 81. Search
+# 50. Search
 
 Search should use explicit parameters.
 
@@ -2042,15 +1780,15 @@ Example:
 GET /api/v1/admin/users?search=omid
 ```
 
-Search behavior should be documented per resource where semantics differ.
+Search semantics may vary by resource and should be documented by that resource when necessary.
 
-Do not interpret arbitrary query parameters as database column names.
+Arbitrary query parameters MUST NOT be interpreted as database fields.
 
 ---
 
-# 82. Date Filters
+# 51. Date and Time Parameters
 
-Date ranges use a consistent representation.
+Date filters use a consistent representation.
 
 Example:
 
@@ -2059,17 +1797,25 @@ date_from=2026-01-01
 date_to=2026-01-31
 ```
 
-The application defines timezone semantics centrally.
+Application timezone semantics are defined centrally.
 
-Analytics, streaks, goals, and date-based gamification MUST use the same documented application timezone policy.
+The same policy MUST be used for:
+
+* analytics
+* streaks
+* goals
+* date-based gamification
+* training summaries
+
+Timestamps transmitted by the API SHOULD use an unambiguous timezone-aware representation.
 
 ---
 
-# 83. Response Envelope
+# 52. Response Envelopes
 
 Do not introduce an unnecessary universal response wrapper.
 
-Avoid forcing:
+Do not force every endpoint into:
 
 ```json
 {
@@ -2078,17 +1824,19 @@ Avoid forcing:
 }
 ```
 
-onto every endpoint unless the existing project already follows that convention.
+unless the existing API already follows that convention.
 
-Existing compatible response conventions should be preserved.
+Resource-specific response shapes are acceptable.
+
+Consistency is more important than artificial uniformity.
 
 ---
 
-# 84. Error Contract
+# 53. Error Contract
 
-Errors must have a predictable machine-readable structure.
+Errors MUST be machine-readable and predictable.
 
-Preferred conceptual form:
+Preferred conceptual structure:
 
 ```json
 {
@@ -2100,395 +1848,170 @@ Preferred conceptual form:
 }
 ```
 
-`code` is stable and machine-readable.
+`code` is intended for programmatic handling.
 
-`message` is safe for client display.
+`message` is safe user-facing/API-facing explanatory text.
 
-`details` contains structured validation or business information where appropriate.
+`details` may contain structured validation information when safe.
 
-FastAPI/Pydantic's existing validation response may be retained if changing it would create unnecessary compatibility risk. FastAPI supports structured HTTP error responses and OpenAPI documentation for declared responses.
+The API MUST NOT expose:
 
----
-
-# 85. Validation Error
-
-Example:
-
-```json
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Some fields are invalid.",
-    "details": {
-      "username": [
-        "This username is already in use."
-      ]
-    }
-  }
-}
-```
-
-The exact framework-level validation representation may remain unchanged if it is already established.
-
-Do not rewrite the complete error system merely for stylistic consistency.
+* stack traces
+* SQL statements
+* internal secrets
+* password information
+* sensitive infrastructure details
 
 ---
 
-# 86. Common HTTP Status Codes
+# 54. HTTP Error Classes
+
+Use appropriate HTTP status codes.
 
 Typical mapping:
 
-| Status | Meaning                                                       |
-| ------ | ------------------------------------------------------------- |
-| 200    | Successful request                                            |
-| 201    | Resource created                                              |
-| 202    | Accepted for asynchronous processing                          |
-| 204    | Successful request with no response body                      |
-| 400    | Malformed or otherwise invalid request                        |
-| 401    | Authentication required or invalid                            |
-| 403    | Authenticated but not authorized                              |
-| 404    | Resource not found or intentionally hidden                    |
-| 409    | Resource/state conflict                                       |
-| 422    | Request validation failure where framework conventions use it |
-| 429    | Rate limited                                                  |
-| 500    | Unexpected server failure                                     |
-| 503    | Temporarily unavailable                                       |
+| Status | Meaning                                                                         |
+| ------ | ------------------------------------------------------------------------------- |
+| `400`  | Malformed/invalid request                                                       |
+| `401`  | Authentication required/invalid                                                 |
+| `403`  | Authenticated but not authorized                                                |
+| `404`  | Resource unavailable/not exposed                                                |
+| `409`  | State/conflict/idempotency conflict                                             |
+| `422`  | Valid request structure but validation failure, where FastAPI conventions apply |
+| `429`  | Rate limit exceeded                                                             |
+| `500`  | Unexpected server failure                                                       |
 
-FastAPI supports explicit response status declarations and includes them in generated OpenAPI documentation.
+The exact distinction between `400` and `422` must remain consistent with the implemented FastAPI conventions.
 
 ---
 
-# 87. 401 vs 403
+# 55. Not Found and Authorization Privacy
 
-Use:
+For sensitive resources, the API may intentionally return `404` instead of revealing that a resource exists.
 
-```text
-401
-```
+This is particularly relevant to:
 
-when valid authentication is absent or invalid.
+* private profiles
+* another user's attempts
+* guest sessions
+* relationships
+* administrative resources
 
-Use:
-
-```text
-403
-```
-
-when the caller is authenticated but lacks permission.
-
-Do not use `403` for every authorization-related failure.
+The behavior must be consistent with the security policy.
 
 ---
 
-# 88. 404 and Resource Privacy
+# 56. Rate Limiting
 
-For resources where revealing existence would leak sensitive information, the API may intentionally return:
+Rate limiting should be applied to operations vulnerable to abuse, including where appropriate:
 
-```text
-404 Not Found
-```
-
-instead of revealing that the resource exists.
-
-Example:
-
-A player should not necessarily learn that another private user's resource exists merely by guessing its identifier.
-
-This behavior should be defined consistently by the security policy.
-
----
-
-# 89. Conflict
-
-Use:
-
-```http
-409 Conflict
-```
-
-for state conflicts such as:
-
-* duplicate username
-* duplicate relationship
-* invalid lifecycle transition
-* incompatible state transition
-* conflicting idempotency request
-
-Not every validation error is a conflict.
-
----
-
-# 90. Rate Limiting
-
-Rate limiting should protect at minimum:
-
-* login
 * registration
-* password-related attempts
-* support submission
-* expensive analytics
-* generator operations
-* abuse-prone public endpoints
+* login
+* guest session creation
+* password-related operations
+* attempt submission
+* support creation
+* generator execution
+* privileged administrative actions
 
-Rate limiting is a server-side security policy.
+Limits are security controls, not business logic.
 
-The client cannot control rate limits.
-
----
-
-# 91. Idempotency
-
-Operations that may be retried MUST be designed to prevent harmful duplicate effects.
-
-Important examples:
-
-```text
-guest migration
-attempt submission
-generator run creation
-support submission where duplicate tickets are harmful
-privileged state-changing operations where retry duplication is unsafe
-```
-
-An idempotency strategy may use:
-
-```text
-Idempotency-Key: <unique-client-generated-key>
-```
-
-or an equivalent domain-specific mechanism.
-
-The implementation should introduce idempotency storage only for operations that actually require it.
-
-Do not add a generic idempotency subsystem to every endpoint without justification.
+Do not add an external distributed rate-limiting infrastructure unless actual requirements justify it.
 
 ---
 
-# 92. Attempt Idempotency
-
-Attempt submission is a critical idempotency boundary.
-
-A network retry MUST NOT create:
-
-```text
-two attempts
-two rating changes
-two XP awards
-duplicate achievement effects
-```
-
-The server should associate a submission with a unique request/session identity appropriate to the exercise.
-
-The exact mechanism may use an idempotency key, a session/question sequence identifier, or a combination where appropriate.
-
-The mechanism MUST be enforced server-side.
-
----
-
-# 93. Authorization Contract
-
-Every protected endpoint should define:
-
-```text
-Authentication requirement
-Authorization requirement
-Ownership requirement
-Relationship requirement where applicable
-Privacy requirement where applicable
-```
-
-Example:
-
-```text
-GET /api/v1/me/ratings
-
-Authentication: required
-Authorization: self
-Ownership: current user
-```
-
-Example:
-
-```text
-GET /api/v1/admin/users
-
-Authentication: required
-Authorization: users.read
-Ownership: none
-```
-
-Example:
-
-```text
-GET /api/v1/coach/students/{student_id}/analytics
-
-Authentication: required
-Authorization: analytics.read_related
-Relationship: active coach/student relationship
-Object access: required
-Privacy: required
-```
-
----
-
-# 94. Object-Level Authorization
-
-Route-level role checks are insufficient.
-
-For example:
-
-```text
-Coach
-```
-
-does not mean:
-
-```text
-Coach may access every student.
-```
-
-The server MUST verify the specific relationship and resource scope.
-
-This applies to:
-
-* coach → student
-* parent → child
-* player → own data
-* admin → privileged resources
-* support → ticket ownership
-* guest → guest session ownership
-
----
-
-# 95. Sensitive Response Fields
-
-Responses must follow least privilege.
-
-Never expose:
-
-* password hashes
-* session secrets
-* reset tokens
-* authentication secrets
-* unnecessary personal information
-* private coach notes
-* private parent information
-* hidden puzzle answers
-* internal security metadata
-
-Administrative responses may expose additional operational information only when explicitly authorized.
-
----
-
-# 96. Time and Clock Authority
+# 57. Server Authority
 
 The server is authoritative for:
 
-* session start time
-* session expiration
-* attempt timestamp
-* speed-mode deadline
-* rating event timestamp
-* XP award timestamp
-* streak date calculation
-
-The browser clock may be used for visual countdowns and presentation only.
-
----
-
-# 97. Chess Data Authority
-
-For chess exercises, the server is authoritative for:
-
-* legal moves
-* FEN interpretation
-* SAN parsing
-* solution validation
-* board state validation
+* user identity
+* roles
+* capabilities
+* ownership
+* session state
+* session timing
+* question validity
+* correctness
 * chess rules
+* scores
+* ratings
+* rating changes
+* XP
+* achievements
+* streaks
+* historical timestamps
+* content lifecycle
+* administrative authorization
 
-Where `python-chess` is the established implementation mechanism, exercise/domain logic should continue using it rather than trusting client calculations.
+The client MUST NOT be trusted for authoritative values.
 
----
-
-# 98. API Security Boundary
-
-Every API request is untrusted input.
-
-Never trust client-provided authoritative values such as:
+Examples of untrusted client values include:
 
 ```text
 user_id
 role
+admin
+ownership
 score
+correctness
 rating
 rating_delta
 XP
-correctness
-admin flag
-ownership
 elapsed_time
+server timestamps
+content status
 ```
-
-The server derives these values from:
-
-* authenticated identity
-* session state
-* domain rules
-* authoritative stored data
 
 ---
 
-# 99. Admin API Security
+# 58. Chess Authority
 
-Admin endpoints require explicit backend authorization.
+For chess-based exercises, the server is authoritative for:
 
-This is forbidden:
+* legal moves
+* FEN interpretation
+* SAN parsing
+* board state
+* solution validation
+* chess rules
 
-```text
-if frontend_route.startsWith("/admin"):
-    allow
-```
-
-Frontend guards are UX controls only.
-
-The backend MUST independently enforce admin capabilities.
+Where `python-chess` is the established implementation mechanism, the server/domain implementation should continue using it rather than trusting client calculations.
 
 ---
 
-# 100. API and Domain Separation
-
-Pydantic request/response schemas are API contracts.
-
-They are not automatically domain entities.
+# 59. API and Domain Separation
 
 Preferred flow:
 
 ```text
-HTTP
- ↓
-Pydantic DTO
- ↓
-Application command/query
- ↓
-Domain rules
- ↓
+HTTP Request
+    ↓
+Pydantic Request DTO
+    ↓
+Application Command / Query
+    ↓
+Domain Rules
+    ↓
 Persistence
- ↓
-Application result
- ↓
-Response DTO
- ↓
-HTTP
+    ↓
+Application Result
+    ↓
+Pydantic Response DTO
+    ↓
+HTTP Response
 ```
 
-The exact internal layering follows `ARCHITECTURE.md`.
+Pydantic API schemas are transport contracts.
+
+They are not automatically domain entities.
+
+Exact layering follows `ARCHITECTURE.md`.
 
 ---
 
-# 101. API and Database Separation
+# 60. API and Persistence Separation
 
-API routes MUST NOT contain core business logic or arbitrary database operations.
+Routes MUST NOT contain core business logic.
 
 Avoid:
 
@@ -2501,48 +2024,27 @@ def endpoint(...):
 
 when the operation contains business rules.
 
-Preferred:
+Prefer:
 
 ```text
 Route
- ↓
-Application service / use case
- ↓
-Domain rules
- ↓
-Repository / persistence abstraction
- ↓
-Database
+  ↓
+Application Service / Use Case
+  ↓
+Domain Rules
+  ↓
+Repository / Persistence
 ```
 
-Simple read-only infrastructure may be implemented more directly where justified, but business rules MUST remain outside route handlers.
+Simple read-only infrastructure may be direct where justified.
+
+Business rules must remain outside route handlers.
 
 ---
 
-# 102. API and Analytics Separation
+# 61. API and Content Separation
 
-Analytics endpoints are read/query operations.
-
-They MUST NOT modify:
-
-* attempts
-* ratings
-* XP
-* achievements
-* puzzle state
-* exercise configuration
-
-merely because analytics were requested.
-
-Analytics consume authoritative historical data.
-
-They do not become the source of truth for that data.
-
----
-
-# 103. API and Content Separation
-
-Admin content APIs MUST use Content application/domain workflows.
+Content APIs MUST pass through content/application workflows.
 
 They MUST NOT bypass:
 
@@ -2553,95 +2055,381 @@ They MUST NOT bypass:
 * retirement
 * audit
 
-through direct database updates.
+through direct database mutation.
 
 ---
 
-# 104. API and Gamification Separation
+# 62. API and Rating Separation
 
-The client never directly creates rewards.
+Ordinary clients cannot directly modify ratings.
 
-There must not be a client-authoritative endpoint such as:
+Forbidden:
 
-```text
-POST /xp
+```http
+POST /api/v1/me/ratings
 ```
 
-XP and achievements result from server-authoritative training/application workflows.
+with a client-controlled rating delta.
 
-The API may expose read operations such as:
+Rating changes originate from authoritative training outcomes or explicitly authorized administrative correction workflows.
 
-```text
-GET /me/gamification
-GET /me/gamification/xp
-GET /me/achievements
-```
-
-but reward creation remains server-controlled.
+Administrative correction, if implemented, must be auditable and preserve historical meaning.
 
 ---
 
-# 105. API and Rating Separation
+# 63. API and Gamification Separation
 
-The client cannot submit:
+Clients cannot directly create rewards.
+
+Forbidden:
+
+```http
+POST /api/v1/xp
+POST /api/v1/achievements/unlock
+```
+
+XP, achievements, streaks, and related state result from server-authoritative application workflows.
+
+---
+
+# 64. API and Analytics Separation
+
+Analytics are query/read operations.
+
+Analytics MUST NOT mutate:
+
+* attempts
+* ratings
+* XP
+* achievements
+* content
+* exercise configuration
+
+Analytics consume authoritative historical facts.
+
+They do not become the source of truth.
+
+---
+
+# 65. Historical Semantics
+
+APIs exposing historical records must represent the historical event rather than silently applying current rules.
+
+For example, an old attempt should not change its:
+
+* score
+* correctness
+* rating delta
+* response time
+
+because current exercise configuration changed.
+
+Historical records are immutable facts unless an explicit correction workflow exists.
+
+---
+
+# 66. Object-Level Authorization
+
+Every resource endpoint must determine whether the caller may access **that specific resource**.
+
+Examples:
+
+```text
+/me/...
+```
+
+implicitly scopes resources to the current identity.
+
+For resource IDs:
+
+```text
+GET /me/training/attempts/{attempt_id}
+```
+
+the server MUST verify that the attempt belongs to the caller.
+
+Similarly:
+
+```text
+GET /admin/users/{user_id}
+GET /coach/students/{student_id}
+GET /parent/children/{student_id}
+```
+
+require explicit object-level authorization.
+
+Knowing or guessing an identifier is never sufficient authorization.
+
+---
+
+# 67. Capability Authorization
+
+Authorization should use the canonical capability model.
+
+Examples of capabilities may include:
+
+```text
+users.read
+users.manage
+exercises.read
+exercises.manage
+puzzles.read
+puzzles.manage
+puzzles.publish
+generators.run
+analytics.view
+support.manage
+relationships.manage
+```
+
+The canonical capability registry belongs to the authorization/security specification.
+
+This document defines API enforcement, not a second permission registry.
+
+---
+
+# 68. Guest Authorization
+
+Guest access is restricted to explicitly allowed operations.
+
+A guest MUST NOT gain authenticated-user capabilities by manipulating:
+
+* role values
+* user IDs
+* request bodies
+* query parameters
+* guest session identifiers
+
+Guest-owned resources must be resolved from the server-controlled guest identity.
+
+---
+
+# 69. Request Validation
+
+All client input is untrusted.
+
+Validate:
+
+* type
+* structure
+* allowed values
+* length
+* range
+* format
+* resource ownership
+* state transitions
+* business constraints
+
+Validation must occur at the appropriate API and domain boundaries.
+
+Client-side validation is UX only.
+
+---
+
+# 70. Idempotency
+
+Operations with duplicate/replay risk SHOULD use idempotency.
+
+Mandatory or expected examples include:
+
+* training attempt submission
+* guest migration
+* generator runs where duplicate execution is dangerous
+* other high-impact actions when specified by their domain
+
+Idempotency must be scoped to the caller and operation.
+
+An idempotency key must never become an authorization mechanism.
+
+---
+
+# 71. API State Transitions
+
+APIs that change lifecycle state should use explicit domain actions where arbitrary field mutation would be unsafe.
+
+Examples:
+
+```text
+suspend
+reactivate
+publish
+retire
+approve
+reject
+close
+```
+
+Avoid:
+
+```http
+PATCH /resource/{id}
+```
+
+with an unrestricted:
 
 ```json
 {
-  "rating_delta": 50
+  "status": "anything"
 }
 ```
 
-to change its rating.
-
-Rating changes result from authoritative training outcomes or explicitly controlled administrative correction workflows.
-
-Ordinary clients have no generic rating-write endpoint.
+when state transitions have business rules.
 
 ---
 
-# 106. API Evolution
+# 72. API Security Boundary
 
-New response fields may generally be added without breaking compatible clients.
+Every API request is untrusted.
 
-Removing or changing the meaning/type of existing fields requires:
+The backend MUST derive authoritative values from:
 
-* migration strategy
-* documentation
-* tests
-* compatibility review
-* API versioning where necessary
+* authenticated identity
+* session state
+* server-side resource ownership
+* domain rules
+* stored authoritative data
 
-The implementation must avoid breaking the existing frontend while introducing platform functionality.
+The backend MUST NOT trust client claims of:
+
+```text
+identity
+role
+ownership
+admin status
+score
+rating
+XP
+correctness
+elapsed time
+content state
+```
 
 ---
 
-# 107. OpenAPI and API Documentation
+# 73. Admin Security
 
-The implemented FastAPI/OpenAPI specification should reflect the actual API.
+Every admin endpoint independently checks backend authorization.
 
-Documentation should include, where relevant:
+This is insufficient:
+
+```text
+if frontend_path.startswith("/admin"):
+    allow
+```
+
+Frontend route guards are UX controls only.
+
+Admin actions must use backend capability checks and object-level authorization.
+
+Sensitive actions should produce audit records.
+
+---
+
+# 74. Relationship Security
+
+Coach/student and parent/student APIs require:
+
+```text
+authenticated identity
++
+appropriate capability
++
+active relationship
++
+object authorization
++
+privacy rules
+```
+
+A relationship does not provide unrestricted access.
+
+Revoked relationships must lose ordinary ongoing access.
+
+---
+
+# 75. Privacy Boundary
+
+API responses must expose the minimum information necessary for the operation.
+
+Do not expose personal information merely because it exists in the database.
+
+Particularly sensitive information includes:
+
+* credentials
+* authentication tokens
+* private contact data
+* private notes
+* unrelated users' training data
+* hidden puzzle answers
+* internal security metadata
+
+Detailed privacy rules belong in `SECURITY.md`.
+
+---
+
+# 76. File and Media References
+
+Where APIs expose files/media, responses should use safe server-controlled references.
+
+The client must not be able to:
+
+* choose arbitrary filesystem paths
+* access another user's private file
+* bypass authorization through predictable URLs
+
+Private media must follow the security architecture rather than being exposed as unrestricted static files.
+
+---
+
+# 77. API and Frontend Compatibility
+
+The React frontend is a client of the API.
+
+Frontend assumptions must not silently become backend contracts.
+
+When changing an API:
+
+1. inspect frontend usage
+2. inspect backend usage
+3. update schemas
+4. update tests
+5. update client code
+6. verify backward compatibility where required
+
+Do not break the existing exercise client while introducing platform functionality.
+
+---
+
+# 78. OpenAPI
+
+The implemented FastAPI/OpenAPI schema must reflect the actual implementation.
+
+Implemented endpoints should document, where applicable:
 
 * authentication requirements
 * request schema
 * response schema
 * status codes
 * authorization requirements
-* important business constraints
+* validation constraints
+* important business rules
 * error responses
 
-Generated OpenAPI documentation is the implementation-level contract.
+Generated OpenAPI is the implementation-level API reference.
 
-This document remains the product-level API contract.
+This document remains the target/product-level API contract.
 
-When additional response codes are possible, they should be declared so that the OpenAPI schema remains accurate.
+The two must not knowingly contradict each other.
 
 ---
 
-# 108. API Testing
+# 79. API Testing Requirements
 
-Important API tests should cover meaningful contracts.
+Important API contracts require automated tests.
 
 ## Authentication
+
+Test:
 
 * registration
 * duplicate username
@@ -2652,300 +2440,229 @@ Important API tests should cover meaningful contracts.
 
 ## Guest
 
-* session creation
-* guest training access
+Test:
+
+* guest session creation
 * guest ownership
+* guest training
 * migration
 * migration idempotency
 * migration authorization
+* expired guest session behavior
 
 ## Training
 
+Test:
+
 * valid attempt
 * invalid answer
-* unauthorized session
+* wrong session
+* wrong question instance
+* unauthorized question instance
 * duplicate submission
+* idempotent retry
 * expired speed session
 * hidden-answer protection
+* server-authoritative timing
 
 ## Ratings
 
-* correct rating update
+Test:
+
+* rating update
 * rating history
-* unauthorized modification attempt
+* unauthorized modification
 * duplicate attempt does not duplicate rating change
 
 ## Gamification
 
-* valid XP award
+Test:
+
+* XP award
 * achievement unlock
 * duplicate reward prevention
 * client cannot award XP
 
-## Admin
+## Administration
+
+Test:
 
 * admin access
 * non-admin rejection
 * capability enforcement
 * object-level authorization
+* state transitions
 * audit creation
 * self-protection rules
 
-## Content
-
-* puzzle validation
-* lifecycle transitions
-* publication prerequisites
-* retirement
-* generated-content separation
-
 ## Relationships
 
-* coach/student authorization
-* parent/child authorization
-* revoked relationship access
-* unrelated student access rejection
+Test:
 
-Tests should protect meaningful contracts, not merely increase endpoint count.
-
----
-
-# 109. API Contract Invariants
-
-The following invariants are mandatory.
-
-### Invariant 1
-
-The client cannot determine authoritative correctness.
-
-### Invariant 2
-
-The client cannot determine authoritative score.
-
-### Invariant 3
-
-The client cannot determine authoritative rating.
-
-### Invariant 4
-
-The client cannot award XP.
-
-### Invariant 5
-
-The client cannot unlock achievements.
-
-### Invariant 6
-
-The client cannot bypass content lifecycle.
-
-### Invariant 7
-
-Frontend permissions do not replace backend authorization.
-
-### Invariant 8
-
-Private resources require object-level authorization.
-
-### Invariant 9
-
-Retrying an attempt cannot duplicate its authoritative effects.
-
-### Invariant 10
-
-Guest migration cannot duplicate history or rewards.
-
-### Invariant 11
-
-Hidden puzzle answers are never returned to ordinary players.
-
-### Invariant 12
-
-Analytics endpoints are read-only.
-
-### Invariant 13
-
-API routes do not contain core business rules.
-
-### Invariant 14
-
-Guest is not a persisted application role.
-
-### Invariant 15
-
-External chess ratings are separate from MicroChess ratings.
-
-### Invariant 16
-
-Analytics are not the source of truth for training history.
+* active relationship access
+* revoked relationship rejection
+* object-level authorization
+* privacy restrictions
 
 ---
 
-# 110. Minimum API Foundation
+# 80. API Implementation Rules
 
-The first platform phase does not need every endpoint in this document.
+When implementing an endpoint, the agent MUST:
 
-The minimum coherent foundation should support the actual Phase 1/2/3 scope.
+1. inspect existing route conventions
+2. inspect existing schema conventions
+3. inspect existing application services
+4. inspect existing frontend consumers
+5. identify the authoritative domain rule
+6. implement the smallest coherent change
+7. add meaningful tests
+8. verify authorization
+9. verify error behavior
+10. verify API documentation/OpenAPI
+11. avoid unrelated refactoring
 
-Target foundation:
+Do not create a new abstraction merely because a future phase might use it.
+
+---
+
+# 81. Phase Scope
+
+API capabilities follow the Master Plan.
+
+### Phase 1
+
+Foundation and API conventions required by later phases.
+
+### Phase 2
+
+Authentication, sessions, guest identity, roles, capabilities.
+
+### Phase 3
+
+Player profile, external identities, dashboard, progress, basic player summaries.
+
+### Phase 4
+
+Exercise ratings and rating history.
+
+### Phase 5
+
+Gamification APIs.
+
+### Phase 6
+
+Administration foundation, users, roles, account status, operational dashboard, support.
+
+### Phase 7
+
+Content lifecycle, puzzle management, generators, publishing.
+
+### Phase 8
+
+Full player/exercise/puzzle/platform analytics.
+
+### Phase 9
+
+Coach/student and parent/student APIs.
+
+### Phase 10
+
+Adaptive-training foundations and recommendation APIs where required.
+
+This document does not authorize implementing future-phase APIs early.
+
+---
+
+# 82. No Speculative API Surface
+
+Do not create endpoints merely because they may eventually be useful.
+
+Examples:
 
 ```text
-POST /auth/register
-POST /auth/login
-POST /auth/logout
-GET  /me
-
-POST /guest/session
-GET  /guest/session
-POST /guest/migrate
-
-GET  /me/profile
-PATCH /me/profile
-
-GET  /exercises
-GET  /exercises/{slug}
-
-POST /exercises/{slug}/sessions
-POST /training/attempts
-
-GET  /me/training/attempts
-GET  /me/training/sessions
-
-GET  /me/ratings
-GET  /me/gamification
-GET  /me/dashboard
-GET  /me/analytics
+Do not create ML endpoints before adaptive training requires them.
+Do not create notification APIs merely because notifications may exist later.
+Do not create organization APIs without a product requirement.
+Do not create payment APIs because monetization may be added later.
+Do not create generic event APIs to connect unrelated domains.
 ```
 
-Administrative and content endpoints should be introduced according to the phase plan.
+The rule is:
 
-Do not implement the entire target API before its dependencies are ready.
+> **Documented API ≠ implemented API.**
 
----
-
-# 111. Implementation Rules
-
-Before modifying APIs, the agent MUST:
-
-1. inspect existing routes
-2. inspect existing Pydantic schemas
-3. inspect existing frontend API calls
-4. inspect existing authentication/session behavior
-5. identify existing API conventions
-6. identify existing exercise-specific contracts
-7. preserve compatible existing contracts
-8. reuse existing authentication infrastructure where correct
-9. avoid duplicate endpoints
-10. implement server-authoritative workflows
-11. add meaningful tests
-12. update OpenAPI/API documentation
-13. verify frontend compatibility
-
-The agent MUST NOT rewrite the entire API merely to make route names aesthetically consistent.
-
-If an existing endpoint already provides the required behavior, extend it where practical instead of creating a duplicate endpoint.
+Only active-phase requirements and justified dependencies create implementation work.
 
 ---
 
-# 112. Implementation Priority
+# 83. API Completeness
 
-API implementation should follow dependency order rather than endpoint count.
-
-Preferred order:
+An API capability is complete only when all required layers are implemented:
 
 ```text
-Authentication / Sessions
-        ↓
-Authorization foundation
-        ↓
-Profile / Identity
-        ↓
-Exercise discovery / sessions
-        ↓
-Attempt submission
-        ↓
-Training history
-        ↓
-Ratings
-        ↓
-Gamification
-        ↓
-Dashboard / Analytics
-        ↓
-Administration
-        ↓
-Content / Generators
-        ↓
-Relationships
-        ↓
-Adaptive training
-```
-
-The phase documents define the actual implementation sequence.
-
-This document defines the target contract, not a requirement to implement every endpoint immediately.
-
----
-
-# 113. API Contract Change Rule
-
-A change to an accepted API contract must identify:
-
-* affected endpoint(s)
-* request/response impact
-* compatibility impact
-* affected frontend clients
-* affected tests
-* affected documentation
-* whether versioning is required
-
-Breaking changes MUST NOT be introduced silently.
-
-If an accepted architecture or security decision is affected, the relevant ADR must also be updated through the documented ADR process rather than silently changing the meaning of this document.
-
----
-
-# 114. Final API Principle
-
-The API is the boundary between an untrusted client and authoritative MicroChess state.
-
-Therefore:
-
-```text
-Client
-   ↓
-Request
-   ↓
-Authentication
-   ↓
+Contract
+  ↓
+Schema
+  ↓
 Authorization
-   ↓
-Validation
-   ↓
-Application Workflow
-   ↓
-Domain Rules
-   ↓
+  ↓
+Application behavior
+  ↓
 Persistence
-   ↓
-Authoritative Result
-   ↓
-Response
+  ↓
+Frontend integration where applicable
+  ↓
+Tests
+  ↓
+OpenAPI accuracy
+  ↓
+Runtime verification
 ```
 
-The most important rule is:
+An endpoint existing in the router is not sufficient evidence of completion.
 
-> **The client may request an outcome; only the server may decide the outcome.**
+---
 
-This applies to:
+# 84. Final API Principles
 
-* correctness
-* score
-* rating
-* XP
-* achievements
-* timing
-* ownership
-* permissions
-* content publication
-* analytics inputs
-* historical records
+The MicroChess API should remain:
+
+```text
+Explicit
+Secure
+Server-authoritative
+Domain-aware
+Versionable
+Testable
+Minimal
+Consistent
+```
+
+The API must support the complete MicroChess product without becoming a second business-logic layer or a speculative abstraction framework.
+
+The preferred direction is:
+
+```text
+Thin API
+    ↓
+Application Use Case
+    ↓
+Domain Rules
+    ↓
+Authoritative Data
+```
+
+The implementation should optimize for:
+
+```text
+Correctness
++
+Security
++
+Completeness
++
+Maintainability
++
+Low unnecessary complexity
+```

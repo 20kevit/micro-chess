@@ -1,24 +1,30 @@
-# MicroChess Platform — UX & Design Specification
+# MicroChess Platform — UX & Design
 
-## 1. Purpose
+## 1. Document Status
 
-This document defines the platform-level UX rules for MicroChess.
+**Status:** Accepted
+**Document Type:** Target UX & Design Specification
+**Scope:** Platform-wide interaction, responsive behavior, accessibility, visual principles, navigation, and player experience
+
+This document defines platform-level UX rules for MicroChess.
 
 It complements:
 
-* `DESIGN_SYSTEM.md`
-* exercise-specific UX documentation
+* `PRODUCT_SCOPE.md`
 * `ARCHITECTURE.md`
 * `SECURITY.md`
-* `PRODUCT_SCOPE.md`
+* `DESIGN_SYSTEM.md`
+* exercise-specific UX specifications
 
-It does not redefine existing exercise-specific visual rules.
+Exercise-specific interaction rules take precedence when they are more specific.
 
-When an exercise document defines a more specific interaction, the exercise document takes precedence.
+This document describes the **target experience**.
+
+It does not describe current implementation status.
 
 ---
 
-## 2. Product UX Principles
+# 2. UX Principles
 
 MicroChess is:
 
@@ -27,98 +33,111 @@ MicroChess is:
 * Persian-first
 * mobile-first
 * simple before complex
-* visually friendly without becoming childish
+* friendly without being childish
 * feedback-driven
 * fast to use
 * accessible
-* data-informed without exposing unnecessary complexity to players
+* visually clear
+* data-informed without exposing unnecessary complexity
 
-The interface should help the player answer:
-
-1. What should I do?
-2. What happened?
-3. What should I do next?
-
-Avoid unnecessary UI, configuration, decoration, and terminology.
-
----
-
-## 3. Language and Direction
-
-The platform is i18n-ready from the beginning.
-
-Current default:
+Every important screen should help the user understand:
 
 ```text
-language: Persian
-direction: RTL
+What should I do?
+        ↓
+What happened?
+        ↓
+What should I do next?
 ```
 
-Rules:
-
-* User-facing text is Persian.
-* Translation keys must not be hard-coded around Persian wording.
-* Layout must support RTL correctly.
-* Chessboard coordinates, notation, and chess interaction remain LTR/board-native where appropriate.
-* Numbers must remain readable in both RTL and LTR contexts.
-* Mixed Persian/Latin content must not produce broken bidi layout.
-
-Future languages must be possible without redesigning the UI.
+Prefer clarity over decoration.
 
 ---
 
-## 4. Visual Identity
+# 3. Product Feel
 
-The platform should feel:
+The product should feel:
 
 * friendly
 * modern
 * clean
 * energetic
 * trustworthy
-* appropriate for children, teenagers, parents, and coaches
+* focused
+* appropriate for children and teenagers
+* credible for parents, coaches, and serious players
 
-Do not use:
+Avoid:
 
 * excessive gradients
 * excessive shadows
-* visually noisy backgrounds
-* unnecessary animations
-* overly childish cartoon UI
-* dense enterprise-style dashboards for players
+* noisy backgrounds
+* unnecessary animation
+* overly childish visual language
+* dense enterprise-style interfaces for players
+* visual effects that compete with the exercise
 
-Existing tokens and components in `DESIGN_SYSTEM.md` are authoritative.
+Existing design tokens and components are authoritative.
 
-Do not introduce one-off colors, spacing, typography, or component styles when an existing design token/component is appropriate.
+Do not introduce one-off colors, spacing, typography, or component patterns when an existing system component already fits.
 
 ---
 
-## 5. Responsive Design
+# 4. Language and Direction
 
-The platform MUST work on:
+MicroChess is i18n-ready from the beginning.
+
+Current default:
+
+```text
+Language: Persian
+Direction: RTL
+```
+
+Rules:
+
+* user-facing text is Persian
+* translation keys must not depend on hard-coded Persian wording
+* layouts must support RTL correctly
+* numbers must remain readable
+* mixed Persian/Latin content must preserve correct bidi behavior
+* future languages must be possible without redesigning the interface
+
+Chess-specific content may retain its native direction and notation.
+
+For example:
+
+```text
+Application UI → RTL
+Chess notation / board behavior → chess-native
+```
+
+---
+
+# 5. Responsive Design
+
+The platform must support:
 
 * desktop
 * tablet
 * mobile portrait
 * mobile landscape
 
-The UI must reflow rather than requiring horizontal scrolling.
+Responsive behavior should be based on available space, not device labels alone.
 
-Responsive behavior must be based on available space rather than only device names.
+The UI should reflow rather than require horizontal scrolling.
 
-Test representative viewport sizes, including narrow mobile screens and desktop screens.
+Representative viewport sizes must be checked whenever significant UI changes are made.
 
 ---
 
-## 6. Exercise Screen Rule
+# 6. Exercise Screen Rule
 
-Exercise screens have a special requirement:
+Exercise screens have a stricter requirement than ordinary application screens.
 
-> The complete active exercise experience should fit within the visible viewport whenever reasonably possible.
+> The active exercise experience must fit within the visible viewport without normal page scrolling whenever reasonably possible.
 
-Normal page scrolling must not be required during gameplay.
-
-This applies to:
+This includes:
 
 * board
 * question/instruction
@@ -128,7 +147,9 @@ This applies to:
 * timer
 * primary action
 
-Do not solve layout problems by blindly applying:
+The chessboard receives the highest visual priority.
+
+Do not solve layout problems by blindly using:
 
 ```css
 overflow: hidden;
@@ -140,34 +161,160 @@ Instead:
 * resize the board
 * collapse secondary information
 * adapt control placement
-* use responsive layouts
+* reduce nonessential UI
 * preserve the primary interaction
 
-The chessboard receives the highest visual priority.
+Dashboards, analytics pages, and administration pages may scroll normally.
 
 ---
 
-## 7. Navigation
+# 7. Navigation Principles
 
-Authenticated users should have clear access to:
+Navigation should remain simple for players.
+
+Authenticated players should have clear access to:
 
 * Home/Dashboard
 * Exercises
 * Progress
 * Profile
-* Settings
 
-Additional navigation may appear according to role.
-
-Player navigation should remain simple.
+Additional destinations such as Settings and Support may be placed in secondary navigation.
 
 Admin and Coach interfaces may use denser navigation because their workflows are inherently more complex.
 
-Mobile navigation may use a compact menu/navigation pattern.
+Navigation must reflect authorization, but visual hiding is not a security mechanism.
 
 ---
 
-## 8. Dashboard
+# 8. Mobile Navigation
+
+Mobile navigation must be designed deliberately rather than treated as a collapsed desktop sidebar.
+
+## Player
+
+Primary destinations should normally include:
+
+```text
+Home
+Exercises
+Progress
+Profile
+```
+
+Lower-frequency destinations may include:
+
+* Settings
+* Support
+* Privacy
+* Account actions
+
+## Coach
+
+Conceptually:
+
+```text
+Home
+Students
+Assignments
+Progress
+Profile
+```
+
+## Parent
+
+Conceptually:
+
+```text
+Home
+Children
+Progress
+Profile
+```
+
+## Admin
+
+Conceptually:
+
+```text
+Dashboard
+Users
+Content
+Analytics
+More
+```
+
+These are conceptual groups, not mandatory route names.
+
+The implementation must derive available navigation from authorization.
+
+---
+
+# 9. Active Exercise Navigation
+
+During active gameplay, application navigation must not compete with the exercise.
+
+Prioritize:
+
+```text
+Board
+Question / Instruction
+Answer Controls
+Feedback
+Timer / Progress
+```
+
+The normal application navigation may be:
+
+* minimized
+* replaced with a compact back/exit action
+* temporarily hidden
+
+Leaving an active session must use an explicit action when progress may be lost.
+
+Navigation state must not unexpectedly reset active exercise state.
+
+---
+
+# 10. Exercise Discovery
+
+The exercise catalog should:
+
+* show available exercises
+* clearly distinguish unavailable exercises
+* indicate `به‌زودی` for exercises that are not yet available
+* communicate the purpose of each exercise
+* avoid unnecessary chess terminology
+* remain simple on the default screen
+* remain extensible for future filtering/search
+
+An unavailable exercise must never appear playable.
+
+---
+
+# 11. Exercise Start Flow
+
+Starting an exercise should require minimal interaction.
+
+Typical flow:
+
+```text
+Exercise
+   ↓
+Mode selection, when applicable
+   ↓
+Start
+   ↓
+Training
+```
+
+Do not introduce unnecessary configuration before every attempt.
+
+Practice and Speed should be clearly differentiated when both are supported.
+
+---
+
+# 12. Dashboard
 
 The Player dashboard should answer:
 
@@ -188,58 +335,25 @@ Recent Activity
 Achievements
 ```
 
-Do not turn the dashboard into an analytics report.
+The dashboard should summarize progress.
+
+It should not become an analytics report.
 
 Detailed analytics belong in dedicated views.
 
 ---
 
-## 9. Exercise Discovery
+# 13. Feedback
 
-The exercise catalog should:
-
-* show all available exercises
-* clearly distinguish available and unavailable exercises
-* indicate `به‌زودی` for exercises not yet implemented
-* make the exercise purpose understandable
-* avoid requiring chess terminology knowledge when possible
-* support future filtering/search without making the default screen complicated
-
-An unavailable exercise must not appear playable.
-
----
-
-## 10. Exercise Start Flow
-
-A player should reach gameplay with minimal steps:
-
-```text
-Exercise
-  ↓
-Mode selection (if applicable)
-  ↓
-Start
-  ↓
-Training
-```
-
-Do not add unnecessary configuration before every attempt.
-
-Practice and Speed should be clearly differentiated where both exist.
-
----
-
-## 11. Feedback
-
-Feedback must be:
+Feedback should be:
 
 * immediate
 * understandable
 * visually clear
+* consistent
 * actionable when appropriate
-* consistent across exercises
 
-Correct and incorrect states must not depend on color alone.
+Correctness must not rely on color alone.
 
 Use combinations of:
 
@@ -247,37 +361,48 @@ Use combinations of:
 * text
 * icons
 * position/state
-* appropriate motion
+* controlled motion
 
-Avoid excessive celebration after every trivial action.
+Avoid excessive celebration for trivial actions.
 
 Feedback should support learning rather than interrupt it.
 
 ---
 
-## 12. Error States
+# 14. Loading, Empty, and Error States
 
-Every major screen should have meaningful:
+Every major screen must have meaningful:
 
 * loading state
 * empty state
 * error state
-* retry/recovery path
+* recovery/retry path
 
-Errors should be understandable to the user.
+Empty states should explain:
 
-Do not expose:
+1. what is missing
+2. why it matters
+3. what the user can do next
+
+Example:
+
+```text
+هنوز تمرینی انجام نداده‌ای.
+اولین تمرینت را شروع کن تا پیشرفتت را اینجا ببینی.
+```
+
+Do not create dead-end empty states.
+
+Technical details must never be exposed to users, including:
 
 * stack traces
 * SQL errors
 * internal identifiers
 * implementation details
 
-Technical details belong in logs.
-
 ---
 
-## 13. Forms
+# 15. Forms
 
 Forms must provide:
 
@@ -285,78 +410,85 @@ Forms must provide:
 * appropriate input types
 * visible validation
 * useful Persian error messages
-* preserved valid input after validation failure
+* preserved valid input after failure
 * keyboard-friendly interaction
-
-Required fields must be obvious.
+* obvious required fields
 
 Do not rely exclusively on placeholder text as a label.
 
 ---
 
-## 14. Touch and Interaction
+# 16. Touch Interaction
 
 Interactive controls must be comfortable on touch devices.
 
 Avoid:
 
-* tiny buttons
-* controls placed too close together
+* tiny controls
+* tightly packed buttons
 * hover-only functionality
-* interactions requiring precise mouse movement
+* interactions requiring unnecessary precision
 
-Where a drag interaction exists, provide an alternative when practical.
+Where drag interaction exists, provide an alternative when practical.
 
-Chess interactions must remain usable with touch.
+Chess interactions must remain usable on touch devices.
 
 ---
 
-## 15. Accessibility
+# 17. Accessibility
 
-Accessibility is part of the primary design, not a separate mode.
+Accessibility is part of the primary experience.
 
-The target is **WCAG 2.2 AA where applicable**.
+Target:
 
-Minimum requirements:
+> WCAG 2.2 AA where applicable.
+
+Minimum expectations include:
 
 * semantic HTML
 * keyboard navigation
-* visible focus states
+* visible focus
 * meaningful accessible names
-* correct form labels
-* sufficient text/UI contrast
+* correct labels
+* sufficient contrast
 * no color-only meaning
 * reduced-motion support
 * responsive text/layout
 * appropriate screen-reader semantics
 
-Dynamic feedback that matters to the user should have an accessible representation.
-
-Do not claim full accessibility compliance unless it has actually been tested.
+Do not claim full accessibility compliance unless it has been tested.
 
 ---
 
-## 16. Chessboard Accessibility
+# 18. Chessboard Accessibility
 
-The chessboard is a special interactive component.
+The chessboard is a specialized interactive component.
 
 Where practical, provide:
 
-* accessible board label
+* accessible board labeling
 * identifiable squares
-* keyboard-operable alternatives
+* keyboard-compatible alternatives
 * textual result/feedback
-* state information not dependent solely on color
+* state information not based only on color
 
-Accessibility must never compromise normal touch usability.
+Touch usability must remain strong.
 
-If an exercise cannot provide a fully equivalent board interaction for assistive technology, document the limitation rather than falsely claiming full support.
+If a fully equivalent accessible board interaction is not possible for a particular exercise, document the limitation rather than claiming complete support.
 
 ---
 
-## 17. Motion
+# 19. Motion
 
-Animation is optional enhancement, never a requirement for understanding.
+Animation is optional enhancement.
+
+It must never be required to understand:
+
+* state
+* correctness
+* progress
+* navigation
+* results
 
 Respect:
 
@@ -368,65 +500,64 @@ When reduced motion is enabled:
 
 * remove unnecessary transitions
 * reduce decorative movement
-* preserve state/result information
-* never remove essential feedback
+* preserve essential feedback
+* avoid motion that obscures interaction
 
-Avoid animation during time-sensitive gameplay unless it provides real value.
+Avoid animation during time-sensitive gameplay unless it has clear functional value.
 
 ---
 
-## 18. Loading and Performance UX
+# 20. Performance UX
 
-The user should see meaningful progress quickly.
+The UI should become useful quickly.
 
 Prefer:
 
-* lightweight initial UI
-* lazy loading for non-critical content
-* small payloads
+* lightweight initial rendering
+* small API payloads
+* lazy loading for noncritical content
 * cached static assets
 * progressive rendering where useful
 
-Do not block the entire application while loading unrelated data.
+Do not block the whole application while unrelated data is loading.
 
-Exercise gameplay must prioritize responsiveness over decorative content.
+Exercise gameplay prioritizes responsiveness over decorative content.
 
 ---
 
-## 19. Role-Based UX
+# 21. Role-Based UX
 
-The UI must reflect authorization.
+The interface should reflect the user's authorized capabilities.
 
-### Player
+## Player
 
 Focus on:
 
 * training
+* exercises
 * progress
 * goals
 * achievements
 * profile
 
-### Coach
+## Coach
 
 Focus on:
 
 * students
-* groups/classes
 * assignments
 * progress
 * training insights
 
-### Parent
+## Parent
 
 Focus on:
 
-* linked children
+* children
 * progress
 * reports
-* relevant notifications
 
-### Admin
+## Admin
 
 Focus on:
 
@@ -436,17 +567,13 @@ Focus on:
 * generators
 * analytics
 * support
-* system management
+* operational management
 
-Hiding a button is not authorization.
-
-Backend authorization remains authoritative.
+Frontend visibility must not replace backend authorization.
 
 ---
 
-## 20. Privacy UX
-
-Private information must not be exposed by default.
+# 22. Privacy UX
 
 The UI should clearly distinguish:
 
@@ -456,15 +583,15 @@ The UI should clearly distinguish:
 * related-user data
 * administrative data
 
-Do not display another user's private information merely because the current user can reach the relevant page.
+Private information must not be displayed merely because a page is reachable.
+
+The amount of visible information should be limited to the user's authorized scope.
 
 ---
 
-## 21. Gamification UX
+# 23. Gamification UX
 
-Gamification should encourage meaningful practice.
-
-The UI may expose:
+Gamification may expose:
 
 * XP
 * levels
@@ -473,25 +600,26 @@ The UI may expose:
 * achievements
 * badges
 * personal records
-* exercise mastery
+* mastery
 * leaderboards
 
 Avoid:
 
 * manipulative urgency
-* excessive notifications
 * meaningless point farming
+* excessive celebration
 * visual overload
+* excessive notifications
 
 Learning quality has priority over engagement metrics.
 
 ---
 
-## 22. Analytics UX
+# 24. Analytics UX
 
-Player analytics should be understandable without requiring statistical knowledge.
+Player analytics should be understandable without statistical expertise.
 
-Prefer:
+Prefer meaningful metrics such as:
 
 ```text
 Accuracy
@@ -504,264 +632,271 @@ Exercise Progress
 Streak
 ```
 
-Charts should answer a question rather than exist merely because charts are available.
+Charts should answer a user question.
 
-Detailed administrative analytics may expose substantially more information.
+Do not add charts merely because charts are available.
+
+Administrative analytics may be substantially more detailed.
 
 ---
 
-## 23. Empty States
+# 25. Player Progress UX
 
-Empty states should explain:
+Progress should emphasize change over time.
 
-1. what is missing
-2. why it matters
-3. what the user can do next
+Useful views may include:
 
-Examples:
+* current exercise rating
+* rating history
+* accuracy
+* response time
+* active days
+* exercise mastery
+* recent attempts
+* training streak
+* personal records
+
+The interface should distinguish:
 
 ```text
-No training history yet.
-Start your first exercise to see your progress here.
+Current State
 ```
 
-Do not use empty states as dead ends.
+from:
+
+```text
+Historical Progress
+```
+
+Do not make the user infer this distinction from ambiguous visuals.
 
 ---
 
-## 24. Responsive Validation
+# 26. Exercise Feedback Hierarchy
 
-Every major UI change must be checked at minimum against:
+During an exercise, information should generally be prioritized as:
 
 ```text
-mobile portrait
-mobile landscape
-tablet
-desktop
+1. What must I do?
+2. Main interaction
+3. Immediate result
+4. Progress/timing
+5. Secondary explanation
+6. Optional detail
+```
+
+Secondary content should not reduce the usability of the main interaction.
+
+---
+
+# 27. Design-System Rule
+
+`DESIGN_SYSTEM.md` is authoritative for:
+
+* colors
+* typography
+* spacing
+* component tokens
+* borders
+* radii
+* shadows
+* standard UI components
+
+Do not redefine these in feature-specific pages unless a genuine exception is required.
+
+Do not introduce one-off styling to solve a problem already solved by the design system.
+
+---
+
+# 28. Frontend Architecture Constraints
+
+UX implementation must respect the existing frontend architecture.
+
+Agents MUST:
+
+1. inspect existing components before creating new ones
+2. reuse design-system components
+3. reuse layout primitives
+4. preserve existing exercise behavior
+5. avoid speculative component frameworks
+6. avoid duplicated UI logic
+7. keep presentation components focused
+8. keep business rules outside presentation components
+9. verify responsive behavior
+10. run relevant type checks, tests, and builds
+
+Do not rewrite the frontend architecture merely to improve visual consistency.
+
+---
+
+# 29. UI State Requirements
+
+Important user-facing flows should explicitly handle:
+
+```text
+Initial
+Loading
+Success
+Empty
+Validation Error
+Authorization Error
+Server Error
+Retry
+Completed
+```
+
+Not every screen requires every state.
+
+The required states depend on the feature.
+
+---
+
+# 30. Authorization UX
+
+The UI should avoid presenting actions the current user cannot perform.
+
+However:
+
+> Hiding a button is not authorization.
+
+The backend remains authoritative.
+
+When authorization changes during a session, the UI should recover gracefully from the server's authoritative response.
+
+---
+
+# 31. Responsive Validation
+
+Every significant UI change must be checked at:
+
+```text
+Mobile Portrait
+Mobile Landscape
+Tablet
+Desktop
 ```
 
 Exercise screens additionally require verification that:
 
 * the board remains usable
 * primary controls remain visible
-* no unexpected page scroll appears
 * feedback remains visible
-* timer remains visible when applicable
+* timers remain visible where applicable
 * text does not overlap controls
+* normal page scrolling does not appear
+* touch interaction remains usable
 
 ---
 
-## 25. UX Testing Requirements
+# 32. RTL Validation
 
-UI implementation is not complete when it merely renders.
+Every significant UI change involving text/layout must be checked for:
 
-Important flows must be tested for:
+* RTL alignment
+* mixed Persian/Latin text
+* numbers
+* punctuation
+* icons
+* directional controls
+* form alignment
+* navigation
+* modal/drawer behavior
+
+Chessboard orientation must remain independent of ordinary RTL layout behavior.
+
+---
+
+# 33. UX Testing
+
+Important flows should be tested for:
 
 * successful interaction
 * invalid input
 * loading
 * failure
 * retry
+* empty data
 * narrow viewport
 * touch interaction
 * keyboard interaction where applicable
 * authorization differences
-* empty data
 * long text
-* Persian/RTL layout
+* Persian/RTL behavior
+* reduced motion where relevant
 
-Exercise-specific acceptance criteria remain authoritative.
-
----
-
-## 26. Implementation Rules
-
-Agents implementing UX MUST:
-
-1. inspect existing components before creating new ones
-2. reuse existing design tokens
-3. reuse existing layout primitives
-4. preserve existing exercise behavior
-5. avoid speculative component systems
-6. avoid duplicating shared UI logic
-7. keep routes/pages thin
-8. keep business rules outside presentation components
-9. verify responsive behavior
-10. run the relevant frontend tests/build/type checks
-
-Do not rewrite the frontend architecture merely to improve visual consistency.
+Exercise-specific acceptance criteria remain authoritative for individual exercises.
 
 ---
 
-## 27. Definition of Done
+# 34. UX Implementation Scope
 
-A platform UI feature is complete when:
+This document defines platform UX.
 
-* required states exist
-* Persian/RTL behavior works
-* responsive layouts work
-* authorization is respected
-* accessibility basics are implemented
-* loading/error/empty states are handled
-* existing design system is reused
-* exercise screens preserve viewport-first behavior where applicable
-* relevant tests pass
-* no unrelated UI is unnecessarily changed
+It does not authorize implementation of:
+
+* future screens
+* future roles
+* future notifications
+* future adaptive training
+* future analytics views
+
+merely because their UX could be described here.
+
+The active phase determines implementation scope.
 
 ---
 
-## 28. Final UX Rule
+# 35. UX Definition of Done
 
-MicroChess should always prefer:
+A platform UI feature is complete when applicable:
 
-```text
-clarity
-  >
-decoration
+1. required states exist
+2. Persian/RTL behavior works
+3. responsive behavior works
+4. authorization is respected
+5. accessibility basics are implemented
+6. loading/empty/error states are handled
+7. the existing design system is reused
+8. exercise viewport rules are preserved where applicable
+9. relevant tests pass
+10. existing unrelated UI is not unnecessarily changed
 
-learning
-  >
-engagement tricks
+Rendering successfully is not sufficient evidence of completion.
 
-simple interaction
-  >
-configuration
+---
 
-responsive adaptation
-  >
-forced scrolling
+# 36. Final UX Priorities
 
-accessible behavior
-  >
-visual-only behavior
-
-existing design system
-  >
-one-off styling
-```
-
-The interface should feel simple to the child while remaining structurally capable of supporting serious players, coaches, parents, and administrators.
-
-## 7.1 Mobile Navigation Behavior
-
-Mobile navigation MUST be explicitly designed rather than treated as a collapsed desktop navigation.
-
-### Player Mobile Navigation
-
-For authenticated Players, the primary mobile navigation should expose the most frequently used destinations:
+MicroChess should prefer:
 
 ```text
-Home
-Exercises
-Progress
-Profile
+Clarity
+    >
+Decoration
+
+Learning
+    >
+Engagement Tricks
+
+Simple Interaction
+    >
+Configuration
+
+Responsive Adaptation
+    >
+Forced Scrolling
+
+Accessible Behavior
+    >
+Visual-Only Behavior
+
+Existing Design System
+    >
+One-Off Styling
+
+Immediate Useful Feedback
+    >
+Unnecessary Animation
 ```
 
-Additional destinations such as Settings should be accessible from Profile or a secondary menu.
-
-The primary navigation MUST:
-
-* remain reachable from the main application screens
-* clearly indicate the current destination
-* use Persian labels/icons appropriate to the destination
-* remain usable in portrait and landscape
-* avoid excessive navigation items
-* preserve the current exercise/session state when navigating away where the product flow permits
-
-### Exercise Screen
-
-During active gameplay, navigation MUST NOT compete with the exercise.
-
-The exercise screen should prioritize:
-
-```text
-Board
-Question / Instruction
-Answer Controls
-Feedback
-Timer / Progress
-```
-
-The primary application navigation may be hidden, minimized, or replaced by a compact back/exit control during active gameplay.
-
-Leaving an active session MUST use an explicit action when doing so could cause progress loss.
-
-### Coach, Parent, and Admin
-
-Mobile navigation for other roles should expose only the destinations relevant to that role.
-
-Examples:
-
-```text
-Coach:
-Home
-Students
-Assignments
-Progress
-Profile
-
-Parent:
-Home
-Children
-Progress
-Profile
-
-Admin:
-Dashboard
-Users
-Content
-Analytics
-More
-```
-
-These are conceptual navigation groups, not mandatory final route names.
-
-The implementation MUST derive available navigation from authorization rather than merely hiding unauthorized pages visually.
-
-### Navigation Drawer / Secondary Menu
-
-A secondary menu may contain lower-frequency destinations such as:
-
-* Settings
-* Help / Support
-* Privacy
-* About
-* Administrative tools
-* Account actions
-
-The secondary menu should not become a dumping ground for primary workflows.
-
-### Mobile Navigation State
-
-Navigation state MUST behave predictably across:
-
-* route changes
-* browser back/forward
-* page refresh
-* authentication changes
-* role changes
-* responsive breakpoint changes
-
-Opening or closing a mobile navigation menu MUST NOT unexpectedly reset page state.
-
-### Accessibility
-
-Mobile navigation MUST provide:
-
-* an accessible menu/control label
-* keyboard accessibility where applicable
-* visible focus state
-* clear current-page indication
-* appropriate focus management when a drawer/dialog opens
-* a way to close an opened navigation surface
-* no interaction that depends exclusively on hover
-
-### Implementation Rule
-
-Do not introduce a new navigation framework solely for mobile.
-
-Reuse the existing routing and layout architecture.
-
-Mobile navigation is a presentation concern; authorization remains server-side and capability-based.
-
-The final navigation structure MUST be validated on narrow mobile portrait and landscape viewports.
+The interface should feel simple to a child while remaining credible and powerful enough for serious players, coaches, parents, and administrators.

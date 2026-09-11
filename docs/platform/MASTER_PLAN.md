@@ -4,30 +4,39 @@
 
 **Status:** Accepted
 **Document Type:** Master Product & Implementation Plan
+**Scope:** Target platform, implementation roadmap, and execution contract
 
-This document defines the target platform, implementation order, global constraints, and autonomous execution rules for evolving MicroChess from its current exercise platform into the planned training platform.
+This document defines the target MicroChess platform, its implementation order, global constraints, and execution rules.
 
-It is a roadmap and execution contract.
+It is both:
 
-Detailed domain behavior belongs in the relevant domain specifications.
+1. a product/architecture roadmap, and
+2. an implementation contract for AI coding agents and human developers.
+
+This document describes the **target state**.
+
+It does not describe the repository's current implementation state.
+
+Detailed behavior belongs in the relevant domain and phase specifications.
 
 ---
 
 # 2. Purpose
 
-The implementation agent must be able to use this document to:
+The implementation agent must use this document to:
 
-1. understand the target state
-2. inspect the repository and determine the actual current state
-3. identify the earliest incomplete dependency-safe phase
-4. implement the missing capabilities
-5. verify the implementation
-6. update implementation state and affected documentation
-7. continue through the remaining phases
+1. understand the target platform
+2. identify the active implementation phase
+3. inspect the repository before making changes
+4. reconcile the current implementation with the target
+5. implement the required capabilities for the active phase
+6. verify the implementation
+7. update affected documentation and implementation state
+8. stop at the phase boundary unless explicitly instructed to continue
 
-The phases form one continuous implementation program.
+The phases form one coherent product roadmap.
 
-A phase is not permission to rewrite unrelated existing functionality.
+They are **not** permission to implement the entire roadmap in one autonomous run.
 
 ---
 
@@ -98,7 +107,11 @@ MicroChess
     └── Personalized training
 ```
 
-This is the target product direction, not a requirement to implement every future capability immediately.
+This is the target product direction.
+
+It does **not** require all capabilities to be implemented immediately.
+
+A capability becomes implementation work only when its phase is active or an accepted specification explicitly brings it forward.
 
 ---
 
@@ -106,7 +119,7 @@ This is the target product direction, not a requirement to implement every futur
 
 The repository is the source of truth for what currently exists.
 
-Before implementation, the agent MUST inspect:
+Before implementing a phase, the agent MUST inspect the relevant current implementation, including where applicable:
 
 * backend structure
 * frontend structure
@@ -117,36 +130,146 @@ Before implementation, the agent MUST inspect:
 * exercise architecture
 * existing tests
 * configuration
-* documentation
-* current deployment/runtime assumptions where relevant
+* relevant documentation
+* current runtime assumptions
 
-The documentation defines the intended target state.
+The documentation defines the intended target.
 
 The repository defines the current state.
 
 The agent must reconcile the two before making changes.
 
-Existing working functionality must be preserved unless a documented target requirement intentionally changes it.
+Existing working functionality must be preserved unless an accepted requirement intentionally changes it.
 
 ---
 
-# 5. Global Principles
+# 5. Documentation Authority
 
-## 5.1 Preserve Existing Exercises
+When documents disagree, use this authority order:
+
+```text
+Accepted ADR
+    ↓
+MASTER_PLAN.md
+    ↓
+Most specific domain specification
+    ↓
+Cross-cutting architecture/security/API/UX documents
+    ↓
+Active phase specification
+    ↓
+IMPLEMENTATION_STATE.md
+    ↓
+Repository implementation
+    ↓
+Historical documentation
+```
+
+This hierarchy applies to **target requirements**.
+
+For current implementation facts, the repository remains authoritative.
+
+If an actual conflict exists between accepted specifications, the agent must stop and identify the conflict rather than silently choosing one.
+
+---
+
+# 6. Documentation Loading Strategy
+
+The documentation package is intentionally modular.
+
+The agent MUST NOT load the entire documentation tree by default.
+
+For normal implementation work, load only:
+
+```text
+1. platform/README.md
+2. platform/MASTER_PLAN.md
+3. platform/IMPLEMENTATION_STATE.md
+4. the active phase specification
+5. directly relevant domain specifications
+6. relevant cross-cutting specifications only when required
+```
+
+Examples:
+
+### Accounts work
+
+Read:
+
+```text
+accounts/AUTHENTICATION.md
+accounts/USER_PROFILES.md
+accounts/ROLES_AND_PERMISSIONS.md
+accounts/SESSIONS_AND_GUESTS.md
+SECURITY.md
+```
+
+Do not load unrelated analytics, generator, or relationship specifications unless required.
+
+### Ratings work
+
+Read:
+
+```text
+training/RATINGS.md
+training/ATTEMPTS_AND_HISTORY.md
+SECURITY.md
+API_CONTRACTS.md
+```
+
+Do not load the complete administration documentation unless required.
+
+### Analytics work
+
+Read:
+
+```text
+training/ANALYTICS.md
+training/ATTEMPTS_AND_HISTORY.md
+training/RATINGS.md
+GAMIFICATION.md
+API_CONTRACTS.md
+```
+
+and only the directly relevant administration specification when needed.
+
+The agent may load additional documents when:
+
+* a dependency requires them,
+* a specification conflict is suspected,
+* an architectural decision is involved,
+* or repository evidence requires broader inspection.
+
+The goal is **progressive context loading**, not maximum context consumption.
+
+---
+
+# 7. Global Principles
+
+## 7.1 Preserve Existing Exercises
 
 The platform expansion must integrate with the existing exercise system.
 
 Do not create a second exercise architecture.
 
-Reuse existing shared infrastructure where appropriate, including existing exercise lifecycle, play shell, board, catalog, API client, i18n, and design-system components.
+Reuse existing shared infrastructure where appropriate, including:
+
+* exercise lifecycle
+* play shell
+* board
+* catalog
+* API client
+* i18n
+* design-system components
+* existing exercise-specific mechanisms
 
 Exercise-specific rules remain inside their exercise domain.
 
 ---
 
-## 5.2 Smallest Safe Change
+## 7.2 Smallest Safe Change
 
-Prefer the smallest coherent implementation that satisfies the requirement.
+Prefer the smallest coherent implementation that fully satisfies the active requirement.
 
 Avoid:
 
@@ -156,14 +279,45 @@ Avoid:
 * unnecessary dependencies
 * premature abstractions
 * replacing working architecture without evidence
+* broad cleanup unrelated to the active phase
 
 A large change is acceptable when repository evidence and the target architecture genuinely require it.
 
 ---
 
-## 5.3 Server Authority
+## 7.3 Complete Means Complete
 
-The server is authoritative for security-sensitive and result-sensitive state, including:
+The goal is not to implement a partial feature merely to advance the roadmap.
+
+When a capability is included in the active phase, implementation must cover all required layers:
+
+```text
+Domain behavior
+    ↓
+Application behavior
+    ↓
+Persistence
+    ↓
+API
+    ↓
+Frontend
+    ↓
+Authorization/security
+    ↓
+Tests
+    ↓
+Runtime verification
+    ↓
+Documentation
+```
+
+Do not mark a capability complete merely because its database model or API endpoint exists.
+
+---
+
+## 7.4 Server Authority
+
+The server is authoritative for:
 
 * identity
 * authorization
@@ -175,12 +329,13 @@ The server is authoritative for security-sensitive and result-sensitive state, i
 * streaks
 * training history
 * administrative actions
+* other security-sensitive or result-sensitive state
 
 The client must not determine authoritative results.
 
 ---
 
-## 5.4 Historical Data
+## 7.5 Historical Data
 
 Historical training data must remain useful for:
 
@@ -196,21 +351,44 @@ Do not destroy historical meaning merely because the current UI no longer displa
 
 ---
 
-## 5.5 No Premature Infrastructure
+## 7.6 No Premature Infrastructure
 
-Extensibility should come from clean boundaries and appropriate data models.
+Extensibility must come from clean boundaries and appropriate data models.
 
-Do not introduce infrastructure merely for hypothetical future scale or features.
+Do not introduce infrastructure merely for hypothetical future scale.
 
-The initial platform should remain a modular application using the existing technology direction.
+Do not introduce:
 
-Do not introduce microservices, message brokers, distributed event infrastructure, data warehouses, Kubernetes, or ML infrastructure unless an accepted future specification explicitly requires them.
+* microservices
+* message brokers
+* distributed event infrastructure
+* data warehouses
+* Kubernetes
+* ML infrastructure
+
+unless an accepted specification explicitly requires them.
+
+The initial platform remains a modular application using the existing technology direction.
 
 ---
 
-# 6. Dependency Graph
+## 7.7 No Speculative Future Implementation
 
-The recommended high-level dependency order is:
+Documenting a future capability does not authorize implementing it early.
+
+The following rule is mandatory:
+
+> **Documented does not mean implemented. Architecture-ready does not mean schema-required.**
+
+Do not create future database tables, APIs, services, abstractions, or UI merely because a later phase will eventually need them.
+
+Only create the minimum extension points required by the active phase.
+
+---
+
+# 8. Dependency Graph
+
+The default roadmap is:
 
 ```text
 Phase 1
@@ -226,47 +404,111 @@ Player Platform
     │
     ▼
 Phase 4
-Ratings ──────────┐
-    │             │
-    └─────────────┤
-                  ▼
-Phase 5       Gamification
-    │             │
-    └──────┬──────┘
-           ▼
+Exercise Ratings
+    │
+    ▼
+Phase 5
+Gamification
+    │
+    ▼
 Phase 6
-Administration
-           │
-           ▼
+Administration Foundation
+    │
+    ▼
 Phase 7
 Content & Generators
-           │
-           ▼
+    │
+    ▼
 Phase 8
 Analytics
-           │
-           ▼
+    │
+    ▼
 Phase 9
 Relationships
-           │
-           ▼
+    │
+    ▼
 Phase 10
 Adaptive Training Foundation
 ```
 
-This is the default dependency order, not a requirement that every internal task be strictly sequential.
+This is the recommended dependency order.
 
-Tasks may be implemented earlier when their actual dependencies are already satisfied.
+It does not require every internal task to be sequential when its real dependencies are already satisfied.
 
-Analytics depends fundamentally on reliable training history, not on the completion of all content-management functionality.
+However, an implementation run should normally work on **one phase at a time**.
 
 ---
 
-# 7. Phase 1 — Foundation
+# 9. Phase Execution Model
+
+## 9.1 One Phase per Run
+
+The default autonomous execution boundary is:
+
+> **One implementation run = one phase.**
+
+The agent must not automatically continue into the next phase after completing the active phase.
+
+After phase completion:
+
+```text
+Implement
+    ↓
+Test
+    ↓
+Verify
+    ↓
+Update documentation
+    ↓
+Update implementation state
+    ↓
+Commit
+    ↓
+STOP
+```
+
+A later phase requires a new explicit implementation run.
+
+This rule exists to:
+
+* limit context growth
+* reduce accidental cross-phase changes
+* simplify debugging
+* preserve clean Git history
+* make failures easier to isolate
+* reduce speculative implementation
+* make human review practical
+
+A human may explicitly authorize multiple phases in one run when the phases are small and tightly coupled.
+
+---
+
+## 9.2 Phase Gate
+
+A phase cannot be considered complete until:
+
+1. required capabilities are implemented
+2. backend behavior works
+3. frontend behavior works
+4. required persistence changes are safe
+5. security/authorization requirements are enforced
+6. meaningful tests pass
+7. existing functionality remains operational
+8. relevant UX is verified
+9. documentation is synchronized
+10. implementation state contains evidence
+
+Only after these conditions are satisfied may the run stop as a successful phase completion.
+
+The next phase must not begin automatically.
+
+---
+
+# 10. Phase 1 — Foundation
 
 ## Objective
 
-Prepare the existing application for accounts, persistent training data, authorization, and platform features without breaking existing exercises.
+Prepare the existing application for accounts, persistent training data, authorization, and future platform features without breaking existing exercises.
 
 ## Scope
 
@@ -275,13 +517,15 @@ Prepare the existing application for accounts, persistent training data, authori
 * configuration review
 * API conventions
 * error handling
-* authentication/session primitives
+* authentication/session primitives where required by the foundation
 * authorization/capability foundation
 * testing foundation
 * shared platform boundaries
 * documentation synchronization
 
-The phase must establish the foundations required by later phases without implementing speculative platform infrastructure.
+The phase must establish only the foundations required by later phases.
+
+It must not implement speculative platform features.
 
 ## Completion
 
@@ -289,7 +533,7 @@ The application has safe foundations for platform expansion, existing exercises 
 
 ---
 
-# 8. Phase 2 — Accounts & Identity
+# 11. Phase 2 — Accounts & Identity
 
 ## Objective
 
@@ -302,20 +546,30 @@ Introduce secure registered accounts and guest identity.
 * sessions and expiration
 * account status
 * password hashing
-* role foundation
-* canonical capability system
+* canonical role foundation
+* capability system
 * guest sessions
 * guest training identity
 * guest-to-account migration
-* authentication and authorization tests
+* authentication tests
+* authorization tests
 
-Registration initially requires only username and password.
+Registration initially requires only:
 
-Profile information and external chess identities are added separately.
+* username
+* password
+
+Profile information and external chess identities are added in Phase 3.
 
 Guest is not a persisted role.
 
-Guest migration must be atomic, idempotent, replay-resistant, and safe against accidental data overwrite.
+Guest migration must be:
+
+* atomic
+* idempotent
+* replay-resistant
+* safe against accidental data overwrite
+* auditable where required
 
 Detailed requirements belong in:
 
@@ -325,7 +579,7 @@ accounts/
 
 ---
 
-# 9. Phase 3 — Player Platform
+# 12. Phase 3 — Player Platform
 
 ## Objective
 
@@ -340,9 +594,15 @@ Build the complete registered-player experience around the existing exercises.
 * exercise discovery
 * exercise progress
 * training history views
-* player-facing analytics
-* guest migration presentation
+* basic personal progress summaries
 * player navigation
+* guest migration presentation
+
+Phase 3 may expose basic personal statistics needed for the player experience.
+
+It does **not** implement the full analytics system defined in Phase 8.
+
+Full analytics, comparisons, advanced time ranges, exercise/puzzle/platform analytics, and analytical aggregation belong to Phase 8.
 
 External FIDE, Lichess, and Chess.com identities remain separate from MicroChess exercise ratings.
 
@@ -353,19 +613,19 @@ Detailed requirements belong in:
 ```text
 PRODUCT_SCOPE.md
 accounts/
-training/
+training/ATTEMPTS_AND_HISTORY.md
 UX_AND_DESIGN.md
 ```
 
 ---
 
-# 10. Phase 4 — Exercise Ratings
+# 13. Phase 4 — Exercise Ratings
 
 ## Objective
 
 Introduce independent skill ratings for applicable exercises.
 
-## Initial Scope
+## Scope
 
 * one rating per applicable exercise
 * initial/provisional rating
@@ -378,11 +638,16 @@ Introduce independent skill ratings for applicable exercises.
 * atomic attempt/rating updates
 * player-facing rating display
 
-The initial algorithm must be simple, deterministic, testable, and documented.
+The initial algorithm must be:
 
-The architecture should allow future rating improvements without requiring destructive redesign.
+* simple
+* deterministic
+* testable
+* documented
 
-Advanced rating algorithms and sophisticated uncertainty/calibration systems are future extensions unless explicitly required by the current rating specification.
+The architecture should allow future rating improvements without destructive redesign.
+
+Advanced rating algorithms and sophisticated calibration systems are future extensions unless explicitly required.
 
 Detailed requirements belong in:
 
@@ -392,7 +657,7 @@ training/RATINGS.md
 
 ---
 
-# 11. Phase 5 — Gamification
+# 14. Phase 5 — Gamification
 
 ## Objective
 
@@ -412,7 +677,11 @@ Make meaningful training engaging without encouraging low-quality activity.
 
 Gamification must use shared application/domain mechanisms rather than arbitrary exercise-specific logic.
 
-It must remain server-authoritative and resistant to duplicate/replayed activity.
+It must remain:
+
+* server-authoritative
+* idempotent
+* resistant to duplicate/replayed activity
 
 Do not introduce a generic event bus merely to implement gamification.
 
@@ -424,11 +693,11 @@ training/GAMIFICATION.md
 
 ---
 
-# 12. Phase 6 — Administration
+# 15. Phase 6 — Administration Foundation
 
 ## Objective
 
-Provide the operational tools required to manage the platform safely.
+Provide the operational tools required to manage users and operate the platform safely.
 
 ## Scope
 
@@ -436,10 +705,16 @@ Provide the operational tools required to manage the platform safely.
 * user management
 * role management
 * account status management
-* exercise management
-* basic platform analytics
+* basic exercise visibility/availability management
+* basic platform operational metrics
 * audit visibility
 * support management
+
+Phase 6 establishes administrative foundations.
+
+It does **not** implement the complete puzzle/content lifecycle or generator system.
+
+Those belong to Phase 7.
 
 Administrative operations must use the canonical capability system and object-level authorization.
 
@@ -448,13 +723,17 @@ Admin tools must not bypass domain validation or directly corrupt historical tra
 Detailed requirements belong in:
 
 ```text
+admin/ADMIN_OVERVIEW.md
+admin/USER_MANAGEMENT.md
+admin/EXERCISE_MANAGEMENT.md
+admin/ADMIN_ANALYTICS.md
 admin/
 SECURITY.md
 ```
 
 ---
 
-# 13. Phase 7 — Content & Generators
+# 16. Phase 7 — Content & Generators
 
 ## Objective
 
@@ -462,7 +741,8 @@ Provide controlled management of exercises and puzzle content.
 
 ## Scope
 
-* puzzle browsing/search/filtering
+* puzzle browsing
+* puzzle search/filtering
 * manual puzzle creation
 * puzzle validation
 * puzzle review
@@ -502,26 +782,29 @@ Active
 Retired
 ```
 
-Not every lifecycle state must require a separate UI screen initially, but the data model must preserve the necessary lifecycle boundaries.
+Not every lifecycle state requires a separate UI screen initially, but the data model must preserve the necessary lifecycle boundaries.
 
 Detailed requirements belong in:
 
 ```text
+admin/EXERCISE_MANAGEMENT.md
 admin/PUZZLE_MANAGEMENT.md
 admin/GENERATORS.md
 ```
 
 ---
 
-# 14. Phase 8 — Analytics
+# 17. Phase 8 — Analytics
 
 ## Objective
 
 Provide trustworthy analytics based on authoritative training data.
 
+Phase 8 is the canonical home of the platform's full analytics system.
+
 ## Scope
 
-### Player
+### Player Analytics
 
 * attempts
 * accuracy
@@ -531,8 +814,9 @@ Provide trustworthy analytics based on authoritative training data.
 * rating/change
 * streaks
 * progression
+* period comparisons where meaningful
 
-### Exercise
+### Exercise Analytics
 
 * attempts
 * unique players
@@ -542,7 +826,7 @@ Provide trustworthy analytics based on authoritative training data.
 * rating distribution
 * performance trends
 
-### Puzzle
+### Puzzle Analytics
 
 * attempts
 * accuracy
@@ -550,7 +834,7 @@ Provide trustworthy analytics based on authoritative training data.
 * repeated failures
 * observed performance/difficulty
 
-### Platform
+### Platform Analytics
 
 * users
 * activity
@@ -559,15 +843,13 @@ Provide trustworthy analytics based on authoritative training data.
 * exercise usage
 * retention/activity indicators
 
-### Time ranges
+### Time Ranges
 
 * 7 days
 * 30 days
 * 90 days
 * all time
 * custom
-
-Where meaningful, support comparison with the previous equivalent period.
 
 Analytics should initially use relational data, indexes, and appropriate aggregation.
 
@@ -582,7 +864,7 @@ admin/ADMIN_ANALYTICS.md
 
 ---
 
-# 15. Phase 9 — Relationships
+# 18. Phase 9 — Relationships
 
 ## Objective
 
@@ -627,7 +909,7 @@ relationships/
 
 ---
 
-# 16. Phase 10 — Adaptive Training Foundation
+# 19. Phase 10 — Adaptive Training Foundation
 
 ## Objective
 
@@ -635,7 +917,7 @@ Prepare the platform for personalized training without premature ML.
 
 ## Scope
 
-The platform should expose reliable data and boundaries for future:
+Prepare reliable data and boundaries for:
 
 * skill detection
 * weakness identification
@@ -644,7 +926,11 @@ The platform should expose reliable data and boundaries for future:
 * personalized exercise selection
 * training plans
 
-Initial recommendation behavior should be deterministic, explainable, and based on available training signals if recommendation functionality is actually implemented.
+Initial recommendation behavior, if implemented, should be:
+
+* deterministic
+* explainable
+* based on available training signals
 
 Do not introduce machine-learning infrastructure merely to satisfy this phase.
 
@@ -657,7 +943,7 @@ training/ANALYTICS.md
 
 ---
 
-# 17. Cross-Phase Requirements
+# 20. Cross-Phase Requirements
 
 Every phase must respect the following.
 
@@ -672,7 +958,11 @@ Every phase must respect the following.
 * privacy boundaries
 * audit of sensitive administrative actions
 
-Detailed security requirements belong in `SECURITY.md`.
+Detailed security requirements belong in:
+
+```text
+SECURITY.md
+```
 
 ## Data Integrity
 
@@ -700,7 +990,7 @@ Test quantity is not the goal.
 
 ---
 
-# 18. Frontend and UX Requirements
+# 21. Frontend and UX Requirements
 
 All platform interfaces must follow the existing MicroChess design system.
 
@@ -730,11 +1020,11 @@ DESIGN_SYSTEM.md
 
 ---
 
-# 19. Database Evolution
+# 22. Database Evolution
 
 All application database changes must use the repository's migration strategy.
 
-Before changing the schema, the agent must inspect:
+Before changing the schema, inspect:
 
 * current schema
 * existing records
@@ -750,13 +1040,17 @@ Migrations must:
 * avoid unnecessary destructive changes
 * add indexes only when justified
 
-Large read-only source datasets, including the puzzle source database, must remain separate from normal application persistence unless a specification explicitly requires otherwise.
+Large read-only source datasets, including the puzzle source database, must remain separate from normal application persistence unless an accepted specification explicitly requires otherwise.
 
 ---
 
-# 20. API Evolution
+# 23. API Evolution
 
-The platform API must follow the conventions defined in `API_CONTRACTS.md`.
+The platform API must follow:
+
+```text
+API_CONTRACTS.md
+```
 
 New APIs must respect:
 
@@ -777,9 +1071,9 @@ Breaking API changes require explicit justification and review.
 
 ---
 
-# 21. Historical Data Strategy
+# 24. Historical Data Strategy
 
-The platform should preserve authoritative historical facts separately from derived presentation data.
+The platform must preserve authoritative historical facts separately from derived presentation data.
 
 Conceptually:
 
@@ -796,19 +1090,19 @@ Examples include:
 ```text
 Attempt
 Rating Event
-Gamification Event
-Audit Event
+Gamification Record
+Audit Record
 ```
 
-Do not create one generic event model merely because several domains contain events.
+Do not create one generic event model merely because several domains contain historical records.
 
-Each domain should use the simplest data structure that preserves the information it actually needs.
+Each domain should use the simplest structure that preserves the information it actually needs.
 
 Derived analytics may be cached or materialized for performance, but they must remain reproducible from authoritative data where required.
 
 ---
 
-# 22. Exercise Independence
+# 25. Exercise Independence
 
 Exercises must remain independently implementable.
 
@@ -828,7 +1122,7 @@ Exercise-specific validation, puzzle semantics, and algorithms remain exercise-s
 
 ---
 
-# 23. Performance
+# 26. Performance
 
 The initial platform should use the existing application architecture and optimize measured bottlenecks.
 
@@ -847,7 +1141,7 @@ Performance work must be evidence-driven.
 
 ---
 
-# 24. Privacy
+# 27. Privacy
 
 The platform is child-first and must follow data minimization.
 
@@ -860,11 +1154,15 @@ Access to related-player information must respect:
 * object authorization
 * privacy settings
 
-Detailed privacy and security rules belong in `SECURITY.md`.
+Detailed privacy and security rules belong in:
+
+```text
+SECURITY.md
+```
 
 ---
 
-# 25. Documentation Synchronization
+# 28. Documentation Synchronization
 
 After a meaningful implementation change, update documentation when necessary.
 
@@ -879,52 +1177,59 @@ Do not knowingly leave contradictory specifications.
 
 Do not duplicate a rule across multiple documents when a canonical source can be referenced instead.
 
+Documentation should describe the requirement once and reference it elsewhere whenever practical.
+
 ---
 
-# 26. Autonomous Execution Rules
+# 29. Autonomous Execution Rules
 
-After receiving the final implementation prompt, the agent is expected to work autonomously.
+After receiving an implementation prompt, the agent must work autonomously **within the active phase boundary**.
 
 The agent must:
 
-1. read the documentation package
-2. inspect the repository
-3. determine the actual implementation state
-4. reconcile current state with the target
-5. identify the earliest incomplete dependency-safe phase
-6. create a concrete implementation plan for that phase
-7. implement it incrementally
-8. run meaningful tests
-9. run relevant frontend checks
-10. verify migrations
-11. perform targeted runtime verification
-12. update documentation and implementation state
-13. continue to the next incomplete phase
+1. identify the active phase
+2. load only the documentation relevant to that phase
+3. inspect the repository
+4. determine the actual current implementation state
+5. reconcile current state with the target
+6. identify dependencies and constraints
+7. create a concrete implementation plan
+8. implement incrementally
+9. run meaningful tests
+10. run relevant frontend checks
+11. verify migrations where applicable
+12. perform targeted runtime verification
+13. review the diff for unrelated changes
+14. update affected documentation
+15. update `IMPLEMENTATION_STATE.md`
+16. verify phase completion criteria
+17. commit the coherent phase change when repository workflow requires commits
+18. stop
 
-The agent must not stop merely because one phase is complete.
-
----
-
-# 27. Conditions for Stopping
-
-The agent may stop and request human input only when:
-
-* a genuine blocker prevents safe progress
-* required information is unavailable
-* a destructive decision requires explicit approval
-* accepted specifications contain an unresolved conflict
-* repository state makes safe continuation impossible
-
-The agent must not stop merely because:
-
-* a phase is large
-* implementation requires multiple files
-* additional phases remain
-* a reasonable implementation decision can be derived from existing documentation and repository evidence
+The agent must **not automatically start the next phase**.
 
 ---
 
-# 28. No Guessing
+# 30. Context Discipline
+
+The implementation agent must optimize for useful reasoning rather than maximum context usage.
+
+The agent should:
+
+* load only relevant documentation
+* inspect only relevant repository areas first
+* avoid rereading unchanged documents
+* avoid duplicating requirements in planning notes
+* avoid generating large speculative plans
+* keep implementation plans proportional to the active task
+* keep test output focused
+* avoid broad repository rewrites
+
+A large context window is an available capability, not a requirement to consume it.
+
+---
+
+# 31. No Guessing
 
 The agent must not guess about:
 
@@ -946,7 +1251,7 @@ When neither provides enough information for a safe decision, identify the uncer
 
 ---
 
-# 29. Change Size and Scope
+# 32. Change Size and Scope
 
 Implementation should be incremental and coherent.
 
@@ -958,29 +1263,36 @@ Avoid:
 * unnecessary abstractions
 * duplicate systems
 * replacing working components without evidence
+* cross-phase implementation
+* future-feature scaffolding without a current requirement
 
-A large change is acceptable only when it is required by the target architecture or current repository constraints.
-
----
-
-# 30. Git and Change Safety
-
-Follow the repository's existing Git workflow and project instructions.
-
-The agent must:
-
-* keep changes coherent
-* avoid unrelated modifications
-* avoid committing secrets
-* avoid committing generated local databases
-* avoid modifying ignored large source datasets
-* keep the working tree understandable
-
-The repository's explicit Git instructions take precedence over generic assumptions in this document.
+A large change is acceptable only when it is required by the active phase, target architecture, or current repository constraints.
 
 ---
 
-# 31. Phase Completion Criteria
+# 33. Stop Conditions
+
+The agent should normally stop at the end of the active phase.
+
+It may stop earlier when:
+
+* a genuine blocker prevents safe progress
+* required information is unavailable
+* a destructive decision requires explicit approval
+* accepted specifications contain an unresolved conflict
+* repository state makes safe continuation impossible
+
+The agent must not stop early merely because:
+
+* the phase is large
+* implementation requires multiple files
+* multiple tests are required
+* the change touches several layers
+* a reasonable implementation decision can be derived from repository evidence and accepted specifications
+
+---
+
+# 34. Phase Completion Gate
 
 A phase is complete only when:
 
@@ -993,13 +1305,33 @@ A phase is complete only when:
 7. affected existing functionality remains operational
 8. affected UX is responsive and consistent
 9. documentation reflects the resulting behavior
-10. implementation state contains sufficient evidence
+10. `IMPLEMENTATION_STATE.md` contains sufficient evidence
+11. no unrelated speculative changes remain in the diff
 
 A green test suite alone does not prove phase completion.
 
 ---
 
-# 32. Phase Completion Matrix
+# 35. Git and Change Safety
+
+Follow the repository's explicit Git workflow.
+
+The agent must:
+
+* keep changes coherent
+* avoid unrelated modifications
+* avoid committing secrets
+* avoid committing generated local databases
+* avoid modifying ignored large source datasets
+* keep the working tree understandable
+* use meaningful commit messages
+* avoid mixing unrelated phases in one commit
+
+The repository's explicit Git instructions take precedence over generic assumptions in this document.
+
+---
+
+# 36. Phase Completion Matrix
 
 The canonical roadmap is:
 
@@ -1010,7 +1342,7 @@ The canonical roadmap is:
 | 3     | Player Platform              |
 | 4     | Exercise Ratings             |
 | 5     | Gamification                 |
-| 6     | Administration               |
+| 6     | Administration Foundation    |
 | 7     | Content & Generators         |
 | 8     | Analytics                    |
 | 9     | Relationships                |
@@ -1022,11 +1354,13 @@ Phase status is maintained in:
 IMPLEMENTATION_STATE.md
 ```
 
-That status must reflect repository reality.
+That file describes **repository reality**.
+
+It must not be used as a second roadmap.
 
 ---
 
-# 33. Explicit Non-Goals
+# 37. Explicit Non-Goals
 
 The implementation agent must not introduce these merely because they may be useful in the future:
 
@@ -1045,7 +1379,7 @@ A future capability becomes an implementation requirement only when an accepted 
 
 ---
 
-# 34. Future Expansion
+# 38. Future Extensions
 
 The architecture should remain reasonably extensible for future capabilities such as:
 
@@ -1062,11 +1396,13 @@ The architecture should remain reasonably extensible for future capabilities suc
 * personalized exercise feeds
 * more advanced rating systems
 
-These are **future extension points**, not current implementation requirements unless explicitly included in an accepted phase or specification.
+These are future extension points.
+
+They are not current implementation requirements unless explicitly included in an accepted phase or specification.
 
 ---
 
-# 35. Target Completion
+# 39. Target Completion
 
 The Master Plan target is reached when the in-scope platform provides:
 
@@ -1096,60 +1432,35 @@ Future capabilities not explicitly included in the current phases are not requir
 
 ---
 
-# 36. Final Principle
+# 40. Final Principle
 
 The goal is not to build the largest possible system.
 
-The goal is to build the **smallest clean architecture that can reliably grow into the MicroChess product vision**.
+The goal is to build the complete required product with:
 
-Every implementation decision should balance:
+* clear boundaries
+* reliable data
+* strong security
+* maintainable architecture
+* complete required functionality
+* minimal unnecessary complexity
+* predictable implementation steps
+* low operational risk
 
-```text
-Current usefulness
-        +
-Future extensibility
-        +
-Data quality
-        +
-Security
-        +
-Simplicity
-```
-
-Complexity should be introduced only when it creates concrete product or engineering value.
-
-The platform should hide unnecessary complexity from players while keeping the internal architecture clear, testable, and maintainable.
-
----
-
-# 37. Master Execution Rule
-
-When the documentation package is accepted, the implementation agent should treat this document as the primary roadmap.
-
-The agent must:
+The implementation agent must optimize for:
 
 ```text
-Read the documentation.
-        ↓
-Inspect the repository.
-        ↓
-Determine actual current state.
-        ↓
-Identify the earliest incomplete dependency-safe phase.
-        ↓
-Implement the smallest safe change.
-        ↓
-Verify it.
-        ↓
-Update implementation state and documentation.
-        ↓
-Continue until all current in-scope phases are complete.
+Correctness
+    +
+Completeness
+    +
+Maintainability
+    +
+Development Speed
+    +
+Low Unnecessary Complexity
 ```
 
-The repository determines the current state.
+not for maximum abstraction, maximum infrastructure, or maximum code volume.
 
-The accepted documentation determines the intended target state.
-
-Accepted ADRs determine explicit architectural decisions.
-
-Together, these define the implementation contract.
+The safest implementation is the smallest implementation that completely satisfies the active requirement and preserves a clean path to the remaining roadmap.

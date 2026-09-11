@@ -1,87 +1,132 @@
-# MicroChess Platform Security
+# MicroChess Platform — Security
 
-## 1. Purpose
+## 1. Document Status
 
-This document defines the security architecture and security requirements for the MicroChess platform.
+**Status:** Accepted
+**Document Type:** Target Security Specification
+**Scope:** Authentication, authorization, privacy, training integrity, abuse prevention, and security requirements
 
-It covers:
+This document defines the **target security model** for MicroChess.
 
-* authentication
-* sessions
-* guest users
-* account migration
-* passwords
-* authorization
-* roles and permissions
-* object-level access control
-* player privacy
-* child/teen safety
-* admin security
-* API security
-* input validation
-* output safety
-* file handling
-* rate limiting
-* abuse prevention
-* audit logging
-* sensitive data
-* analytics privacy
-* security testing
-* future authentication features
+It does not describe every mechanism currently implemented in the repository.
 
-This document defines the target security model.
-
-Before implementation, the agent MUST inspect the existing repository and preserve secure existing mechanisms where appropriate.
+Before changing security-sensitive code, the agent MUST inspect the existing implementation and preserve secure mechanisms that already work.
 
 ---
 
-# 2. Security Principles
+# 2. Security Authority
+
+Security requirements are governed by:
+
+1. accepted ADRs
+2. `MASTER_PLAN.md`
+3. this document
+4. the most specific applicable domain specification
+5. `API_CONTRACTS.md`
+6. active phase specification
+7. repository implementation
+
+Where two accepted documents conflict, the conflict must be identified rather than guessed around.
+
+This document defines security requirements.
+
+It does not replace:
+
+* API contracts
+* data-model definitions
+* authentication implementation details
+* UI requirements
+* current implementation evidence
+
+---
+
+# 3. Core Security Principles
 
 MicroChess follows these principles:
 
 1. Server authority
 2. Least privilege
 3. Deny by default
-4. Defense in depth
-5. Explicit authorization
-6. Object-level authorization
-7. Secure defaults
-8. Minimal data collection
-9. Minimal data exposure
-10. Privacy by design
+4. Explicit authorization
+5. Object-level authorization
+6. Secure defaults
+7. Minimal data collection
+8. Minimal data exposure
+9. Privacy by design
+10. Defense in depth
 11. Auditability
 12. Fail safely
-13. Validate untrusted input
+13. Validate all untrusted input
 14. Never trust client-calculated business state
-15. Prefer simple security mechanisms over unnecessary complexity
+15. Prefer simple security mechanisms over unnecessary infrastructure
 
-Authorization is distinct from authentication and must be enforced for the specific resource/action being requested.
+Security mechanisms must be proportionate to actual product requirements.
+
+Do not introduce a complex policy engine, security service, or distributed security infrastructure without demonstrated need.
 
 ---
 
-# 3. Threat Model
+# 4. Browser Trust Boundary
 
-MicroChess is primarily a browser-based educational application.
+The browser is untrusted.
+
+Anything received from the browser may be modified, replayed, reordered, or fabricated.
+
+The server MUST NOT trust client-provided values for authoritative state, including:
+
+```text
+user_id
+role
+is_admin
+ownership
+score
+correctness
+rating
+rating_delta
+XP
+achievement state
+session state
+elapsed time
+server timestamps
+content lifecycle state
+puzzle solution
+exercise result
+```
+
+The server must derive authoritative values from:
+
+* authenticated identity
+* server-controlled session state
+* authorized resources
+* domain rules
+* authoritative persistence
+
+---
+
+# 5. Threat Model
 
 Relevant threats include:
 
 * account takeover
-* password brute force
+* brute force
 * credential stuffing
+* password spraying
 * session theft
 * session fixation
 * privilege escalation
 * IDOR/BOLA
-* unauthorized admin access
-* malicious puzzle submissions
-* cheating through API manipulation
+* unauthorized administrative access
+* API manipulation
+* cheating
 * score/rating/XP manipulation
-* guest-session abuse
+* guest abuse
 * guest migration abuse
+* replay attacks
 * spam
 * automated account creation
 * analytics scraping
-* sensitive-data leakage
+* privacy leakage
+* minor-safety violations
 * malicious file uploads
 * XSS
 * CSRF where applicable
@@ -89,73 +134,64 @@ Relevant threats include:
 * command injection
 * SSRF where applicable
 * denial of service
-* replay of state-changing requests
-* abuse of expensive generators
-* abuse of support endpoints
-* privacy violations involving minors
+* generator abuse
+* support abuse
+* sensitive-data exposure
+
+The implementation should prioritize threats that are actually reachable in the deployed architecture.
 
 ---
 
-# 4. Security Boundary
-
-The browser is untrusted.
-
-Anything received from the browser may be manipulated.
-
-Never trust:
-
-```text
-user_id
-role
-is_admin
-score
-rating
-rating_delta
-XP
-achievement
-correctness
-elapsed_time
-session_state
-puzzle_solution
-exercise_state
-ownership
-```
-
-The server must derive authoritative values.
-
----
-
-# 5. Authentication vs Authorization
+# 6. Authentication and Authorization
 
 Authentication answers:
 
-> Who is this?
+> Who is this identity?
 
 Authorization answers:
 
-> What is this identity allowed to do?
+> Is this identity allowed to perform this operation on this resource?
 
-A successful login does not grant access to every resource.
+Successful authentication does not imply unrestricted access.
 
-For example:
-
-```text
-Player
-≠
-Admin
-```
-
-and:
+Examples:
 
 ```text
-Coach
-≠
-Owner of every student account
+PLAYER ≠ ADMIN
+COACH ≠ OWNER OF EVERY STUDENT
+PARENT ≠ ADMIN
 ```
+
+Authentication and authorization must remain separate concerns.
 
 ---
 
-# 6. Initial Registration Model
+# 7. Canonical Roles
+
+The canonical persisted roles are:
+
+```text
+PLAYER
+COACH
+PARENT
+ADMIN
+```
+
+Role names must be represented consistently across:
+
+* database
+* API
+* application layer
+* frontend authorization state
+* documentation
+
+Guest is **not** a persisted role.
+
+Guest is a temporary identity/session state.
+
+---
+
+# 8. Registration
 
 Initial registration requires only:
 
@@ -164,170 +200,134 @@ username
 password
 ```
 
-The system must not require:
+Do not require at initial registration:
 
 * email
-* phone number
+* phone
 * real name
 * FIDE ID
-* Lichess account
-* Chess.com account
+* Lichess identity
+* Chess.com identity
 
-These can be added later.
+This is intentional data minimization.
 
-This minimizes unnecessary personal-data collection.
-
----
-
-# 7. Username Security
-
-Usernames must:
-
-* have a defined maximum length
-* have a defined minimum length
-* use a controlled character set
-* be normalized consistently
-* be unique according to documented rules
-
-The system must define whether usernames are case-sensitive.
-
-Preferred behavior:
-
-```text
-Omid
-omid
-OMID
-```
-
-should not accidentally create multiple visually equivalent identities.
-
-The exact normalization rule must be established once and reused everywhere.
+Additional profile information may be introduced later through explicit product requirements.
 
 ---
 
-# 8. Password Storage
+# 9. Username Security
+
+Usernames must have:
+
+* minimum length
+* maximum length
+* allowed character rules
+* normalization rules
+* uniqueness rules
+* case-handling rules
+
+These rules must be defined once and reused consistently.
+
+The system must not permit multiple accounts that are indistinguishable solely because of inconsistent normalization.
+
+The exact rules should be centralized rather than duplicated across routes.
+
+---
+
+# 10. Password Storage
 
 Passwords must never be stored in plaintext.
 
-The system must use a password hashing algorithm designed for password storage.
+Use a mature password-hashing implementation.
 
-Preferred choices may include:
+Acceptable technologies include established password-hashing algorithms such as:
 
 * Argon2id
 * bcrypt
-* another established password-hashing implementation supported by the selected authentication stack
+* another appropriately supported password-hashing implementation
 
 Do not implement password hashing manually.
 
-OWASP recommends secure password storage and safe password-hash comparison rather than plaintext or reversible storage.
+Password hashes must never be returned through the API.
+
+Passwords must never be written to logs.
 
 ---
 
-# 9. Password Policy
+# 11. Password Policy
 
-The system should prioritize strong passwords without creating unreasonable usability barriers.
+The password policy should provide reasonable protection without unnecessary usability barriers.
 
-Requirements:
+It must define:
 
 * minimum length
-* reasonable maximum length
-* no silent truncation
-* reject obviously invalid input
-* never log passwords
-* never return passwords in API responses
+* maximum length
+* handling of long passwords
+* invalid input behavior
 
-Password strength rules must be documented and tested.
+The system must never silently truncate passwords.
+
+Exact password policy should be centralized and tested.
 
 ---
 
-# 10. Login Security
+# 12. Login Security
 
-Login must protect against:
+Authentication endpoints must resist:
 
 * brute force
 * credential stuffing
 * password spraying
+* automated login abuse
 * username enumeration
 
-Authentication endpoints require stronger abuse controls than ordinary low-risk endpoints.
+Login failures should use generic responses.
 
-OWASP specifically recommends anti-brute-force protections and stricter controls for authentication endpoints.
+Do not reveal whether:
+
+```text
+username does not exist
+```
+
+versus:
+
+```text
+password is incorrect
+```
+
+unless a deliberate product/security decision explicitly requires different behavior.
 
 ---
 
-# 11. Authentication Error Messages
+# 13. Authentication Rate Limiting
 
-Login failures should not reveal unnecessary account existence information.
+Rate limiting should apply to high-risk authentication operations where applicable:
 
-Avoid responses such as:
+* registration
+* login
+* password changes
+* password recovery
+* account recovery
 
-```text
-Username does not exist.
-```
+Thresholds should be configurable.
 
-or:
-
-```text
-Username exists but password is incorrect.
-```
-
-Prefer a generic authentication failure.
-
-This reduces username enumeration risk.
+Do not scatter arbitrary hard-coded limits through route handlers.
 
 ---
 
-# 12. Authentication Rate Limiting
+# 14. Session Security
 
-Rate limiting should apply to:
+Sessions must use unpredictable server-validated identifiers or an equivalent secure mechanism.
 
-```text
-registration
-login
-password reset
-password change
-account recovery
-```
+Sessions must support:
 
-where applicable.
-
-The exact thresholds must be configurable.
-
-Do not hard-code arbitrary limits throughout route handlers.
-
----
-
-# 13. Session Security
-
-The session mechanism must provide:
-
-* unpredictable session identifiers
-* server-side validation
 * expiration
-* logout invalidation
-* appropriate cookie attributes where cookies are used
-* protection against session fixation
+* invalidation
+* logout
+* fixation protection
 * secure transport
 
-OWASP recommends unique, difficult-to-predict session identifiers and secure session management.
-
----
-
-# 14. HTTPS
-
-Production authentication and authenticated traffic must use HTTPS.
-
-Sensitive data must not be transmitted over plaintext HTTP.
-
-TLS protects credentials, sessions and data in transit.
-
-HTTP should redirect to HTTPS where appropriate.
-
----
-
-# 15. Secure Cookies
-
-If browser sessions use cookies, production cookies should use appropriate attributes such as:
+Where cookies are used, production authentication cookies should use appropriate attributes such as:
 
 ```text
 Secure
@@ -335,66 +335,79 @@ HttpOnly
 SameSite
 ```
 
-The exact SameSite policy depends on the final deployment architecture.
-
-Session cookies must not be accessible to normal JavaScript unless there is a documented architectural reason.
+The exact `SameSite` policy depends on deployment architecture.
 
 ---
 
-# 16. Session Expiration
+# 15. Session Lifetime
 
-Authenticated sessions require an expiration policy.
-
-The policy should distinguish:
+Authenticated sessions should support appropriate:
 
 ```text
 idle timeout
 absolute timeout
 ```
 
-where appropriate.
+where useful.
 
-The exact durations should be configurable rather than scattered throughout the application.
+Durations should be centralized/configurable.
+
+Do not duplicate timeout constants across unrelated routes.
 
 ---
 
-# 17. Logout
+# 16. Logout
 
 Logout must invalidate the relevant authenticated session.
 
-Logging out from one session must not accidentally delete unrelated users or sessions.
+It must not:
 
-Future multi-device session management may allow:
+* delete another session
+* revoke another user's credentials
+* leave an invalidated credential usable
 
-```text
-current session
-all sessions
-individual sessions
-```
+Future multi-device session management may support:
 
-but this is not required for the first implementation.
+* current session
+* individual session
+* all sessions
+
+but is not required unless explicitly in scope.
 
 ---
 
-# 18. Sensitive Operations
+# 17. HTTPS
 
-Future sensitive operations should support re-authentication where appropriate.
+Production authentication and authenticated traffic must use HTTPS.
+
+Sensitive data must not be transmitted over plaintext HTTP.
+
+Deployment should redirect HTTP to HTTPS where appropriate.
+
+The application must not assume transport security merely because the development environment uses localhost.
+
+---
+
+# 18. Sensitive Account Operations
+
+Sensitive future operations may require re-authentication.
 
 Examples:
 
 * password change
-* account recovery
+* password recovery
 * adding authentication factors
-* changing critical account credentials
-* destructive administrative operations
+* changing critical credentials
+* high-risk account changes
+* destructive administrative actions
 
-OWASP recommends re-authentication for sensitive account changes and risk events.
+Do not implement complex re-authentication flows before the product requires them.
 
 ---
 
 # 19. Future Authentication
 
-The architecture should allow future addition of:
+The architecture should remain reasonably extensible for:
 
 * password reset
 * email verification
@@ -406,423 +419,487 @@ The architecture should allow future addition of:
 
 These are future capabilities.
 
-Do not add them prematurely if the current product does not need them.
+They are not current implementation requirements unless activated by the roadmap.
 
 ---
 
-# 20. Roles
+# 20. Authorization Model
 
-Initial target roles:
+Authorization uses:
 
 ```text
-Player
-Coach
-Parent
-Admin
+Identity
++
+Capability
++
+Object authorization
++
+Relationship
++
+Resource state
++
+Privacy rules
 ```
 
-Guest is not an authenticated role.
+as applicable.
 
-It is an unauthenticated/temporary identity state.
+Role alone is insufficient for sensitive resource access.
 
 ---
 
-# 21. Role-Based Access Control
+# 21. Deny by Default
 
-Roles provide coarse-grained permissions.
+Access must be denied unless explicitly authorized.
 
-Example:
+Every protected operation must define its authorization requirement.
 
-```text
-Player
-Coach
-Parent
-Admin
-```
-
-But roles alone are not sufficient.
-
-Object-level and relationship-level authorization must also be enforced.
-
----
-
-# 22. Deny by Default
-
-If an endpoint does not explicitly allow an operation, access must be denied.
-
-Do not implement:
+Do not rely on a broad rule such as:
 
 ```text
 if user is not admin:
-    reject
+    deny
 ```
 
-only for some sensitive endpoints.
+for only some endpoints.
 
-Every protected capability must define its authorization requirement.
+Authorization must be deliberate for each protected capability.
 
 ---
 
-# 23. Permission Model
+# 22. Capability Model
 
-The architecture should support permissions more granular than roles.
+The platform should use canonical capabilities rather than scattering role checks throughout the codebase.
 
-Conceptually:
+Examples:
 
 ```text
 users.read
 users.manage
+exercises.read
 exercises.manage
+puzzles.read
 puzzles.create
+puzzles.manage
 puzzles.review
 puzzles.publish
 generators.run
 analytics.view
 audit.view
 support.manage
+relationships.manage
 ```
 
-The initial implementation may map permissions to roles.
+The final capability registry belongs to the authorization implementation/domain specification.
 
-Do not create an unnecessarily complex policy engine.
+This document does not create a second permission registry.
 
----
+The initial implementation may map capabilities to roles.
 
-# 24. Admin Security
-
-Admin capabilities are high risk.
-
-Administrative operations must require:
-
-1. authentication
-2. admin authorization
-3. object-level checks where relevant
-4. audit logging for sensitive state changes
-
-Frontend route protection is never sufficient.
+Do not introduce a complex policy engine unless justified.
 
 ---
 
-# 25. Admin API Protection
+# 23. Object-Level Authorization
 
-A request to:
-
-```text
-/api/v1/admin/*
-```
-
-must be authorized server-side.
-
-A malicious user must not gain admin access by:
-
-* changing a frontend route
-* modifying a request body
-* adding `is_admin=true`
-* changing a role field
-* manipulating local storage
-
----
-
-# 26. Object-Level Authorization
-
-Every resource access must be checked against the specific object.
+Every resource request must check access to the **specific object**.
 
 Example:
 
 ```text
-GET /me/training/attempts/123
+GET /api/v1/me/training/attempts/123
 ```
 
-must verify that attempt `123` belongs to the current user.
+must verify that attempt `123` belongs to the current identity.
 
-It is not enough that:
+The following is never sufficient:
 
 ```text
-current_user.role == "player"
+current_user.role == PLAYER
 ```
 
-Object-level authorization is essential against IDOR/BOLA-style attacks. OWASP recommends checking access to the specific object on every request.
+Object-level authorization is mandatory for resource-specific operations.
 
 ---
 
-# 27. Coach Authorization
+# 24. IDOR/BOLA Protection
 
-A coach may access a student's data only when an appropriate relationship exists.
+Do not assume that knowledge of an identifier grants access.
 
-This is invalid:
+Protect identifiers used for:
+
+* users
+* attempts
+* sessions
+* puzzles
+* files
+* relationships
+* support tickets
+* generator runs
+* administrative resources
+
+Unauthorized access must be rejected even when the resource ID is valid.
+
+For sensitive resources, `404` may be preferable to `403` when exposing existence would leak information.
+
+---
+
+# 25. Admin Security
+
+Administrative capabilities are high risk.
+
+Admin operations require:
+
+1. authenticated identity
+2. appropriate administrative capability
+3. object-level authorization where relevant
+4. validation of the requested state transition
+5. audit logging for sensitive changes
+
+Frontend admin routes are not security controls.
+
+A malicious client must not gain administrative access by manipulating:
 
 ```text
-Coach role
-→
-all student data
+is_admin
+role
+local storage
+route paths
+request payloads
+query parameters
 ```
 
-Correct:
+---
+
+# 26. Administrative Self-Protection
+
+The platform should prevent an administrator from accidentally or maliciously destroying the ability to administer the system.
+
+Examples include:
+
+* removing the final administrative capability
+* self-deletion during a protected operation
+* invalid privilege transitions
+
+Exact safeguards belong to the admin domain.
+
+---
+
+# 27. Relationship Authorization
+
+Coach/student and parent/student access requires:
 
 ```text
-Coach
-  ↓
-Active relationship
-  ↓
-Specific student
-  ↓
-Allowed data scope
+authenticated identity
++
+appropriate capability
++
+active relationship
++
+object authorization
++
+privacy rules
 ```
 
----
-
-# 28. Parent Authorization
-
-A parent may access a child's permitted data only through an explicit parent/student relationship.
-
-Parent access must not imply:
-
-* admin access
-* access to unrelated students
-* access to private administrative data
-* unrestricted account control
+Role alone does not grant access to all related users.
 
 ---
 
-# 29. Relationship Revocation
+# 28. Relationship Revocation
 
-When a coach/student or parent/student relationship ends:
+Relationships use explicit lifecycle states.
+
+Canonical relationship states:
 
 ```text
-relationship = inactive
+PENDING
+ACTIVE
+REVOKED
 ```
 
-access granted solely by that relationship must stop.
-
-Historical records may remain available according to privacy and retention policy.
-
----
-
-# 30. Player Privacy
-
-Players should control appropriate profile visibility.
-
-Potential visibility levels:
+When a relationship becomes revoked:
 
 ```text
-private
-public
-limited
+relationship = REVOKED
 ```
 
-The exact policy should be defined by the profile specification.
+ordinary access that depended solely on that relationship must stop.
 
-Private profile data must not appear in:
-
-* leaderboards
-* public profiles
-* analytics
-* coach views
-* parent views
-
-unless authorized.
+Historical records may remain available according to privacy and retention rules.
 
 ---
 
-# 31. Child and Teen Privacy
+# 29. Guest Identity
 
-MicroChess is child-first.
+Guest is a temporary identity, not a role.
 
-Therefore the platform must minimize unnecessary collection of personal information.
+Guest sessions must use server-controlled identity.
 
-Do not require:
-
-* real name
-* address
-* phone
-* email
-
-for initial account creation.
-
-The system should avoid exposing personal information through:
-
-* usernames
-* leaderboards
-* public profiles
-* analytics
-* support
-* coach relationships
-
----
-
-# 32. External Chess Identities
-
-FIDE, Lichess and Chess.com identities are optional.
-
-External ratings must be clearly distinguished from MicroChess ratings.
-
-Example:
-
-```text
-Lichess Rapid: 2050
-MicroChess Pin Rating: 1478
-```
-
-The system must never silently interpret an external rating as an authoritative MicroChess rating.
-
----
-
-# 33. External Identity Verification
-
-Initially:
-
-```text
-self-reported
-```
-
-is acceptable.
-
-Future verification may be introduced.
-
-The client must never be able to set:
-
-```text
-verified = true
-```
-
-directly.
-
-Verification must be performed by an authoritative server-side process.
-
----
-
-# 34. Guest Security
-
-Guests must receive only temporary capabilities.
-
-Guest sessions must have:
-
-* expiration
-* limited privileges
-* limited data exposure
-* abuse controls
-
-Guests must not access:
-
-* admin
-* private player profiles
-* other users' history
-* privileged analytics
-
----
-
-# 35. Guest Migration Security
-
-Guest migration is security-sensitive.
-
-The migration process must ensure:
-
-1. guest session belongs to the requester
-2. guest session is valid
-3. migration occurs only once
-4. data is not duplicated
-5. rewards are not duplicated
-6. another user's guest data cannot be claimed
-7. migration is atomic where required
-
----
-
-# 36. Guest Data Ownership
-
-Guest data must be associated with a server-generated guest identity.
-
-Never trust a client-supplied:
+The client must not establish ownership through a supplied identifier such as:
 
 ```text
 guest_user_id
 ```
 
-as proof of ownership.
-
 A guest identifier is an identifier, not an authorization credential.
 
 ---
 
-# 37. Training Integrity
+# 30. Guest Capabilities
 
-A player must not be able to manipulate:
+Guest access must be limited to explicitly allowed functionality.
 
-```text
-correctness
-score
-rating
-XP
-achievement progress
-session duration
-```
+Guests must not access:
 
-through request payloads.
+* admin functions
+* unrelated users
+* private player profiles
+* privileged analytics
+* privileged administration data
+* another guest's training history
 
-The server evaluates the answer.
+Guest access must expire.
 
 ---
 
-# 38. Puzzle Answer Protection
+# 31. Guest Abuse Protection
 
-Hidden puzzle answers must never be sent to the browser before the player submits an answer.
+Guest functionality is especially vulnerable to:
+
+* automated session creation
+* scraping
+* reward farming
+* replay
+* data accumulation
+* denial-of-service behavior
+
+Apply proportionate controls such as:
+
+* rate limiting
+* session expiration
+* bounded history
+* anti-replay protection
+* server-side ownership checks
+
+Do not introduce CAPTCHA or third-party anti-abuse systems unless actual abuse or deployment requirements justify them.
+
+---
+
+# 32. Guest Migration Security
+
+Guest migration is security-sensitive.
+
+It must verify:
+
+1. the guest session belongs to the requester
+2. the guest session is valid
+3. the destination account is authenticated
+4. the migration has not already completed
+5. guest data is not already assigned elsewhere
+6. historical records are not duplicated
+7. rewards are not duplicated
+8. the operation is atomic where required
+
+The client must never specify arbitrary ownership identifiers.
+
+---
+
+# 33. Guest Migration Idempotency
+
+A repeated migration request must not duplicate:
+
+* attempts
+* rating events
+* XP
+* achievements
+* streak activity
+* historical sessions
+
+A retry should return the existing migration outcome where appropriate.
+
+---
+
+# 34. Training Integrity
+
+The server is authoritative for:
+
+* answer correctness
+* score
+* timing
+* rating
+* rating delta
+* XP
+* achievements
+* mastery
+* session state
+* puzzle validity
+
+The client may provide the player's answer.
+
+It may not decide the result.
+
+---
+
+# 35. Question Instance Security
+
+Training attempts should be bound to server-issued question instances.
+
+Conceptually:
+
+```text
+Exercise Content
+    ↓
+Question Instance
+    ↓
+Attempt
+```
+
+The question instance binds the concrete question to:
+
+* session
+* exercise
+* content
+* delivery context
+
+The server must verify that the submitted question instance:
+
+* exists
+* belongs to the current session
+* belongs to the current identity
+* is valid for the exercise/mode
+* is still usable
+* has not already become terminal where repeat submission is forbidden
+
+---
+
+# 36. Hidden Answer Protection
+
+Hidden puzzle/exercise answers must never be exposed to the browser before submission.
 
 This includes:
 
-* direct answer fields
-* hidden JSON
+* JSON fields
 * HTML attributes
 * JavaScript variables
+* embedded page data
+* metadata
 * source maps
-* API metadata
+* preloaded APIs
 
-If the browser receives the answer, client-side hiding is not security.
+Client-side hiding is not security.
 
----
-
-# 39. Exercise Security
-
-Exercise validation must happen server-side.
-
-For example:
-
-```text
-Pin
-```
-
-must not trust the React client to determine whether three selected squares constitute a valid pin.
-
-The server validates the exercise-specific answer.
+If the browser receives the answer, the answer must be considered compromised.
 
 ---
 
-# 40. Speed Mode Security
+# 37. Exercise Validation
 
-The browser may display:
+Exercise correctness must be validated server-side.
 
-```text
-60
-59
-58
-...
-```
+The server must own exercise-specific validation rules.
 
-but the server determines whether the session has expired.
+For chess exercises, this may include:
 
-A malicious client must not be able to submit:
+* board state validation
+* legal moves
+* selected squares
+* move sequences
+* chess-rule checks
+* solution correctness
 
-```text
-elapsed_time = 2
-```
-
-and thereby bypass a 60-second deadline.
+The client may provide a candidate answer only.
 
 ---
 
-# 41. Rating Security
+# 38. Speed Mode Security
 
-Rating changes are generated by server-side rating logic.
+The client may display a local countdown.
 
-Forbidden:
+The server determines:
+
+* session start
+* deadline
+* expiration
+* whether the submission was on time
+* authoritative duration
+
+The client must not be able to submit a fabricated elapsed time and thereby bypass a deadline.
+
+---
+
+# 39. Replay Protection
+
+State-changing operations that create authoritative consequences must protect against replay.
+
+Examples:
+
+* attempt submission
+* guest migration
+* publishing content
+* retiring content
+* generator runs
+* sensitive administrative actions
+* reward-producing operations
+
+Use:
+
+* idempotency keys
+* unique constraints
+* transaction boundaries
+* explicit state machines
+
+where appropriate.
+
+---
+
+# 40. Attempt Idempotency
+
+Attempt submission must be idempotent.
+
+The server should bind idempotency to:
+
+* authenticated/guest identity
+* operation
+* request context
+
+A repeated request must not produce a second:
+
+* attempt
+* rating change
+* XP award
+* achievement change
+
+The same idempotency key must not be reusable across unrelated operations.
+
+---
+
+# 41. Transaction Integrity
+
+When an authoritative operation changes multiple facts that must remain consistent, use an appropriate transaction boundary.
+
+For a successful attempt, core authoritative state may include:
+
+```text
+attempt
+rating event
+rating state
+XP reward
+achievement state
+streak state
+```
+
+The system must define which of these are transactionally atomic.
+
+Derived analytics need not be part of the same transaction when they can safely be recalculated from authoritative records.
+
+The user must never receive a success response for an operation whose core authoritative state failed to commit.
+
+---
+
+# 42. Rating Security
+
+Ratings are server-owned.
+
+A client may not directly set:
 
 ```json
 {
@@ -830,3504 +907,921 @@ Forbidden:
 }
 ```
 
-as an instruction to set the rating.
+or:
 
-The client may display a rating but does not own the rating state.
-
----
-
-# 42. Gamification Security
-
-XP, achievements, streaks and milestones must be derived from authoritative events.
-
-Never expose an endpoint equivalent to:
-
-```text
-POST /me/xp
+```json
+{
+  "rating_delta": 100
+}
 ```
 
-where the client chooses the amount.
+Rating changes originate from authoritative application logic.
+
+Historical rating events are not editable by ordinary clients.
+
+Administrative correction, if ever required, must use an explicit controlled and auditable workflow.
 
 ---
 
-# 43. Replay Protection
+# 43. Gamification Security
 
-State-changing requests that can produce rewards or historical records must protect against replay.
+The client may not directly award itself:
 
-Especially:
+* XP
+* achievements
+* badges
+* streaks
+* mastery
+* challenge completion
 
-* attempt submission
-* guest migration
-* achievement awarding
-* generator execution
-* administrative lifecycle actions
-
-Idempotency keys or server-side unique constraints should be used where appropriate.
-
----
-
-# 44. Transaction Integrity
-
-Operations that update multiple authoritative records should use appropriate transaction boundaries.
-
-For example, a successful training attempt may affect:
+Forbidden patterns include:
 
 ```text
-attempt
-rating
-rating event
-XP event
-achievement progress
-streak
-analytics facts
+POST /api/v1/me/xp
+POST /api/v1/me/achievements/unlock
 ```
 
-The system must define which updates are atomic and which can be derived asynchronously.
+where the client selects the authoritative result.
 
-The user must never receive a misleading success response if the core authoritative operation failed.
+Gamification state must result from legitimate server-side activity.
 
 ---
 
-# 45. Analytics Integrity
+# 44. Anti-Abuse Gamification
 
-Analytics should be derived from authoritative records.
+Gamification must avoid rewarding meaningless or repeated automated activity.
 
-Do not trust:
+The server may limit qualifying activity based on:
+
+* duplicate attempts
+* impossible timing
+* repeated replay
+* session state
+* suspicious request volume
+* domain-specific qualification rules
+
+Anti-abuse rules should be simple and evidence-driven.
+
+Do not build a generic fraud platform prematurely.
+
+---
+
+# 45. Content Security
+
+Generated or user-created content must never bypass validation.
+
+Content lifecycle:
 
 ```text
-client analytics
-client counters
-client activity totals
+DRAFT
+→ CREATED / GENERATED
+→ VALIDATED
+→ REVIEWED
+→ APPROVED
+→ PUBLISHED
+→ ACTIVE
+→ RETIRED
 ```
 
-as source-of-truth data.
+Generated content is never automatically trusted as production content.
 
-Raw historical facts should remain available for recalculation.
-
----
-
-# 46. Audit Logging
-
-Security-sensitive administrative events should be auditable.
-
-Examples:
-
-```text
-login failures
-role changes
-account suspension
-account reactivation
-admin puzzle changes
-puzzle publication
-puzzle retirement
-generator runs
-permission changes
-support administrative actions
-```
-
-Audit records should include useful context such as:
-
-```text
-actor
-action
-target
-timestamp
-result
-request/context metadata where appropriate
-```
-
-Never log passwords, tokens or secrets.
+Lifecycle transitions must be authorized and validated.
 
 ---
 
-# 47. Authentication Logging
+# 46. Generator Security
 
-Authentication events worth monitoring include:
+Generators may consume significant CPU, memory, or storage.
 
-* successful login
-* failed login
-* logout
-* password change
-* password recovery
-* account lockout
-* suspicious authentication activity
+Generator execution must therefore be:
 
-OWASP recommends logging authentication failures and monitoring authentication functions.
+* authenticated
+* authorized
+* bounded
+* observable
+* protected against duplicate execution when necessary
 
----
+Do not expose arbitrary executable code/configuration through untrusted API input.
 
-# 48. Security Event Logging
-
-Security logs should help answer:
-
-> Who did what, to which object, when, and whether it succeeded?
-
-Logs must not become a secondary database containing unnecessary personal information.
+Target rating/difficulty values are generation objectives, not security guarantees.
 
 ---
 
-# 49. Log Injection
+# 47. File Security
 
-Never concatenate untrusted user input directly into structured security logs without safe encoding.
+If the product handles uploads, uploaded files must be treated as untrusted.
 
-Usernames, support messages and search strings may contain malicious characters.
+Security controls should include:
 
----
-
-# 50. Secrets
-
-Secrets must never be committed to Git.
-
-Examples:
-
-```text
-database passwords
-session secrets
-API keys
-OAuth secrets
-encryption keys
-admin bootstrap secrets
-```
-
-Use environment/configuration mechanisms appropriate to the deployment.
-
----
-
-# 51. Environment Separation
-
-Development, testing and production credentials must be separate.
-
-Never reuse production secrets in tests.
-
-Never commit production credentials to:
-
-```text
-.env
-source code
-tests
-fixtures
-documentation
-```
-
----
-
-# 52. Database Security
-
-The application database user should have only the permissions required by the application.
-
-The application must not rely on a database superuser in production.
-
-SQL injection protection must come from:
-
-* parameterized queries
-* ORM/query-builder mechanisms
-* strict input validation
-
-Never construct SQL using raw string interpolation from user input.
-
----
-
-# 53. Input Validation
-
-All external input must be validated.
-
-Sources include:
-
-* JSON
-* query parameters
-* path parameters
-* form fields
-* uploaded files
-* headers
-* cookies
-* external provider data
-
-Validation must happen before business logic.
-
----
-
-# 54. Schema Validation
-
-Pydantic models should define API request schemas where appropriate.
-
-Validation should include:
-
-* type
-* length
-* range
-* enum
-* required/optional status
-* nested structure
-
-Do not rely solely on frontend validation.
-
----
-
-# 55. Business Validation
-
-Schema validation is not enough.
-
-Example:
-
-```text
-rating = integer
-```
-
-may be syntactically valid while:
-
-```text
-rating = -500
-```
-
-is business-invalid.
-
-Business rules belong in the application/domain layer.
-
----
-
-# 56. Output Encoding
-
-User-controlled text must be safely rendered.
-
-Potential sources include:
-
-* display names
-* bios
-* support messages
-* admin notes
-* puzzle metadata
-
-Do not inject raw user content into HTML.
-
-React's normal escaping behavior should be preserved.
-
-Avoid unsafe HTML rendering unless explicitly required and safely sanitized.
-
----
-
-# 57. XSS
-
-The system must protect against:
-
-* stored XSS
-* reflected XSS
-* DOM-based XSS
-
-Particular attention is required for:
-
-* bios
-* support messages
-* admin content
-* generated content metadata
-
----
-
-# 58. CSRF
-
-The final CSRF strategy depends on the authentication transport.
-
-If authentication uses browser cookies, state-changing requests must have appropriate CSRF protection.
-
-If a different architecture is used, document why CSRF protection is or is not required.
-
-Do not simply disable CSRF because the frontend is React.
-
----
-
-# 59. CORS
-
-CORS must be explicitly configured.
-
-Do not use:
-
-```text
-allow_origins = *
-```
-
-for authenticated production APIs unless there is a documented security reason.
-
-Allowed origins should match the actual deployment architecture.
-
----
-
-# 60. HTTP Methods
-
-Only supported methods should be enabled for each endpoint.
-
-Unexpected methods should be rejected.
-
-REST security guidance recommends restricting allowed HTTP methods rather than allowing arbitrary method behavior.
-
----
-
-# 61. Request Size Limits
-
-The API should enforce reasonable request-size limits.
-
-This protects against:
-
-* memory exhaustion
-* oversized JSON
-* malicious uploads
-* accidental huge payloads
-
----
-
-# 62. File Upload Security
-
-Future profile/avatar/file uploads must be treated as untrusted.
-
-Controls should include:
-
-* file-size limits
-* allowed MIME types
-* extension validation
-* content validation
+* allowed file types
+* size limits
 * safe filenames
-* non-executable storage
-* controlled download behavior
+* server-controlled storage paths
+* authorization before access
+* content validation where appropriate
+* no direct filesystem path access
+* no execution from upload directories
 
-Never trust only the filename extension.
+Do not expose private uploads as unrestricted static files.
 
----
-
-# 63. Avatar Security
-
-Avatars should not be stored as executable files.
-
-Prefer normalized server-generated filenames.
-
-The original user filename should not become the storage path.
+Private media access must go through authorized server-controlled mechanisms.
 
 ---
 
-# 64. Static File Security
+# 48. File Name and Path Safety
 
-Private files must not be placed in a publicly accessible static directory.
+Never use a client-supplied filename directly as a filesystem path.
 
-If a file is private:
-
-```text
-request
- ↓
-authorization
- ↓
-controlled file response
-```
-
-not:
-
-```text
-/public/uploads/private-file
-```
-
----
-
-# 65. Path Traversal
-
-User-controlled filenames or paths must never directly determine filesystem paths.
-
-Reject or safely normalize:
+Never allow:
 
 ```text
 ../
-..\ 
 absolute paths
+filesystem traversal
 ```
 
-and equivalent traversal patterns.
+to affect storage location.
+
+Prefer generated storage identifiers.
+
+The original filename, when retained, is metadata rather than a storage path.
 
 ---
 
-# 66. Generator Security
+# 49. Input Validation
 
-Puzzle generators may be computationally expensive.
-
-Admin generator endpoints require:
-
-* authorization
-* parameter validation
-* resource limits
-* run tracking
-* cancellation where supported
-* audit logging
-
-Do not allow an untrusted user to trigger unlimited generation.
-
----
-
-# 67. Background Jobs
-
-If expensive work becomes asynchronous, jobs must have:
-
-* authenticated creator
-* authorization
-* unique ID
-* status
-* resource limits
-* failure handling
-* auditability
-
-Do not introduce a message broker merely because background jobs exist.
-
-Use the simplest infrastructure appropriate to actual scale.
-
----
-
-# 68. SSRF
-
-If future features fetch external URLs, such as:
-
-* external profile verification
-* imported content
-* remote images
-
-the implementation must explicitly defend against SSRF.
-
-Never blindly fetch arbitrary user-supplied URLs from the server.
-
----
-
-# 69. External Provider Data
-
-Data from FIDE, Lichess, Chess.com or other external providers is untrusted input.
+All client input is untrusted.
 
 Validate:
 
-* schema
+* type
+* structure
+* allowed values
+* length
 * size
-* identifiers
-* expected values
+* range
+* format
+* state transitions
+* ownership
+* authorization
+* business rules
 
-before storing or using it.
+Client-side validation is a UX convenience.
 
----
-
-# 70. API Enumeration Protection
-
-Sensitive resources must not be accessible merely because a user can guess IDs.
-
-Object authorization must remain mandatory.
-
-Random IDs may reduce guessing probability, but they do not replace authorization. OWASP explicitly warns against relying on identifier obscurity as the primary protection.
+Server-side validation is mandatory.
 
 ---
 
-# 71. Privacy-Preserving Analytics
+# 50. SQL Injection
 
-Analytics should expose only the data necessary for the intended viewer.
+Database access must use the ORM/database parameterization mechanisms.
 
-For example:
+Never construct SQL with unsanitized client strings.
 
-### Player
-
-Own detailed analytics.
-
-### Coach
-
-Only authorized student analytics.
-
-### Parent
-
-Only authorized child information.
-
-### Admin
-
-Broader operational analytics, subject to privacy policy.
-
-### Public
-
-Only intentionally public aggregate/profile information.
+Search, filtering, sorting, pagination, and identifiers must use explicit allowlists where necessary.
 
 ---
 
-# 72. Leaderboard Privacy
+# 51. Command Injection
 
-Leaderboards must not automatically reveal personal information.
+Never pass untrusted client values directly into operating-system commands.
 
-Possible public fields:
+If subprocess execution becomes necessary:
+
+* use fixed executable paths
+* pass arguments as structured argument arrays
+* validate arguments
+* avoid shell interpretation
+* run with least privilege
+
+Do not introduce subprocess-based infrastructure without a real requirement.
+
+---
+
+# 52. SSRF
+
+If the platform later retrieves external URLs, the server must validate:
+
+* allowed schemes
+* hostname
+* redirects
+* private/internal address ranges
+* DNS rebinding risks
+* response size
+* timeout
+
+Do not introduce generic arbitrary URL fetching.
+
+External integrations should use explicit allowlists and adapters.
+
+---
+
+# 53. XSS
+
+All user-controlled content must be safely handled.
+
+Do not render untrusted HTML without sanitization.
+
+Prefer:
+
+* normal escaped text
+* React's default escaping
+* controlled rich-text sanitization when explicitly required
+
+Do not add `dangerouslySetInnerHTML` or equivalent without a justified and reviewed use case.
+
+---
+
+# 54. CSRF
+
+If browser authentication uses cookies, CSRF protection must be considered for state-changing requests.
+
+The exact mechanism depends on:
+
+* cookie/session architecture
+* same-site deployment
+* frontend/backend origin configuration
+
+Do not assume that CORS alone is CSRF protection.
+
+If bearer tokens are used in a non-cookie architecture, evaluate CSRF exposure separately.
+
+---
+
+# 55. CORS
+
+CORS must be explicitly configured.
+
+Do not use unrestricted production configuration such as:
 
 ```text
-display name
-avatar
-score/rating
-rank
+allow_origins = ["*"]
 ```
 
-only where permitted.
+when authenticated browser credentials are involved.
 
-Avoid exposing:
-
-* real name
-* email
-* private profile information
-* detailed training history
+Allowed origins should match the deployment architecture.
 
 ---
 
-# 73. Account Deletion
+# 56. Security Headers
 
-The architecture must eventually support account deletion or anonymization.
-
-Deletion must distinguish between:
-
-```text
-personal identity data
-historical training facts
-aggregate analytics
-audit records
-legal/security retention
-```
-
-Historical educational statistics may need anonymization rather than unrestricted deletion.
-
-The exact retention policy must be defined before implementing destructive deletion.
-
----
-
-# 74. Data Retention
-
-Do not retain personal information indefinitely without purpose.
-
-Different categories may have different retention rules:
-
-```text
-sessions
-support tickets
-training history
-analytics
-audit logs
-external identities
-```
-
-Retention policies should be configurable where appropriate.
-
----
-
-# 75. Data Export
-
-A future player-facing data export capability should allow a user to retrieve appropriate personal data.
-
-The architecture should not make export impossible by scattering user information across opaque uncontrolled structures.
-
----
-
-# 76. Security Headers
-
-Production web responses should use appropriate browser security headers.
-
-Potential controls include:
+Production deployment should use appropriate HTTP security headers where applicable, including consideration of:
 
 * Content-Security-Policy
 * X-Content-Type-Options
 * Referrer-Policy
-* frame-ancestors / clickjacking protection
-* Strict-Transport-Security where appropriate
+* frame protections
+* HSTS
 
-Exact policy must be compatible with the frontend architecture.
+Exact deployment configuration belongs to the deployment layer.
 
----
-
-# 77. Dependency Security
-
-Dependencies should be:
-
-* pinned or constrained appropriately
-* periodically reviewed
-* updated deliberately
-* checked for known vulnerabilities
-
-Do not blindly upgrade the entire dependency tree during unrelated feature work.
+Application code should not duplicate deployment configuration unnecessarily.
 
 ---
 
-# 78. Database Migrations
+# 57. Sensitive Data
 
-Security-sensitive schema changes must use the project's migration system.
+Never expose:
 
-Never manually alter production schema in an undocumented way.
+* passwords
+* password hashes
+* session secrets
+* reset tokens
+* private keys
+* internal credentials
+* infrastructure secrets
 
-Migration changes must be:
+through API responses.
 
-* reviewable
-* reversible where practical
-* tested
-* compatible with deployment order
+Sensitive values must not appear in normal application logs.
 
 ---
 
-# 79. Authorization Testing
+# 58. Secrets Management
 
-Authorization tests are mandatory for important protected resources.
+Secrets must come from the configured secret/environment mechanism.
 
-At minimum test:
+Do not commit:
+
+* passwords
+* API keys
+* access tokens
+* database credentials
+* encryption keys
+
+to source control.
+
+Never place secrets in frontend bundles.
+
+---
+
+# 59. Logging
+
+Security-relevant actions should be logged or audited when appropriate.
+
+Logs should help investigate:
+
+* authentication failures
+* suspicious activity
+* privilege changes
+* administrative actions
+* sensitive lifecycle changes
+* generator abuse
+
+Logs must not contain:
+
+* passwords
+* session tokens
+* sensitive credentials
+* unnecessary personal information
+
+---
+
+# 60. Audit Records
+
+Sensitive administrative state changes should produce audit records.
+
+Examples:
+
+* role changes
+* account suspension
+* privileged content publication
+* content retirement
+* generator execution where operationally relevant
+* support actions involving private data
+
+Audit records should preserve:
+
+* actor
+* action
+* target
+* timestamp
+* relevant context
+* result where appropriate
+
+Historical audit records are not ordinary user-editable data.
+
+---
+
+# 61. Analytics Privacy
+
+Analytics are derived from authoritative training history.
+
+Access to analytics must still respect:
+
+* identity
+* capability
+* ownership
+* relationships
+* privacy settings
+
+Coach and parent analytics access must be scoped.
+
+Private analytics must not become public merely because they appear in a shared dashboard query.
+
+---
+
+# 62. Leaderboard Privacy
+
+Leaderboard participation and visibility must respect product privacy rules.
+
+Do not expose private player information merely because ranking data exists.
+
+Only fields intentionally selected for leaderboard visibility should be exposed.
+
+---
+
+# 63. Child and Teen Privacy
+
+MicroChess is child-first.
+
+Therefore:
+
+* collect minimum necessary personal data
+* avoid unnecessary identity information
+* avoid exposing contact information
+* carefully scope coach/parent access
+* minimize public profile information
+* minimize analytics exposure
+* avoid accidental information disclosure through usernames or rankings
+
+Do not add personal-data requirements simply because they may be useful later.
+
+---
+
+# 64. External Chess Identities
+
+FIDE, Lichess, and Chess.com identities are separate from MicroChess identity and rating.
+
+External ratings are not MicroChess ratings.
+
+Initial external ratings may be self-reported.
+
+Verification state must be server-controlled.
+
+The client must never be able to submit:
 
 ```text
-player → own resource
-player → another player's resource
-coach → assigned student
-coach → unrelated student
-parent → own child
-parent → unrelated child
-admin → privileged resource
-non-admin → admin resource
+verified = true
 ```
 
-The goal is to test denial as well as success.
+as an authoritative operation.
 
 ---
 
-# 80. Security Testing Priorities
+# 65. API Security
 
-High-value tests include:
+All protected APIs must enforce backend authorization.
 
-### Authentication
+Frontend route guards do not provide security.
 
-* invalid credentials
-* brute-force controls
-* session invalidation
+Sensitive API operations should use:
 
-### Authorization
+* authentication
+* capability checks
+* object authorization
+* input validation
+* replay protection
+* rate limiting where appropriate
 
-* horizontal privilege escalation
-* vertical privilege escalation
-* object-level access
+The API contract is defined in:
 
-### Training integrity
+```text
+API_CONTRACTS.md
+```
 
-* forged score
-* forged rating
-* forged XP
-* forged correctness
-* expired session
-* duplicate submission
-
-### Guest
-
-* guest takeover
-* duplicate migration
-* expired migration
-* cross-session migration
-
-### Admin
-
-* non-admin access
-* role manipulation
-* lifecycle bypass
-
-### Input
-
-* invalid schemas
-* oversized requests
-* injection attempts
-* malicious filenames
+This document provides the security constraints that API implementations must satisfy.
 
 ---
 
-# 81. Security and Error Handling
+# 66. Error Safety
 
-Production error responses must not expose:
+Error responses must not expose:
 
 * stack traces
 * SQL statements
 * filesystem paths
+* internal module structure
 * secrets
-* internal architecture unnecessarily
+* tokens
+* sensitive data
 
-Detailed diagnostics belong in protected server logs.
+Errors should be:
+
+* safe
+* useful
+* machine-readable where required
+* consistent with API contracts
 
 ---
 
-# 82. Fail Closed
+# 67. Enumeration Resistance
 
-When authorization information is missing or ambiguous:
+Avoid unnecessary enumeration through:
+
+* login responses
+* private profile endpoints
+* resource IDs
+* support endpoints
+* relationship endpoints
+* guest endpoints
+
+Where revealing the existence of a resource would create risk, use privacy-preserving response semantics.
+
+---
+
+# 68. Rate Limiting
+
+Rate limiting should be applied proportionally to:
+
+* authentication
+* guest creation
+* attempt submission
+* support creation
+* expensive analytics
+* generator execution
+* sensitive administrative actions
+
+Do not put unrelated fixed limits into every route.
+
+Rate limiting configuration should be centralized.
+
+---
+
+# 69. Denial of Service
+
+The application should protect against unbounded resource consumption.
+
+Relevant controls include:
+
+* request body limits
+* pagination
+* bounded generator jobs
+* bounded file uploads
+* query limits
+* timeouts
+* rate limiting
+* bounded analytics requests
+
+Do not add distributed infrastructure solely for hypothetical DoS scenarios.
+
+---
+
+# 70. Analytics Query Safety
+
+Analytics endpoints must not allow unbounded queries.
+
+They should enforce:
+
+* bounded date ranges where necessary
+* indexed filters
+* pagination
+* sensible aggregation limits
+
+The client must not be able to request arbitrary database expressions.
+
+---
+
+# 71. Support Abuse
+
+Support endpoints should be protected against:
+
+* spam
+* automated ticket creation
+* abusive message volume
+* unauthorized ticket access
+
+Support data is private by default.
+
+A user may access only their own support records.
+
+Admins require appropriate support capabilities.
+
+---
+
+# 72. Privacy by Default
+
+When unsure whether data should be exposed, prefer the narrower scope.
+
+A response should contain only the data required for its purpose.
+
+Do not rely on clients to hide sensitive fields.
+
+The server determines the response shape.
+
+---
+
+# 73. Data Retention
+
+Data retention policies should distinguish:
 
 ```text
-deny
+authoritative historical data
+temporary guest data
+derived analytics
+audit data
+support data
+private media
 ```
 
-Do not assume permission.
+Do not delete authoritative history merely because it is no longer displayed in the UI.
 
-Examples:
+Guest retention may be shorter where product/security requirements justify it.
 
-```text
-missing relationship → deny
-unknown role → deny
-invalid session → deny
-missing ownership → deny
-unknown lifecycle state → deny
-```
+Exact retention rules belong to the relevant domain specifications.
 
 ---
 
-# 83. Workflow Security
+# 74. Security and Historical Data
 
-Important workflows must be validated server-side.
+Historical attempts, ratings, and reward facts should be treated as authoritative records.
 
-Example puzzle lifecycle:
+Ordinary clients cannot:
 
-```text
-Draft
- ↓
-Validated
- ↓
-Reviewed
- ↓
-Approved
- ↓
-Published
- ↓
-Retired
-```
+* edit
+* delete
+* rewrite
+* recompute
 
-An attacker must not be able to skip directly from:
+historical facts.
 
-```text
-Draft → Published
-```
-
-by calling the publication endpoint.
-
-OWASP specifically recommends server-side workflow-state validation to prevent out-of-order execution.
+Explicit administrative correction workflows, if introduced, must preserve an audit trail.
 
 ---
 
-# 84. Security of Content Generation
+# 75. Security and Migrations
 
-Generated content is untrusted until validated.
+Database migrations involving security-sensitive data must:
 
-Pipeline:
+* preserve account ownership
+* preserve authorization semantics
+* avoid accidental privilege escalation
+* avoid dropping security-relevant history
+* support rollback/recovery planning where appropriate
 
-```text
-Generator
- ↓
-Generated
- ↓
-Validation
- ↓
-Review
- ↓
-Approval
- ↓
-Publication
-```
-
-Generation itself does not imply correctness.
+Never change role semantics through an ad hoc data migration without verifying all authorization paths.
 
 ---
 
-# 85. Security of Analytics
+# 76. Security Testing
 
-Analytics queries must be protected against:
+Security-sensitive behavior requires automated tests.
 
-* unauthorized data access
-* expensive unrestricted queries
-* cross-user leakage
-* arbitrary filtering abuse
+At minimum, cover:
 
-Admin analytics may require pagination, aggregation and query limits.
+### Authentication
+
+* registration
+* duplicate username
+* login
+* invalid login
+* logout
+* session expiration
+* protected endpoint rejection
+
+### Authorization
+
+* correct capability
+* missing capability
+* wrong role
+* object ownership
+* cross-user access
+* relationship access
+* revoked relationship
+
+### Guest
+
+* guest creation
+* guest isolation
+* guest expiration
+* guest abuse controls
+* guest migration
+* migration replay
+* wrong-owner migration
+
+### Training
+
+* forged score
+* forged correctness
+* forged rating
+* forged XP
+* wrong question instance
+* wrong session
+* duplicate attempt
+* speed-mode replay
+
+### Admin
+
+* non-admin rejection
+* capability enforcement
+* target-object authorization
+* protected state transitions
+* audit behavior
+
+### Content
+
+* unauthorized publish
+* unauthorized retire
+* invalid lifecycle transition
+* generator authorization
+
+### Privacy
+
+* private profile isolation
+* private analytics isolation
+* coach scope
+* parent scope
+* unrelated-user access
 
 ---
 
-# 86. Security of Future Adaptive Training
+# 77. Security Verification
 
-Future recommendation systems must not become an authorization bypass.
+A phase involving security-sensitive changes is not complete until:
 
-Recommendations may use:
-
-* training history
-* ratings
-* accuracy
-* response time
-* difficulty
-
-but must respect privacy and authorization boundaries.
+1. relevant automated tests pass
+2. authorization is verified
+3. object-level access is tested
+4. replay/duplicate behavior is tested where relevant
+5. sensitive responses are inspected
+6. no secret is introduced
+7. existing secure behavior is preserved
+8. runtime behavior is checked where appropriate
 
 ---
 
-# 87. No Premature Security Infrastructure
+# 78. Security and Development Workflow
+
+Before modifying security-sensitive code, the agent must:
+
+1. inspect existing authentication/session behavior
+2. inspect authorization dependencies
+3. inspect relevant models
+4. inspect API routes
+5. inspect frontend auth usage
+6. inspect tests
+7. identify the current security boundary
+8. determine the minimum required change
+
+The agent must not replace working security mechanisms merely because another implementation looks cleaner.
+
+---
+
+# 79. No Security-by-Abstraction
+
+Do not create abstractions whose only purpose is to make the architecture look more secure.
+
+Security should come from:
+
+* explicit rules
+* correct boundaries
+* server authority
+* least privilege
+* tests
+* controlled state transitions
+
+A large policy engine is not automatically more secure.
+
+---
+
+# 80. No Speculative Security Infrastructure
 
 Do not introduce:
 
-* microservice identity providers
 * external IAM platforms
 * service meshes
-* message brokers
-* complex policy engines
+* distributed policy engines
+* dedicated security microservices
+* event-sourcing infrastructure
+* security data warehouses
 
-unless actual product scale or security requirements justify them.
+unless explicitly required.
 
-A modular monolith can provide strong security when its boundaries are enforced correctly.
-
----
-
-# 88. Security Architecture
-
-Target flow:
-
-```text
-Browser
-   ↓
-HTTPS
-   ↓
-API
-   ↓
-Authentication
-   ↓
-Authorization
-   ↓
-Input Validation
-   ↓
-Application Service
-   ↓
-Domain Rules
-   ↓
-Repository
-   ↓
-Database
-```
-
-For protected resources:
-
-```text
-Authentication
-      ↓
-Role/Permission Check
-      ↓
-Object/Relationship Check
-      ↓
-Business Rule Check
-      ↓
-Operation
-```
+The initial security model must remain understandable within the application.
 
 ---
 
-# 89. Security Invariants
-
-The following rules are mandatory.
-
-### Invariant 1
-
-Passwords are never stored in plaintext.
-
-### Invariant 2
-
-Passwords are never logged.
-
-### Invariant 3
-
-Sessions are unpredictable and securely managed.
-
-### Invariant 4
-
-Every protected API operation performs authorization.
-
-### Invariant 5
-
-Object ownership is checked server-side.
-
-### Invariant 6
-
-Roles are not trusted when supplied by the client.
-
-### Invariant 7
-
-Scores are not trusted from the client.
-
-### Invariant 8
-
-Ratings are not trusted from the client.
-
-### Invariant 9
-
-XP is not trusted from the client.
-
-### Invariant 10
-
-Puzzle answers are not exposed to players before submission.
-
-### Invariant 11
-
-Guest migration cannot duplicate rewards or history.
-
-### Invariant 12
-
-Admin operations are auditable.
-
-### Invariant 13
-
-Private files are not publicly accessible.
-
-### Invariant 14
-
-Analytics do not bypass privacy rules.
-
-### Invariant 15
-
-Invalid authorization state fails closed.
-
-### Invariant 16
-
-Content lifecycle transitions are enforced server-side.
-
-### Invariant 17
-
-Security-sensitive state changes cannot be performed solely through frontend controls.
-
----
-
-# 90. Implementation Rules
-
-Before implementing security-related features:
-
-1. Inspect existing authentication.
-2. Inspect session implementation.
-3. Inspect existing middleware/dependencies.
-4. Inspect current user model.
-5. Inspect current API authorization.
-6. Inspect database constraints.
-7. Inspect frontend auth state.
-8. Identify existing security mechanisms.
-9. Preserve correct existing mechanisms.
-10. Replace insecure mechanisms deliberately.
-11. Add meaningful security tests.
-12. Document important decisions.
-
-Do not rewrite authentication or authorization merely for stylistic reasons.
-
----
-
-# 91. Security Definition of Done
-
-A platform security feature is complete only when:
-
-* authentication behavior is defined
-* authorization behavior is defined
-* object-level access is enforced where required
-* sensitive values are server-authoritative
-* invalid input is rejected
-* important abuse cases are considered
-* errors do not leak sensitive internals
-* security-sensitive actions are auditable
-* meaningful security tests exist
-* frontend restrictions are backed by backend restrictions
-* documentation matches implementation
-
----
-
-# 92. Final Security Principle
-
-The platform must assume:
-
-> **The browser, the network request, and every client-provided value can be manipulated.**
-
-Therefore:
-
-```text
-Authenticate the identity.
-Authorize the action.
-Authorize the object.
-Validate the input.
-Apply the business rule.
-Persist the authoritative result.
-Audit sensitive operations.
-Expose only what the caller is allowed to know.
-```
-
-Security is not a frontend feature.
-
-Security is a property of the complete system.
-
-# 93. Concrete Security Decision Matrix
-
-This matrix is normative.
-
-When implementing a feature, the agent must use this matrix as the default authorization decision unless a more specific domain specification explicitly overrides it.
-
-The client UI must never be treated as the source of authorization truth.
-
-## 93.1 Access Decision Model
-
-Every protected operation follows:
-
-```text
-Request
-  ↓
-Is the session authenticated?
-  ├─ No → Public/Guest rule
-  └─ Yes
-       ↓
-Is the account active?
-  ├─ No → DENY
-  └─ Yes
-       ↓
-Does the role have the required capability?
-  ├─ No → DENY
-  └─ Yes
-       ↓
-Does the user have access to this specific object?
-  ├─ No → DENY
-  └─ Yes
-       ↓
-Are relationship/state/business conditions satisfied?
-  ├─ No → DENY
-  └─ Yes → ALLOW
-```
-
-Authorization must be checked on every protected request and must fail closed.
-
----
-
-## 93.2 Role Capability Matrix
-
-| Capability                             |       Guest |      Player |        Coach |            Parent | Admin |
-| -------------------------------------- | ----------: | ----------: | -----------: | ----------------: | ----: |
-| Browse public exercises                |       ALLOW |       ALLOW |        ALLOW |             ALLOW | ALLOW |
-| Start public practice                  |       ALLOW |       ALLOW |        ALLOW |             ALLOW | ALLOW |
-| Start public speed session             |       ALLOW |       ALLOW |        ALLOW |             ALLOW | ALLOW |
-| Submit training attempt                |      ALLOW* |       ALLOW |        ALLOW |             ALLOW | ALLOW |
-| View own training history              |   TEMPORARY |       ALLOW |        ALLOW |             ALLOW | ALLOW |
-| View own rating                        |   TEMPORARY |       ALLOW |        ALLOW |             ALLOW | ALLOW |
-| View own analytics                     |   TEMPORARY |       ALLOW |        ALLOW |             ALLOW | ALLOW |
-| View own achievements                  |   TEMPORARY |       ALLOW |        ALLOW |             ALLOW | ALLOW |
-| Manage own profile                     |        DENY |       ALLOW |        ALLOW |             ALLOW | ALLOW |
-| Manage own password                    |        DENY |       ALLOW |        ALLOW |             ALLOW | ALLOW |
-| Manage own external chess identities   |        DENY |       ALLOW |        ALLOW |             ALLOW | ALLOW |
-| View another player's profile          | PUBLIC-ONLY | PUBLIC-ONLY |  PUBLIC-ONLY |       PUBLIC-ONLY | ALLOW |
-| View another player's detailed history |        DENY |        DENY | RELATIONSHIP |      RELATIONSHIP | ALLOW |
-| View another player's analytics        |        DENY |        DENY | RELATIONSHIP |      RELATIONSHIP | ALLOW |
-| Manage student assignments             |        DENY |        DENY | RELATIONSHIP |              DENY | ALLOW |
-| Manage parent/child relationship       |        DENY |        DENY |         DENY | SELF/RELATIONSHIP | ALLOW |
-| Access admin dashboard                 |        DENY |        DENY |         DENY |              DENY | ALLOW |
-| Manage users                           |        DENY |        DENY |         DENY |              DENY | ALLOW |
-| Manage roles                           |        DENY |        DENY |         DENY |              DENY | ALLOW |
-| Manage exercises                       |        DENY |        DENY |         DENY |              DENY | ALLOW |
-| Manage puzzles                         |        DENY |        DENY |         DENY |              DENY | ALLOW |
-| Run generators                         |        DENY |        DENY |         DENY |              DENY | ALLOW |
-| Publish content                        |        DENY |        DENY |         DENY |              DENY | ALLOW |
-| View platform analytics                |        DENY |        DENY |         DENY |              DENY | ALLOW |
-| View audit logs                        |        DENY |        DENY |         DENY |              DENY | ALLOW |
-| Manage support requests                |        DENY |        DENY |         DENY |              DENY | ALLOW |
-
-`*` Guest submissions are permitted only within the guest-session rules and must not grant access to another user's data.
-
----
-
-## 93.3 Resource-Level Decision Matrix
-
-### Player-owned resources
-
-| Resource         |          Guest | Owner |                        Other Player |                                  Coach |                      Parent | Admin |
-| ---------------- | -------------: | ----: | ----------------------------------: | -------------------------------------: | --------------------------: | ----: |
-| Profile          |      Temporary | ALLOW |                  PUBLIC fields only |                  PUBLIC/allowed fields |       PUBLIC/allowed fields | ALLOW |
-| Training Attempt | Own guest only | ALLOW |                                DENY |                  Assigned student only |                  Child only | ALLOW |
-| Training Session | Own guest only | ALLOW |                                DENY |                  Assigned student only |                  Child only | ALLOW |
-| Rating           | Own guest only | ALLOW |      PUBLIC summary only if enabled |                       Assigned student |                       Child | ALLOW |
-| Rating History   | Own guest only | ALLOW |                                DENY |                       Assigned student |                       Child | ALLOW |
-| Analytics        | Own guest only | ALLOW |                                DENY |                       Assigned student |                       Child | ALLOW |
-| Achievements     | Own guest only | ALLOW | Public achievements only if enabled |                       Assigned student |                       Child | ALLOW |
-| Personal Goals   | Own guest only | ALLOW |                                DENY | Assigned student if explicitly allowed | Child if explicitly allowed | ALLOW |
-
----
-
-## 93.4 Public vs Private Profile Fields
-
-The API must explicitly control field visibility.
-
-| Field              |              Owner |               Public |                           Coach |                          Parent |                     Admin |
-| ------------------ | -----------------: | -------------------: | ------------------------------: | ------------------------------: | ------------------------: |
-| Username           |              ALLOW | Depending on privacy |                           ALLOW |                           ALLOW |                     ALLOW |
-| Display name       |              ALLOW | Depending on privacy |                           ALLOW |                           ALLOW |                     ALLOW |
-| Avatar             |              ALLOW | Depending on privacy |                           ALLOW |                           ALLOW |                     ALLOW |
-| Bio                |              ALLOW | Depending on privacy |                           ALLOW |                           ALLOW |                     ALLOW |
-| FIDE ID            |              ALLOW |      DENY by default |                    If permitted |                    If permitted |                     ALLOW |
-| FIDE username      |              ALLOW | If explicitly public |                    If permitted |                    If permitted |                     ALLOW |
-| FIDE rating        |              ALLOW | If explicitly public |                    If permitted |                    If permitted |                     ALLOW |
-| Lichess username   |              ALLOW | If explicitly public |                    If permitted |                    If permitted |                     ALLOW |
-| Lichess rating     |              ALLOW | If explicitly public |                    If permitted |                    If permitted |                     ALLOW |
-| Chess.com username |              ALLOW | If explicitly public |                    If permitted |                    If permitted |                     ALLOW |
-| Chess.com rating   |              ALLOW | If explicitly public |                    If permitted |                    If permitted |                     ALLOW |
-| Email              |              ALLOW |                 DENY | DENY unless explicitly required | DENY unless explicitly required |                     ALLOW |
-| Phone              |              ALLOW |                 DENY |                            DENY |                            DENY | ALLOW only when necessary |
-| Internal IDs       | ALLOW where needed |                 DENY |                            DENY |                            DENY |        ALLOW where needed |
-
-The implementation must not serialize the complete user object and rely on the frontend to hide fields.
-
-Field-level authorization is required for sensitive attributes.
-
----
-
-## 93.5 Relationship Authorization Matrix
-
-Relationship-based access is required for Coach and Parent functionality.
-
-| Relationship             | Resource            | Allowed               |
-| ------------------------ | ------------------- | --------------------- |
-| Coach → Student          | Student profile     | Allowed fields        |
-| Coach → Student          | Training history    | ALLOW                 |
-| Coach → Student          | Training analytics  | ALLOW                 |
-| Coach → Student          | Ratings             | ALLOW                 |
-| Coach → Student          | Assignments         | ALLOW                 |
-| Coach → Student          | Password            | DENY                  |
-| Coach → Student          | Login/session       | DENY                  |
-| Coach → Student          | Private credentials | DENY                  |
-| Coach → Unrelated player | Detailed data       | DENY                  |
-| Parent → Child           | Profile             | Allowed fields        |
-| Parent → Child           | Training history    | ALLOW                 |
-| Parent → Child           | Analytics           | ALLOW                 |
-| Parent → Child           | Ratings             | ALLOW                 |
-| Parent → Child           | Assignments         | ALLOW where supported |
-| Parent → Child           | Password            | DENY by default       |
-| Parent → Child           | Login/session       | DENY                  |
-| Parent → Unrelated child | Any private data    | DENY                  |
-
-A role alone is never sufficient for relationship-scoped resources.
-
----
-
-## 93.6 Administrative Decision Matrix
-
-| Admin Action             | Admin | Non-Admin | Audit Required |
-| ------------------------ | ----: | --------: | -------------: |
-| View admin dashboard     | ALLOW |      DENY |             No |
-| View user list           | ALLOW |      DENY |             No |
-| View user private fields | ALLOW |      DENY |             No |
-| Suspend user             | ALLOW |      DENY |            YES |
-| Reactivate user          | ALLOW |      DENY |            YES |
-| Change user role         | ALLOW |      DENY |            YES |
-| Delete/anonymize user    | ALLOW |      DENY |            YES |
-| Edit exercise metadata   | ALLOW |      DENY |            YES |
-| Disable exercise         | ALLOW |      DENY |            YES |
-| Create puzzle            | ALLOW |      DENY |            YES |
-| Edit puzzle              | ALLOW |      DENY |            YES |
-| Validate puzzle          | ALLOW |      DENY |            YES |
-| Review puzzle            | ALLOW |      DENY |            YES |
-| Approve puzzle           | ALLOW |      DENY |            YES |
-| Publish puzzle           | ALLOW |      DENY |            YES |
-| Retire puzzle            | ALLOW |      DENY |            YES |
-| Run generator            | ALLOW |      DENY |            YES |
-| View generator run       | ALLOW |      DENY |             No |
-| View platform analytics  | ALLOW |      DENY |             No |
-| View audit log           | ALLOW |      DENY |             No |
-| Manage support           | ALLOW |      DENY |            YES |
-
----
-
-## 93.7 Content Lifecycle Authorization
-
-The following transitions require server-side authorization:
-
-```text
-Draft
-  ↓
-Created / Generated
-  ↓
-Validated
-  ↓
-Reviewed
-  ↓
-Approved
-  ↓
-Published
-  ↓
-Active
-  ↓
-Retired
-```
-
-### Matrix
-
-| Transition            | Player | Coach | Parent | Admin |
-| --------------------- | -----: | ----: | -----: | ----: |
-| Draft → Validated     |   DENY |  DENY |   DENY | ALLOW |
-| Generated → Validated |   DENY |  DENY |   DENY | ALLOW |
-| Validated → Reviewed  |   DENY |  DENY |   DENY | ALLOW |
-| Reviewed → Approved   |   DENY |  DENY |   DENY | ALLOW |
-| Approved → Published  |   DENY |  DENY |   DENY | ALLOW |
-| Published → Active    |   DENY |  DENY |   DENY | ALLOW |
-| Active → Retired      |   DENY |  DENY |   DENY | ALLOW |
-| Retired → Active      |   DENY |  DENY |   DENY | ALLOW |
-
-The client must not be able to select an arbitrary lifecycle state.
-
----
-
-## 93.8 Training Submission Decision Matrix
-
-| Condition                                           | Decision                                |
-| --------------------------------------------------- | --------------------------------------- |
-| Valid authenticated player + valid exercise session | ALLOW                                   |
-| Valid guest session                                 | ALLOW under guest rules                 |
-| Expired session                                     | DENY                                    |
-| Session belongs to another user                     | DENY                                    |
-| Exercise disabled                                   | DENY                                    |
-| Puzzle unpublished                                  | DENY                                    |
-| Answer schema invalid                               | DENY                                    |
-| Client submits score                                | Ignore/reject client score              |
-| Client submits rating change                        | Ignore/reject client rating             |
-| Client submits XP                                   | Ignore/reject client XP                 |
-| Client submits correctness                          | Ignore/reject client correctness        |
-| Client submits fabricated elapsed time              | Do not trust                            |
-| Duplicate idempotency key                           | Return original result or safe conflict |
-| Attempt for another user's session                  | DENY                                    |
-
----
-
-## 93.9 Guest Decision Matrix
-
-| Operation                            | Guest |
-| ------------------------------------ | ----: |
-| Browse exercises                     | ALLOW |
-| Start exercise                       | ALLOW |
-| Submit exercise answer               | ALLOW |
-| Create temporary history             | ALLOW |
-| View own temporary history           | ALLOW |
-| View another guest's history         |  DENY |
-| View registered user's history       |  DENY |
-| Modify another guest session         |  DENY |
-| Convert own guest session to account | ALLOW |
-| Convert another guest session        |  DENY |
-| Access admin                         |  DENY |
-| Access private profiles              |  DENY |
-| Access platform analytics            |  DENY |
-
----
-
-## 93.10 Guest Migration Decision Matrix
-
-| Condition                                       | Decision                                                  |
-| ----------------------------------------------- | --------------------------------------------------------- |
-| Valid guest session + authenticated new account | ALLOW                                                     |
-| Guest session belongs to requester              | Required                                                  |
-| Guest session expired                           | DENY                                                      |
-| Guest already migrated                          | DENY or idempotent original result                        |
-| Guest belongs to another account                | DENY                                                      |
-| Attempt to migrate arbitrary guest ID           | DENY                                                      |
-| Duplicate migration request                     | Idempotent                                                |
-| Migration partially fails                       | Roll back atomic data or enter explicit recoverable state |
-| XP already migrated                             | Never award twice                                         |
-| Achievement already migrated                    | Never award twice                                         |
-| Rating history already migrated                 | Never duplicate                                           |
-
----
-
-## 93.11 API Authorization Matrix
-
-Every protected API endpoint must declare:
-
-```text id="a5uj4s"
-authentication requirement
-required capability
-object scope
-relationship requirement
-field restrictions
-rate limit
-audit requirement
-```
-
-Example:
-
-| Endpoint Type           | Auth     | Capability      | Object Check              | Audit |
-| ----------------------- | -------- | --------------- | ------------------------- | ----- |
-| Public exercise catalog | None     | None            | No                        | No    |
-| Own profile             | Required | profile.read    | Self                      | No    |
-| Update own profile      | Required | profile.write   | Self                      | No    |
-| Own history             | Required | history.read    | Self                      | No    |
-| Student history         | Required | history.read    | Coach/Parent relationship | No    |
-| Admin users             | Required | users.read      | Admin                     | No    |
-| Admin role change       | Required | users.manage    | Admin + target            | YES   |
-| Puzzle publish          | Required | puzzles.publish | Admin + puzzle            | YES   |
-| Generator run           | Required | generators.run  | Admin                     | YES   |
-| Audit log               | Required | audit.read      | Admin                     | No    |
-
----
-
-## 93.12 HTTP Decision Matrix
-
-| Situation                                 | HTTP Result                                       |
-| ----------------------------------------- | ------------------------------------------------- |
-| No authentication where required          | `401 Unauthorized`                                |
-| Authenticated but insufficient permission | `403 Forbidden`                                   |
-| Resource intentionally hidden from caller | `404 Not Found` may be used                       |
-| Invalid request schema                    | `400 Bad Request` or validation-specific response |
-| Valid schema but invalid business state   | `409 Conflict` where appropriate                  |
-| Rate limit exceeded                       | `429 Too Many Requests`                           |
-| Successful read                           | `200 OK`                                          |
-| Successful creation                       | `201 Created`                                     |
-| Successful deletion with no body          | `204 No Content`                                  |
-
-The exact API error envelope remains governed by `API_CONTRACTS.md`.
-
----
-
-## 93.13 Field-Level Mass Assignment Matrix
-
-The server must maintain an explicit allowlist of fields that each operation may modify.
-
-### Player self-update
-
-Allowed examples:
-
-```text
-display_name
-avatar
-bio
-privacy_settings
-external_chess_identities
-```
-
-Forbidden:
-
-```text
-role
-permissions
-rating
-rating_history
-xp
-achievements
-account_status
-verified
-created_at
-```
-
-### Admin update
-
-Admin operations may modify additional fields, but still through explicit command schemas.
-
-Never accept an entire database model as an update payload.
-
----
-
-## 93.14 Security Decision Priority
-
-When multiple rules appear to apply, use this order:
-
-```text
-1. Account/session validity
-2. Global security restriction
-3. Role/capability
-4. Object ownership
-5. Relationship
-6. Resource state
-7. Field-level permission
-8. Business rule
-9. Rate limit / abuse policy
-10. Allow
-```
-
-Any failed mandatory check results in denial.
-
----
-
-## 93.15 Authorization Test Matrix
-
-Every major protected resource should have tests covering at least:
-
-| Actor            | Target              | Expected |
-| ---------------- | ------------------- | -------- |
-| Player A         | Player A data       | ALLOW    |
-| Player A         | Player B data       | DENY     |
-| Coach A          | Assigned Student A  | ALLOW    |
-| Coach A          | Student B           | DENY     |
-| Parent A         | Child A             | ALLOW    |
-| Parent A         | Child B             | DENY     |
-| Player           | Admin endpoint      | DENY     |
-| Coach            | Admin endpoint      | DENY     |
-| Parent           | Admin endpoint      | DENY     |
-| Admin            | Admin resource      | ALLOW    |
-| Guest            | Public resource     | ALLOW    |
-| Guest            | Private player data | DENY     |
-| Expired session  | Protected resource  | DENY     |
-| Disabled account | Protected resource  | DENY     |
-| Forged object ID | Unauthorized object | DENY     |
-| Forged role      | Privileged endpoint | DENY     |
-
-These tests are mandatory because authorization bugs often occur at object, function, and field boundaries rather than simply at the top-level role check.
-
----
-
-## 93.16 Final Decision Rule
-
-If the implementation cannot answer all of the following questions for an endpoint, the endpoint is not security-complete:
-
-```text
-Who is calling?
-What capability do they have?
-What exact object are they accessing?
-Do they own it?
-If not, what relationship grants access?
-What fields may they see?
-What fields may they modify?
-What resource state is required?
-What abuse controls apply?
-Should the operation be audited?
-```
-
-If any answer is unknown:
-
-```text
-DENY BY DEFAULT
-```
-
-This matrix is the concrete implementation baseline for the platform's authorization model.
-
-# 94. Canonical Role and Capability Vocabulary
-
-This section defines the canonical vocabulary for roles and capabilities across the entire MicroChess platform.
-
-These identifiers are normative.
-
-The same names must be used consistently across:
-
-* backend authorization
-* database role/permission records
-* API policies
-* frontend permission checks
-* tests
-* audit logs
-* documentation
-* seed data
-* admin UI
-* future integrations
-
-Do not introduce synonymous identifiers for the same concept.
-
-The authorization model uses roles for coarse-grained identity classification and capabilities for explicit permissions. Object ownership, relationship state, resource state and other attributes remain separate authorization conditions.
-
-This avoids excessive dependence on role-only checks and supports the more fine-grained relationship/attribute checks required by the platform. OWASP recommends least privilege, deny-by-default, permission validation on every request, and relationship/attribute-aware authorization for complex applications.
-
----
-
-## 94.1 Canonical Roles
-
-The platform has exactly four authenticated application roles at the current target state:
-
-```text id="roles"
-PLAYER
-COACH
-PARENT
-ADMIN
-```
-
-There is also:
-
-```text id="guest"
-GUEST
-```
-
-but `GUEST` is not an authenticated account role.
-
-It represents a temporary/unauthenticated training identity.
-
----
-
-## 94.2 Role Definitions
-
-### `PLAYER`
-
-The normal authenticated MicroChess learner.
-
-A Player may:
-
-* maintain their own profile
-* practice exercises
-* participate in speed sessions
-* submit answers
-* accumulate training history
-* receive exercise-specific ratings
-* receive XP
-* earn achievements
-* manage personal goals
-* view personal analytics
-* optionally expose selected public profile information
-* optionally provide external chess identities
-
-A Player does not automatically gain access to another player's private data.
-
----
-
-### `COACH`
-
-A Coach is an authenticated user who has coaching capabilities.
-
-A Coach may:
-
-* maintain their own Player-like profile
-* perform normal training activities
-* access authorized student information
-* view assigned student history
-* view assigned student analytics
-* view assigned student ratings
-* manage permitted student assignments
-* eventually assign exercises/training plans
-
-A Coach does **not** automatically have access to:
-
-* all players
-* all student accounts
-* passwords
-* authentication credentials
-* unrestricted private information
-* administrative functionality
-
-Coach access is relationship-scoped.
-
-```text id="coachrelationship"
-COACH
-  +
-ACTIVE COACH_STUDENT RELATIONSHIP
-  +
-ALLOWED CAPABILITY
-  =
-AUTHORIZED ACCESS
-```
-
----
-
-### `PARENT`
-
-A Parent is an authenticated user who has parent/child access.
-
-A Parent may:
-
-* maintain their own account
-* access permitted information about their children
-* view authorized training history
-* view authorized analytics
-* view authorized ratings
-* eventually receive progress reports and notifications
-
-Parent access is relationship-scoped.
-
-A Parent is not an Admin and does not automatically have unrestricted control over the child's account.
-
----
-
-### `ADMIN`
-
-An Admin is an authenticated privileged user responsible for platform administration.
-
-Admin capabilities include:
-
-* user management
-* role management
-* exercise management
-* puzzle management
-* generator management
-* content lifecycle management
-* platform analytics
-* support management
-* audit-log access
-* platform configuration where explicitly permitted
-
-Admin privileges must still be implemented through explicit capabilities.
-
-Do not use:
-
-```python
-if user.role == "admin":
-    allow_everything()
-```
-
-as the authorization architecture.
-
----
-
-## 94.3 Role Storage
-
-The canonical persisted role identifiers are:
-
-```text
-player
-coach
-parent
-admin
-```
-
-The implementation may represent these using:
-
-* enum
-* constrained string
-* normalized database table
-
-depending on the existing repository architecture.
-
-The exact storage mechanism must be determined after repository inspection.
-
-The semantic vocabulary must not change.
-
----
-
-# 95. Canonical Capability Vocabulary
-
-Capabilities are normalized identifiers representing an allowed action.
-
-The canonical naming convention is:
-
-```text
-<resource>.<action>
-```
-
-Examples:
-
-```text
-profile.read
-profile.write
-training.attempt
-users.read
-users.manage
-puzzles.publish
-```
-
-Do not use mixed naming conventions such as:
-
-```text
-manage_users
-user.manage
-adminUsers
-USER_ADMIN
-```
-
-for the same capability.
-
----
-
-## 95.1 Capability Categories
-
-The initial canonical capability namespaces are:
-
-```text
-profile.*
-training.*
-history.*
-ratings.*
-gamification.*
-analytics.*
-leaderboards.*
-relationships.*
-users.*
-roles.*
-exercises.*
-puzzles.*
-generators.*
-support.*
-audit.*
-system.*
-```
-
----
-
-# 96. Profile Capabilities
-
-```text id="profilecap"
-profile.read
-profile.write
-profile.read_public
-profile.manage_external_identities
-profile.manage_privacy
-```
-
-### Definitions
-
-`profile.read`
-
-Read the caller's own profile.
-
-`profile.write`
-
-Modify permitted fields of the caller's own profile.
-
-`profile.read_public`
-
-Read fields explicitly marked as public on another player's profile.
-
-`profile.manage_external_identities`
-
-Create, update or remove the caller's FIDE/Lichess/Chess.com identity information.
-
-`profile.manage_privacy`
-
-Modify the caller's profile/privacy visibility settings.
-
----
-
-# 97. Training Capabilities
-
-```text id="trainingcap"
-training.read
-training.start
-training.attempt
-training.manage_session
-```
-
-### Definitions
-
-`training.read`
-
-Read training information that the caller is authorized to see.
-
-`training.start`
-
-Start an exercise/session.
-
-`training.attempt`
-
-Submit an exercise answer.
-
-`training.manage_session`
-
-Perform permitted lifecycle operations on the caller's own training session.
-
-The server remains authoritative for:
-
-* correctness
-* score
-* timing
-* rating
-* XP
-* achievements
-
-Possessing `training.attempt` does not grant permission to modify those values directly.
-
----
-
-# 98. History Capabilities
-
-```text id="historycap"
-history.read
-history.read_related
-history.delete
-```
-
-### Definitions
-
-`history.read`
-
-Read the caller's own historical training records.
-
-`history.read_related`
-
-Read history belonging to a user who is connected through an authorized Coach/Parent relationship.
-
-`history.delete`
-
-Delete or request deletion of historical records where the product policy permits it.
-
-Historical deletion must never be interpreted as permission to alter immutable rating or audit records arbitrarily.
-
----
-
-# 99. Rating Capabilities
-
-```text id="ratingcap"
-ratings.read
-ratings.read_related
-```
-
-Ratings are generated by the platform.
-
-There is intentionally no generic capability such as:
-
-```text
-ratings.write
-```
-
-for normal players.
-
-A player's rating is an authoritative derived state.
-
-Administrative correction, recalculation or migration must use dedicated administrative capabilities rather than exposing arbitrary rating mutation.
-
-Future capabilities may include:
-
-```text
-ratings.recalculate
-ratings.correct
-```
-
-but they are not part of the initial player vocabulary.
-
----
-
-# 100. Gamification Capabilities
-
-```text id="gamificationcap"
-gamification.read
-gamification.read_related
-```
-
-These allow reading:
-
-* XP
-* levels
-* achievements
-* streaks
-* goals
-* milestones
-* records
-
-There is intentionally no player-facing:
-
-```text
-gamification.write
-```
-
-capability.
-
-Gamification state must be derived from authoritative platform events.
-
----
-
-# 101. Analytics Capabilities
-
-```text id="analyticscap"
-analytics.read
-analytics.read_related
-analytics.read_platform
-analytics.read_exercise
-analytics.read_puzzle
-```
-
-### `analytics.read`
-
-Read the caller's own analytics.
-
-### `analytics.read_related`
-
-Read analytics for authorized Coach/Parent relationships.
-
-### `analytics.read_platform`
-
-Read platform-level administrative analytics.
-
-### `analytics.read_exercise`
-
-Read exercise-level analytics.
-
-### `analytics.read_puzzle`
-
-Read puzzle-level analytics.
-
-The last three are administrative capabilities unless a future product decision explicitly exposes a subset elsewhere.
-
----
-
-# 102. Leaderboard Capabilities
-
-```text id="leaderboardcap"
-leaderboards.read
-leaderboards.manage
-```
-
-`leaderboards.read`
-
-Read leaderboards subject to privacy rules.
-
-`leaderboards.manage`
-
-Configure or administer leaderboard behavior.
-
-Players must never receive unrestricted access to private leaderboard source data merely because they can view a public leaderboard.
-
----
-
-# 103. Relationship Capabilities
-
-```text id="relationshipcap"
-relationships.read
-relationships.create
-relationships.accept
-relationships.manage
-relationships.revoke
-```
-
-These capabilities govern relationship lifecycle operations.
-
-However, possessing a relationship capability does not itself authorize access to every object involved.
-
-For example:
-
-```text
-relationships.read
-```
-
-does not automatically grant access to private student analytics.
-
-The relationship and the requested resource capability must both be satisfied.
-
----
-
-# 104. User Management Capabilities
-
-```text id="usercap"
-users.read
-users.read_private
-users.manage
-users.suspend
-users.reactivate
-users.delete
-```
-
-### `users.read`
-
-Read administrative user information that does not require sensitive fields.
-
-### `users.read_private`
-
-Read sensitive user information when administratively justified.
-
-### `users.manage`
-
-Perform permitted administrative account changes.
-
-### `users.suspend`
-
-Suspend an account.
-
-### `users.reactivate`
-
-Reactivate an account.
-
-### `users.delete`
-
-Perform an approved deletion/anonymization operation.
-
-These capabilities are administrative.
-
----
-
-# 105. Role Management Capabilities
-
-```text id="rolecap"
-roles.read
-roles.assign
-roles.revoke
-```
-
-Role changes are security-sensitive and must be audited.
-
-A client must never be able to assign itself a role by submitting:
-
-```json
-{
-  "role": "admin"
-}
-```
-
-Role changes must be performed through an authorized server-side operation.
-
----
-
-# 106. Exercise Management Capabilities
-
-```text id="exercisecap"
-exercises.read
-exercises.create
-exercises.update
-exercises.enable
-exercises.disable
-exercises.delete
-```
-
-Normal players may read published exercise information through the public/player training surface.
-
-Administrative management capabilities control the exercise definition itself.
-
-`exercises.delete` should be avoided for published content where retirement is safer.
-
----
-
-# 107. Puzzle Management Capabilities
-
-```text id="puzzlecap"
-puzzles.read
-puzzles.create
-puzzles.update
-puzzles.validate
-puzzles.review
-puzzles.approve
-puzzles.publish
-puzzles.retire
-```
-
-The lifecycle is:
-
-```text
-create
-  ↓
-validate
-  ↓
-review
-  ↓
-approve
-  ↓
-publish
-  ↓
-retire
-```
-
-A capability must not implicitly grant every lifecycle transition.
-
-For example:
-
-```text
-puzzles.update
-```
-
-does not imply:
-
-```text
-puzzles.publish
-```
-
-This separation is intentional.
-
----
-
-# 108. Generator Capabilities
-
-```text id="generatorcap"
-generators.read
-generators.create
-generators.update
-generators.run
-generators.cancel
-generators.delete
-```
-
-Generator execution may be computationally expensive.
-
-Therefore:
-
-```text
-generators.run
-```
-
-must be independently authorized and rate/resource limited.
-
-Generated content remains untrusted until validation/review/approval.
-
----
-
-# 109. Support Capabilities
-
-```text id="supportcap"
-support.create
-support.read_own
-support.read
-support.respond
-support.close
-support.manage
-```
-
-### Player/Guest
-
-Normally:
-
-```text
-support.create
-support.read_own
-```
-
-### Admin
-
-May additionally have:
-
-```text
-support.read
-support.respond
-support.close
-support.manage
-```
-
-Support messages may contain personal information and must be protected accordingly.
-
----
-
-# 110. Audit Capabilities
-
-```text id="auditcap"
-audit.read
-audit.export
-```
-
-Audit logs are administrative/security data.
-
-Normal players, coaches and parents must not have access to platform audit logs.
-
----
-
-# 111. System Capabilities
-
-System capabilities are reserved for internal application processes.
-
-Initial vocabulary:
-
-```text id="systemcap"
-system.jobs
-system.maintenance
-system.recalculate
-```
-
-These are not normal user permissions.
-
-They must not be granted to Player, Coach or Parent accounts.
-
-The exact internal mechanism may use service identities rather than application roles.
-
----
-
-# 112. Canonical Role-to-Capability Baseline
-
-The following is the initial baseline.
-
-### Player
-
-```text
-profile.read
-profile.write
-profile.read_public
-profile.manage_external_identities
-profile.manage_privacy
-
-training.read
-training.start
-training.attempt
-training.manage_session
-
-history.read
-
-ratings.read
-
-gamification.read
-
-analytics.read
-
-leaderboards.read
-
-support.create
-support.read_own
-```
-
----
-
-### Coach
-
-Coach inherits the normal Player capabilities appropriate to their own account and additionally receives:
-
-```text
-history.read_related
-ratings.read_related
-gamification.read_related
-analytics.read_related
-
-relationships.read
-relationships.create
-relationships.accept
-relationships.manage
-relationships.revoke
-```
-
-Additional assignment capabilities may be introduced when the Coach assignment feature is implemented.
-
----
-
-### Parent
-
-Parent inherits normal Player capabilities appropriate to their own account and additionally receives:
-
-```text
-history.read_related
-ratings.read_related
-gamification.read_related
-analytics.read_related
-
-relationships.read
-relationships.accept
-relationships.revoke
-```
-
-Parent does not automatically receive:
-
-```text
-relationships.create
-```
-
-for arbitrary relationships.
-
-Parent/child relationship creation should use the dedicated invitation/verification workflow.
-
----
-
-### Admin
-
-Admin receives the administrative capabilities required for platform operation, including:
-
-```text
-users.read
-users.read_private
-users.manage
-users.suspend
-users.reactivate
-users.delete
-
-roles.read
-roles.assign
-roles.revoke
-
-exercises.read
-exercises.create
-exercises.update
-exercises.enable
-exercises.disable
-exercises.delete
-
-puzzles.read
-puzzles.create
-puzzles.update
-puzzles.validate
-puzzles.review
-puzzles.approve
-puzzles.publish
-puzzles.retire
-
-generators.read
-generators.create
-generators.update
-generators.run
-generators.cancel
-generators.delete
-
-analytics.read_platform
-analytics.read_exercise
-analytics.read_puzzle
-
-support.read
-support.respond
-support.close
-support.manage
-
-audit.read
-audit.export
-```
-
-Admin capabilities must still be checked individually where practical.
-
----
-
-# 113. Capability Does Not Equal Access
-
-A capability is only one input into the authorization decision.
-
-The final decision is conceptually:
-
-```text
-ALLOW =
-    authenticated
-    AND account_active
-    AND has_capability
-    AND object_allowed
-    AND relationship_allowed
-    AND resource_state_allowed
-    AND business_rules_allowed
-```
-
-For public operations:
-
-```text
-ALLOW =
-    explicitly_public
-    AND resource_state_allowed
-```
-
-For guest operations:
-
-```text
-ALLOW =
-    valid_guest_session
-    AND guest_capability
-    AND guest_scope
-```
-
----
-
-# 114. No Wildcard Capabilities
-
-Do not introduce:
-
-```text
-*
-admin.*
-all
-everything
-superuser
-```
-
-as normal application capabilities.
-
-A privileged role may map to many explicit capabilities, but the capability vocabulary itself should remain explicit and auditable.
-
-This supports least privilege and makes authorization decisions easier to test and review.
-
----
-
-# 115. No Synonym Capabilities
-
-The following are examples of forbidden duplicates:
-
-```text
-users.manage
-user.manage
-users.admin
-admin.users
-manage_users
-manage.users
-```
-
-Choose one canonical identifier:
-
-```text
-users.manage
-```
-
-and use it everywhere.
-
----
-
-# 116. No Capability Inference From Names
-
-Do not implement logic such as:
-
-```python
-if capability.startswith("admin."):
-    ...
-```
-
-or:
-
-```python
-if "manage" in capability:
-    ...
-```
-
-Capabilities are identifiers, not executable policy.
-
-Authorization policy must explicitly map capabilities to actions.
-
----
-
-# 117. Capability Registry
-
-The implementation should have one authoritative capability registry.
+# 81. Security Responsibility by Layer
 
 Conceptually:
 
 ```text
-CapabilityRegistry
-    profile.read
-    profile.write
-    profile.read_public
-    ...
+Browser
+    ↓
+HTTP/API Boundary
+    ↓
+Authentication
+    ↓
+Authorization
+    ↓
+Application Use Case
+    ↓
+Domain Rules
+    ↓
+Persistence
 ```
 
-The registry should define at least:
+Each layer has a role.
 
-```text
-identifier
-description
-category
-sensitive
-administrative
-```
-
-The exact implementation location must be determined after repository inspection.
-
-Do not duplicate the canonical vocabulary across unrelated files.
+Security-critical decisions must not exist only in the frontend.
 
 ---
 
-# 118. Capability Naming Rules
+# 82. Security and Existing Exercises
 
-Every capability must:
+The platform expansion must not weaken existing exercise protections.
 
-1. use lowercase
-2. use dot-separated namespaces
-3. use stable English identifiers
-4. represent an action
-5. avoid implementation-specific terminology
-6. avoid database-table names when unnecessary
-7. remain understandable without reading source code
+Existing exercise systems must continue to enforce:
 
-Good:
+* server-side correctness
+* controlled question delivery
+* appropriate session authority
+* hidden-answer protection
+* proper history recording
 
-```text
-puzzles.publish
-analytics.read_platform
-profile.manage_privacy
-```
-
-Bad:
-
-```text
-canPublishPuzzle
-PuzzleModel.publish_allowed
-ADMIN_PUZZLE_7
-do_puzzle_admin
-```
+New platform infrastructure must integrate with the existing exercise architecture rather than creating a parallel security model.
 
 ---
 
-# 119. Adding a New Capability
+# 83. Security and API Evolution
 
-A new capability may be introduced only when:
+When an API changes, review:
 
-1. a real business action requires it
-2. the existing vocabulary cannot represent it safely
-3. its authorization semantics are documented
-4. affected roles are documented
-5. object/relationship conditions are documented
-6. tests are added
-7. audit requirements are documented where appropriate
+* authentication
+* authorization
+* ownership
+* privacy
+* replay protection
+* validation
+* error leakage
 
-Do not create a new capability merely because an endpoint exists.
+A seemingly harmless endpoint change can create an authorization bypass.
 
----
-
-# 120. Capability Removal
-
-Removing a capability requires checking:
-
-* backend authorization
-* API contracts
-* frontend permission checks
-* database seeds
-* tests
-* audit logs
-* documentation
-* role mappings
-
-Never silently rename a capability.
-
-If a semantic replacement is required, treat it as an explicit authorization change.
+API contract changes must be security-reviewed when they alter resource access or state-changing behavior.
 
 ---
 
-# 121. Role Changes
+# 84. Security and Future Notifications
 
-Roles are intentionally fewer than capabilities.
+Notifications are not a canonical standalone roadmap phase.
 
-Do not create roles such as:
+If notifications are added later, they must follow:
 
-```text
-PuzzleManager
-AnalyticsManager
-SupportManager
-SeniorCoach
-JuniorCoach
-ContentReviewer
-```
+* authorization
+* recipient ownership
+* privacy
+* anti-spam controls
+* rate limits where necessary
 
-unless a real product requirement later justifies them.
-
-When a distinction is about **what a user can do**, prefer a capability.
-
-When a distinction is about **what kind of relationship/identity the user has**, prefer a role or relationship.
-
-When a distinction is about **which specific object the user may access**, use object/relationship authorization.
-
-This prevents role explosion and keeps the model maintainable. OWASP notes that RBAC can become difficult to manage as roles proliferate and recommends finer-grained attribute/relationship-based controls for complex authorization.
+Do not introduce notification infrastructure merely because a future design may use notifications.
 
 ---
 
-# 122. Canonical Vocabulary Summary
+# 85. Security and Future Adaptive Training
 
-## Roles
+Adaptive training must not expose private or unrelated-player information.
 
-```text
-player
-coach
-parent
-admin
-```
+Future recommendation systems should use only data the current identity is authorized to influence or view.
 
-## Profile
-
-```text
-profile.read
-profile.write
-profile.read_public
-profile.manage_external_identities
-profile.manage_privacy
-```
-
-## Training
-
-```text
-training.read
-training.start
-training.attempt
-training.manage_session
-```
-
-## History
-
-```text
-history.read
-history.read_related
-history.delete
-```
-
-## Ratings
-
-```text
-ratings.read
-ratings.read_related
-```
-
-## Gamification
-
-```text
-gamification.read
-gamification.read_related
-```
-
-## Analytics
-
-```text
-analytics.read
-analytics.read_related
-analytics.read_platform
-analytics.read_exercise
-analytics.read_puzzle
-```
-
-## Leaderboards
-
-```text
-leaderboards.read
-leaderboards.manage
-```
-
-## Relationships
-
-```text
-relationships.read
-relationships.create
-relationships.accept
-relationships.manage
-relationships.revoke
-```
-
-## Users
-
-```text
-users.read
-users.read_private
-users.manage
-users.suspend
-users.reactivate
-users.delete
-```
-
-## Roles
-
-```text
-roles.read
-roles.assign
-roles.revoke
-```
-
-## Exercises
-
-```text
-exercises.read
-exercises.create
-exercises.update
-exercises.enable
-exercises.disable
-exercises.delete
-```
-
-## Puzzles
-
-```text
-puzzles.read
-puzzles.create
-puzzles.update
-puzzles.validate
-puzzles.review
-puzzles.approve
-puzzles.publish
-puzzles.retire
-```
-
-## Generators
-
-```text
-generators.read
-generators.create
-generators.update
-generators.run
-generators.cancel
-generators.delete
-```
-
-## Support
-
-```text
-support.create
-support.read_own
-support.read
-support.respond
-support.close
-support.manage
-```
-
-## Audit
-
-```text
-audit.read
-audit.export
-```
-
-## System
-
-```text
-system.jobs
-system.maintenance
-system.recalculate
-```
+Adaptive logic must not become an authorization bypass.
 
 ---
 
-# 123. Final Authorization Vocabulary Rule
+# 86. Security Completion Rule
 
-The canonical model is:
-
-```text
-ROLE
-  ↓
-grants baseline CAPABILITIES
-  ↓
-CAPABILITY
-  ↓
-permits an ACTION
-  ↓
-OBJECT / RELATIONSHIP / STATE checks
-  ↓
-FINAL AUTHORIZATION DECISION
-```
-
-Therefore:
+A security requirement is complete only when:
 
 ```text
-Role ≠ Permission
-Permission ≠ Ownership
-Ownership ≠ Relationship
-Relationship ≠ unrestricted access
-Frontend visibility ≠ authorization
+Requirement
+    ↓
+Implementation
+    ↓
+Authorization
+    ↓
+Validation
+    ↓
+Persistence safety
+    ↓
+Tests
+    ↓
+Runtime verification where relevant
+    ↓
+Documentation
 ```
 
-The backend remains the final authority.
-
-Any implementation that cannot map an authorization decision to this vocabulary must document the reason before introducing a new role, capability, or policy concept.
-
-This vocabulary is the baseline contract for all future platform authorization work.
-
-# 124. Explicit Guest Capability Policy
-
-Guest access is intentionally limited.
-
-A Guest is a temporary training identity, not an authenticated application role.
-
-Guest access exists to reduce friction before registration while ensuring that temporary access cannot become a substitute for an authenticated account.
-
-The Guest policy is explicit and deny-by-default.
-
-A capability not listed in this section is **not available to Guests**.
+A middleware check alone is not sufficient evidence of security completeness.
 
 ---
 
-# 124. Explicit Guest Capability Policy
+# 87. Final Security Rules
 
-Guest is a temporary access subject, not a separate capability vocabulary.
-
-The canonical authorization vocabulary defined in Section 95 MUST remain the only capability vocabulary used by the platform.
-
-Guest access therefore uses the same canonical capability identifiers as authenticated users, but with a strictly narrower scope.
-
-A capability being available to a Player does **not** mean that the Guest automatically receives it.
-
-Guest authorization is explicitly allowlisted.
-
----
-
-## 124.1 Guest Identity Model
-
-The platform recognizes:
+The following rules are non-negotiable:
 
 ```text
-player
-coach
-parent
-admin
+The browser is untrusted.
+
+The server owns authoritative state.
+
+Authentication is not authorization.
+
+Role is not object authorization.
+
+Guest is not a persisted role.
+
+Every protected resource requires appropriate authorization.
+
+Historical facts are protected from ordinary client mutation.
+
+Attempt submission must be replay-safe.
+
+Ratings and gamification are server-controlled.
+
+Hidden answers never reach the client before submission.
+
+Speed timing is server-authoritative.
+
+Generated content is not automatically trusted.
+
+Private data is not exposed by default.
+
+Sensitive administrative actions are auditable.
+
+Security mechanisms must remain simple enough to understand and test.
 ```
 
-as authenticated application roles.
-
-Guest is different.
+The security architecture should optimize for:
 
 ```text
-GUEST
-=
-temporary unauthenticated access subject
-```
-
-Guest does not represent a persisted application role.
-
-A Guest may have:
-
-```text
-guest_session
-guest_identity
-temporary_training_data
-```
-
-but does not have an authenticated application account.
-
-Therefore:
-
-```text
-Guest ≠ Player
-Guest ≠ temporary Player role
-Guest ≠ low-privilege Admin
-```
-
----
-
-## 124.2 Canonical Guest Capability Set
-
-The canonical Guest capability set is:
-
-```text
-training.read
-training.start
-training.attempt
-support.create
-accounts.migrate_guest
-```
-
-No other capability is granted to Guests unless this document is explicitly updated.
-
-In particular, Guest does **not** receive the complete Player capability set.
-
----
-
-## 124.3 Capability Scope
-
-Guest capabilities have narrower object scope than their authenticated equivalents.
-
-For example:
-
-```text
-training.read
-```
-
-for a Player means:
-
-```text
-read authorized training data belonging to the authenticated Player
-```
-
-while for a Guest it means:
-
-```text
-read temporary training data belonging to the current Guest session
-```
-
-Therefore:
-
-```text
-same capability
+Correctness
 +
-different subject
+Least Privilege
 +
-different object scope
-=
-different authorization result
+Privacy
++
+Server Authority
++
+Testability
++
+Low Unnecessary Complexity
 ```
-
-Capabilities do not eliminate object-level authorization.
-
----
-
-# 125. Guest Capability Definitions
-
-## 125.1 `training.read`
-
-Guest access:
-
-```text
-ALLOW
-```
-
-only for:
-
-* the current guest training session
-* the current guest's temporary attempts
-* the current guest's temporary progress
-* other temporary training state explicitly associated with the current guest identity
-
-Guest access is denied for:
-
-* another Guest's data
-* registered Player history
-* Coach data
-* Parent data
-* platform analytics
-* administrative analytics
-* private training data belonging to any other identity
-
-The server derives the Guest identity from the validated guest session.
-
-The client cannot establish ownership by submitting a guest ID.
-
----
-
-## 125.2 `training.start`
-
-Guest access:
-
-```text
-ALLOW
-```
-
-only when:
-
-```text
-valid guest session
-AND
-exercise is published
-AND
-exercise is enabled
-AND
-exercise is available to guests
-AND
-guest is within applicable abuse/rate limits
-```
-
-The server creates and owns the authoritative training session.
-
-The Guest cannot choose authoritative:
-
-```text
-session owner
-session start time
-session expiration
-score
-rating
-```
-
----
-
-## 125.3 `training.attempt`
-
-Guest access:
-
-```text
-ALLOW
-```
-
-only for an active training session belonging to the current Guest.
-
-The server determines:
-
-* correctness
-* score
-* timing
-* attempt result
-* progression
-* any temporary gamification state
-
-The Guest cannot directly set:
-
-```text
-score
-correctness
-rating
-rating_delta
-XP
-achievement
-elapsed_time
-```
-
-as authoritative values.
-
----
-
-## 125.4 `support.create`
-
-Guest access:
-
-```text
-ALLOW
-```
-
-for creating a support/contact request.
-
-It must be protected by appropriate abuse controls.
-
-Guest support access does not grant:
-
-```text
-support.read
-support.respond
-support.close
-support.manage
-```
-
-A Guest may only read the status of a support request if a future explicit capability and secure ownership mechanism are introduced.
-
----
-
-## 125.5 `accounts.migrate_guest`
-
-This is the only account-related capability granted to a Guest.
-
-It allows the current Guest's temporary training data to be migrated into an authenticated Player account.
-
-Required conditions:
-
-```text
-valid guest session
-AND
-authenticated target account
-AND
-guest session belongs to requester
-AND
-target account is active
-AND
-guest data has not already been migrated
-```
-
-The operation must be:
-
-* ownership-checked
-* idempotent
-* replay-resistant
-* transactionally safe
-* protected against cross-guest access
-
----
-
-# 126. Guest Capabilities Explicitly Not Granted
-
-The following canonical capabilities are **not** granted to Guests:
-
-```text
-profile.read
-profile.write
-profile.read_public
-profile.manage_external_identities
-profile.manage_privacy
-
-training.manage_session
-
-history.read
-history.read_related
-history.delete
-
-ratings.read
-ratings.read_related
-
-gamification.read
-gamification.read_related
-
-analytics.read
-analytics.read_related
-analytics.read_platform
-analytics.read_exercise
-analytics.read_puzzle
-
-leaderboards.read
-leaderboards.manage
-
-relationships.read
-relationships.create
-relationships.accept
-relationships.manage
-relationships.revoke
-
-users.read
-users.read_private
-users.manage
-users.suspend
-users.reactivate
-users.delete
-
-roles.read
-roles.assign
-roles.revoke
-
-exercises.read
-exercises.create
-exercises.update
-exercises.enable
-exercises.disable
-exercises.delete
-
-puzzles.read
-puzzles.create
-puzzles.update
-puzzles.validate
-puzzles.review
-puzzles.approve
-puzzles.publish
-puzzles.retire
-
-generators.read
-generators.create
-generators.update
-generators.run
-generators.cancel
-generators.delete
-
-support.read_own
-support.read
-support.respond
-support.close
-support.manage
-
-audit.read
-audit.export
-
-system.jobs
-system.maintenance
-system.recalculate
-```
-
-### Important distinction
-
-`exercises.read` is not granted to Guests as a capability.
-
-Public exercise discovery is treated as a **public resource**, not as an authenticated capability.
-
-Therefore:
-
-```text
-public exercise catalog
-=
-public access
-
-private/exercise-management data
-=
-requires explicit authorization
-```
-
-This avoids creating unnecessary authenticated capabilities for genuinely public resources.
-
----
-
-# 127. Guest Capability Matrix
-
-| Canonical Capability     | Guest | Scope                                        |
-| ------------------------ | ----: | -------------------------------------------- |
-| `training.read`          | ALLOW | Own temporary training data                  |
-| `training.start`         | ALLOW | Public guest-eligible exercises              |
-| `training.attempt`       | ALLOW | Own active session                           |
-| `support.create`         | ALLOW | Create own support request                   |
-| `accounts.migrate_guest` | ALLOW | Migrate own guest data                       |
-| `profile.*`              |  DENY | Guest has no profile                         |
-| `history.*`              |  DENY | Temporary training data uses `training.read` |
-| `ratings.*`              |  DENY | No persistent guest rating                   |
-| `gamification.*`         |  DENY | No persistent guest gamification             |
-| `analytics.*`            |  DENY | No private analytics                         |
-| `leaderboards.*`         |  DENY | Public leaderboard is public resource access |
-| `relationships.*`        |  DENY | Requires authenticated account               |
-| `users.*`                |  DENY | Administrative                               |
-| `roles.*`                |  DENY | Administrative                               |
-| `exercises.*`            |  DENY | Management capabilities                      |
-| `puzzles.*`              |  DENY | Content management                           |
-| `generators.*`           |  DENY | Administrative                               |
-| `support.read_*`         |  DENY | No authenticated support identity            |
-| `support.respond`        |  DENY | Administrative                               |
-| `support.close`          |  DENY | Administrative                               |
-| `support.manage`         |  DENY | Administrative                               |
-| `audit.*`                |  DENY | Administrative                               |
-| `system.*`               |  DENY | Internal                                     |
-
----
-
-# 128. Guest vs Player Capability Comparison
-
-The Guest/Player boundary is intentionally explicit.
-
-| Capability               |                 Guest |                                         Player |
-| ------------------------ | --------------------: | ---------------------------------------------: |
-| `training.read`          |         Own temporary |                                 Own persistent |
-| `training.start`         | Public guest-eligible |                           Published/authorized |
-| `training.attempt`       |     Own guest session |                      Own authenticated session |
-| `profile.read`           |                  DENY |                                          ALLOW |
-| `profile.write`          |                  DENY |                                          ALLOW |
-| `history.read`           |                 DENY* |                                          ALLOW |
-| `ratings.read`           |                  DENY |                                          ALLOW |
-| `gamification.read`      |                  DENY |                                          ALLOW |
-| `analytics.read`         |                  DENY |                                          ALLOW |
-| `leaderboards.read`      |  Public resource only |           Public resource + own permitted data |
-| `support.create`         |                 ALLOW |                                          ALLOW |
-| `accounts.migrate_guest` |                 ALLOW |                                           DENY |
-| `relationships.*`        |                  DENY | DENY unless applicable relationship capability |
-| `admin capabilities`     |                  DENY |                                           DENY |
-
-`*` Guest temporary training data is accessed through the narrower `training.read` scope rather than authenticated historical-data access.
-
----
-
-# 129. Public Access Is Not a Guest Capability
-
-The platform must distinguish:
-
-```text
-PUBLIC
-```
-
-from:
-
-```text
-GUEST
-```
-
-Public access requires no Guest identity.
-
-Examples:
-
-```text
-GET /api/v1/exercises
-GET /api/v1/exercises/{id}
-GET /api/v1/leaderboards/public
-```
-
-may be public when the resource itself is configured as public.
-
-Guest-specific authorization becomes relevant when the operation depends on temporary identity, such as:
-
-```text
-start training
-submit answer
-read temporary progress
-migrate guest data
-```
-
-This distinction prevents unnecessary coupling between public browsing and Guest identity.
-
----
-
-# 130. Guest Object Scope
-
-For Guest-owned resources:
-
-```text
-authorized =
-    capability_granted
-    AND
-    resource.guest_identity_id == current_guest_identity.id
-```
-
-The comparison must use the server-derived Guest identity.
-
-This is invalid:
-
-```python
-if request.guest_identity_id == resource.guest_identity_id:
-    allow()
-```
-
-because the request value is attacker-controlled.
-
----
-
-# 131. Guest Session Requirements
-
-Guest capabilities require a valid Guest session.
-
-The session must have:
-
-* server-generated identity
-* expiration
-* abuse controls
-* revocation capability
-* ownership binding
-
-If the Guest session is:
-
-```text
-expired
-revoked
-invalid
-malformed
-unknown
-```
-
-then all Guest-specific capabilities must be denied.
-
----
-
-# 132. Guest Rating Policy
-
-Guests do not have a persistent MicroChess rating.
-
-Therefore:
-
-```text
-ratings.read
-=
-DENY
-```
-
-for Guests.
-
-Temporary training performance may still be calculated for:
-
-* immediate feedback
-* temporary score
-* session progression
-
-but this must not be represented as a persistent Player rating.
-
-If a future product decision introduces provisional Guest ratings, it must be added explicitly to the rating specification and this capability policy.
-
----
-
-# 133. Guest Gamification Policy
-
-Guests do not have persistent gamification state.
-
-Therefore:
-
-```text
-gamification.read
-=
-DENY
-```
-
-Temporary UI values may exist, such as:
-
-```text
-current score
-temporary progress
-temporary streak display
-```
-
-but these are training/session state, not persistent gamification records.
-
-If Guest data is migrated into an account, the migration rules must explicitly define which temporary facts become persistent.
-
----
-
-# 134. Guest Leaderboard Policy
-
-Guests do not receive:
-
-```text
-leaderboards.read
-```
-
-as an identity capability.
-
-A public leaderboard may still be visible to Guests because it is a public resource.
-
-Therefore:
-
-```text
-Public leaderboard
-=
-public access
-
-Private leaderboard data
-=
-DENY
-```
-
-This distinction must be preserved in API and UI implementation.
-
----
-
-# 135. Guest Account Migration
-
-The migration flow is:
-
-```text
-Guest
-  │
-  │ training
-  ▼
-Temporary guest data
-  │
-  │ authenticate/create Player account
-  ▼
-accounts.migrate_guest
-  │
-  ▼
-Player
-  │
-  ├── persistent history
-  ├── persistent ratings where defined
-  └── persistent gamification where defined
-```
-
-Migration changes the ownership context of eligible data.
-
-It does not grant the Guest arbitrary access to the target account.
-
----
-
-# 136. Guest Capability Resolution
-
-Authorization should conceptually resolve as:
-
-```text
-Subject
-  ↓
-Is authenticated?
-  ├─ Yes → resolve application role
-  └─ No
-       ↓
-       Is valid Guest session?
-       ├─ No → public-resource rules only
-       └─ Yes → Guest capability policy
-```
-
-For Guest:
-
-```text
-Guest
-  ↓
-explicit canonical capabilities
-  ↓
-object scope
-  ↓
-resource state
-  ↓
-business rules
-  ↓
-ALLOW / DENY
-```
-
----
-
-# 137. New Capability Default
-
-When a new canonical capability is introduced:
-
-```text
-new capability
-       ↓
-Guest access?
-       ↓
-NO
-```
-
-unless the Guest policy is explicitly updated.
-
-This is mandatory.
-
-A new Player capability must never automatically become a Guest capability.
-
-This is a direct application of deny-by-default: new functionality should remain inaccessible until explicitly authorized.
-
----
-
-# 138. Forbidden Guest Capability Aliases
-
-Do not introduce:
-
-```text
-guest.training_start
-guest.training_attempt
-guest.training_read
-guest.support
-guest.migrate
-```
-
-as alternative capability identifiers.
-
-The canonical identifiers are:
-
-```text
-training.start
-training.attempt
-training.read
-support.create
-accounts.migrate_guest
-```
-
-The fact that a capability is granted to a Guest is authorization metadata, not part of the capability name.
-
----
-
-# 139. Canonical Authorization Model
-
-The final model is:
-
-```text
-                    ┌──────────────┐
-                    │    Subject   │
-                    └──────┬───────┘
-                           │
-             ┌─────────────┴─────────────┐
-             │                           │
-       Authenticated                  Guest
-             │                           │
-        Application Role          Guest Policy
-             │                           │
-             └─────────────┬─────────────┘
-                           │
-                    Canonical Capability
-                           │
-                    Object / Scope Check
-                           │
-                  Relationship / State
-                           │
-                     Business Rules
-                           │
-                     ALLOW / DENY
-```
-
-Therefore:
-
-```text
-Guest is not a separate capability vocabulary.
-Guest is a subject with a deliberately restricted capability assignment.
-```
-
----
-
-# 140. Final Guest Security Rule
-
-The canonical Guest rule is:
-
-> **Guests may use the canonical training and support capabilities required for temporary learning, and may migrate their own temporary data into an authenticated account. They receive no other capability unless explicitly granted by this policy.**
-
-The canonical Guest capability set is therefore exactly:
-
-```text
-training.read
-training.start
-training.attempt
-support.create
-accounts.migrate_guest
-```
-
-Everything else is denied by default.
-
-This vocabulary must remain aligned with the canonical role/capability registry and must be used consistently across:
-
-* backend authorization
-* API contracts
-* database policy
-* frontend guards
-* tests
-* audit logs
-* documentation
-* future platform phases

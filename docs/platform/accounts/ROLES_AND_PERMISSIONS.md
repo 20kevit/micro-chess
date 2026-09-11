@@ -1,43 +1,55 @@
-# Roles and Permissions
+# MicroChess — Roles and Permissions
 
 ## 1. Purpose
 
-The platform uses role-based access control combined with capability checks and object-level authorization.
+MicroChess uses:
 
-Roles identify the user's responsibility. Capabilities define what actions are allowed.
+* canonical roles
+* capabilities
+* object-level authorization
+
+Roles describe an identity's responsibilities.
+
+Capabilities describe permitted actions.
 
 Authorization is always enforced server-side.
+
+Detailed security rules belong to `SECURITY.md`.
+
+Authentication behavior belongs to `AUTHENTICATION.md`.
 
 ---
 
 ## 2. Canonical Roles
 
-Persist only these roles:
+The only persisted roles are:
 
-```text id="1b7y8t"
-player
-coach
-parent
-admin
+```text
+PLAYER
+COACH
+PARENT
+ADMIN
 ```
 
 `GUEST` is not a persisted role.
 
-Guest access uses the explicitly defined guest capability policy.
+Guest access follows the separate guest capability policy defined by the authentication/security specifications.
+
+A user may have more than one persisted role.
 
 ---
 
 ## 3. Capability Model
 
-Capabilities use the canonical format:
+Capabilities use:
 
-```text id="8q4f6v"
+```text
 <resource>.<action>
 ```
 
 Examples:
 
-```text id="x8c2kr"
+```text
 profile.read
 training.start
 history.read
@@ -45,21 +57,29 @@ ratings.read
 users.manage
 puzzles.publish
 generators.run
+analytics.view
 ```
 
-Capabilities must come from the canonical capability registry.
+The application must maintain **one canonical capability registry**.
 
-Do not create aliases or role-specific capability names such as `coach.read_students`.
+Do not create role-specific aliases such as:
+
+```text
+coach.read_students
+admin.manage_users
+```
+
+Relationship and object access must be evaluated separately from the capability itself.
 
 ---
 
-## 4. Baseline Role Capabilities
+## 4. Baseline Role Scope
 
-### Player
+### PLAYER
 
-A Player can:
+A player may, subject to ownership and privacy rules:
 
-* manage their own profile
+* manage their profile
 * manage permitted external chess identities
 * train
 * submit attempts
@@ -70,78 +90,73 @@ A Player can:
 * use permitted leaderboards
 * create and view their own support requests
 
-### Coach
+### COACH
 
-Coach includes Player capabilities plus permitted student-related capabilities:
+A coach has the applicable Player capabilities plus capabilities for authorized students, such as:
 
-* read related history
-* read related ratings
-* read related gamification
-* read related analytics
-* manage permitted relationships
-* manage permitted student assignments
+* read permitted student history
+* read permitted student ratings
+* read permitted student gamification
+* read permitted student analytics
+* manage permitted coach/student relationships
+* manage permitted assignments
 
-Access still requires an active Coach–Student relationship.
+An active Coach–Student relationship is still required.
 
-### Parent
+### PARENT
 
-Parent includes Player capabilities plus permitted child-related read capabilities:
+A parent has the applicable Player capabilities plus permitted child-related read access, such as:
 
-* read related history
-* read related ratings
-* read related gamification
-* read related analytics
-* read permitted relationships
+* read permitted history
+* read permitted ratings
+* read permitted gamification
+* read permitted analytics
+* manage permitted parent/student relationships
 
-Parent does not automatically receive Coach assignment-management capabilities.
+A parent does not automatically receive coach assignment-management capabilities.
 
-Access still requires an active Parent–Student relationship.
+An active Parent–Student relationship is still required.
 
-### Admin
+### ADMIN
 
-Admin receives the administrative capabilities required to manage:
+An administrator has the capabilities required for authorized platform operations, including where applicable:
 
 * users
 * roles
 * exercises
 * puzzles
 * generators
-* platform/exercise/puzzle analytics
+* analytics
 * support
 * audit
-* system operations
 
-Admin access remains subject to object and business-rule checks.
+Administrative capability does not bypass domain validation, object authorization, privacy, or business rules.
 
 ---
 
 ## 5. Authorization Decision
 
-A successful role/capability check is not sufficient by itself.
+Role/capability alone does not authorize access.
 
-The final decision must consider:
+The final decision may depend on:
 
-1. authentication state
-2. account status
-3. capability
-4. object ownership or relationship
-5. resource state
-6. privacy rules
-7. business rules
-
-Conceptually:
-
-```text id="h6u8jj"
-Allow =
-    authenticated
-    AND active_account
-    AND required_capability
-    AND object_access
-    AND privacy_allows
-    AND business_rules_allow
+```text
+authentication
++
+account status
++
+capability
++
+ownership or relationship
++
+resource state
++
+privacy
++
+business rules
 ```
 
-Guest requests follow the separate guest capability policy.
+The detailed security semantics are defined in `SECURITY.md`.
 
 ---
 
@@ -149,13 +164,15 @@ Guest requests follow the separate guest capability policy.
 
 Examples:
 
-* Player can read their own history.
-* Coach can read a student's history only through an active relationship.
-* Parent can read a child's permitted progress only through an active relationship.
-* Admin may manage users, but sensitive fields remain restricted.
-* A capability never grants access to every object automatically.
+* A player may access their own training history.
+* A coach may access a student's permitted data only through an active relationship.
+* A parent may access a child's permitted data only through an active relationship.
+* An administrator may manage users within their authorized scope.
+* A capability does not grant unrestricted access to every object.
 
-Object authorization must be implemented in the application/domain authorization layer, not trusted to the frontend.
+Object-level authorization is a backend concern.
+
+Frontend permission checks are UX only.
 
 ---
 
@@ -163,46 +180,65 @@ Object authorization must be implemented in the application/domain authorization
 
 Only authorized administrative operations may assign or revoke roles.
 
-Allowed persisted role IDs are exactly:
-
-```text id="2t6j0e"
-player
-coach
-parent
-admin
-```
-
 Role changes must:
 
-* validate the target role
+* use one of the canonical roles
+* be authorized
 * be auditable
-* enforce self-protection rules
-* not modify historical training records
-* not silently grant unrelated capabilities
+* respect self-protection rules
+* preserve historical training data
+
+Role assignment must not silently grant unrelated capabilities outside the canonical mapping.
 
 ---
 
-## 8. Frontend Rules
+## 8. Capability Mapping
 
-The frontend may hide or disable UI based on known permissions, but this is only a UX optimization.
+The initial implementation may map roles to capabilities statically.
 
-It must never be treated as authorization.
+A dedicated permission-management subsystem is **not required** unless an active product requirement needs it.
+
+Do not introduce a policy engine merely to represent the role/capability relationship.
+
+---
+
+## 9. Frontend Rule
+
+The frontend may hide or disable controls based on known permissions.
+
+This is only a UX optimization.
 
 Every protected API operation must independently enforce authorization on the server.
 
 ---
 
-## 9. Definition of Done
+## 10. Source of Truth
 
-Roles and permissions are complete when:
+This document owns:
 
-* canonical roles are implemented
-* capabilities come from one registry
-* role-to-capability mappings are explicit
-* object-level authorization exists
-* Coach/Parent relationship boundaries are enforced
-* role changes are protected and audited
-* frontend permission checks do not replace backend checks
-* unauthorized requests return the correct authorization response
-* backend authorization tests cover every role
-* security-sensitive capability boundaries have negative tests
+* canonical persisted roles
+* role-level capability scope
+* role/capability terminology
+
+`SECURITY.md` owns the detailed authorization and security model.
+
+`API_CONTRACTS.md` owns API-level enforcement requirements.
+
+`AUTHENTICATION.md` owns identity/session establishment.
+
+No other document should redefine the canonical roles.
+
+---
+
+## 11. Completion Criteria
+
+This capability is complete when the active phase has:
+
+* canonical roles implemented
+* one canonical capability registry
+* explicit role-to-capability mapping
+* object-level authorization
+* relationship boundaries for Coach/Parent
+* protected role changes
+* backend enforcement on protected operations
+* relevant authorization tests, including negative cases

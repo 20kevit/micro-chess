@@ -4,146 +4,180 @@
 
 **Status:** Accepted
 **Document Type:** Product Scope
+**Scope:** Product identity, users, capabilities, boundaries, experience principles, and long-term direction
 
-This document defines the product scope and long-term direction of MicroChess.
+This document defines **what MicroChess is and what product capabilities belong to it**.
 
-It describes:
+It does not define low-level implementation details.
 
-* what MicroChess is
-* who it serves
-* which capabilities belong to the product
-* which capabilities are part of the current platform expansion
-* which capabilities are future direction
-* which capabilities are explicitly out of scope
-
-This document defines product requirements and boundaries, not low-level implementation details.
-
-Technical implementation belongs in:
+Technical behavior belongs in:
 
 * `ARCHITECTURE.md`
 * `DATA_MODEL.md`
 * `API_CONTRACTS.md`
 * `SECURITY.md`
 * `UX_AND_DESIGN.md`
-* domain-specific specifications
-* accepted ADRs under `decisions/`
+* domain specifications
+* accepted ADRs
+
+Implementation order belongs in:
+
+* `MASTER_PLAN.md`
+* phase specifications
+
+Current repository reality belongs in:
+
+* `IMPLEMENTATION_STATE.md`
 
 ---
 
 # 2. Product Definition
 
-MicroChess is a chess-training platform focused on developing specific chess skills through short, isolated, interactive exercises.
+MicroChess is a chess-training platform focused on developing individual chess skills through short, isolated, interactive exercises.
 
-MicroChess is **not** intended to be a complete chess-playing platform.
+It is designed to make chess improvement:
 
-Its primary purpose is to help players improve individual chess skills through:
+* focused
+* measurable
+* motivating
+* repeatable
+* understandable
 
-* focused exercises
-* immediate feedback
-* repetition
-* progress tracking
-* exercise-specific ratings
-* gamification
-* detailed training history
-* performance analysis
-* eventually, adaptive training
+MicroChess is **not** a complete chess-playing platform.
 
-The product is designed primarily for:
+Its core product loop is:
+
+```text
+Choose a skill
+    ↓
+Practice
+    ↓
+Receive feedback
+    ↓
+Repeat
+    ↓
+Measure progress
+    ↓
+Improve
+```
+
+The long-term product adds:
+
+```text
+Ratings
+    ↓
+Gamification
+    ↓
+Analytics
+    ↓
+Personalized training
+```
+
+---
+
+# 3. Product Mission
+
+MicroChess exists to help players improve individual chess skills rather than simply accumulate games.
+
+The platform should make it easy for a player to understand:
+
+* what skill is being trained
+* whether the answer was correct
+* how well the player is performing
+* whether the player is improving
+* which skills need more practice
+* what to practice next
+
+The complexity required to support these capabilities belongs inside the platform.
+
+The user experience should remain simple.
+
+---
+
+# 4. Primary Audience
+
+MicroChess is designed primarily for:
 
 * children
 * teenagers
-* beginner and intermediate chess players
+* beginner chess players
+* intermediate chess players
 * chess students
 * chess coaches
+* parents supporting young players
 
-The experience should remain simple and approachable for young players while providing enough depth for serious training and analysis.
-
----
-
-# 3. Scope Levels
-
-This document distinguishes three levels of scope.
-
-## 3.1 Current Platform Scope
-
-Capabilities intended to be implemented as part of the current platform expansion and represented by the current Master Plan phases.
-
-These are implementation requirements when their corresponding phase/specification is active.
-
-## 3.2 Future Product Direction
-
-Capabilities that MicroChess is expected to support later.
-
-Future capabilities may influence architectural boundaries and data preservation, but they are **not implementation requirements** unless explicitly promoted into an accepted phase or domain specification.
-
-## 3.3 Explicitly Out of Scope
-
-Capabilities intentionally excluded from the current product direction.
-
-They must not be implemented merely because they appear technically useful or easy to add.
+Adults and stronger players should also be able to use the platform without the product becoming unnecessarily complicated.
 
 ---
 
-# 4. Core Product Philosophy
+# 5. Core Product Philosophy
 
-## 4.1 Child First
+## 5.1 Child First
 
-The interface should be understandable and engaging for children without becoming childish or visually overwhelming.
+The experience should be understandable to a child without being childish.
 
-The product should work well for:
+The interface should:
 
-* children using tablets
-* children using phones
-* teenagers
-* adults
-* coaches
+* minimize unnecessary complexity
+* use clear language
+* provide immediate feedback
+* reduce cognitive overload
+* work naturally on tablets and phones
+* make progress visible
 
-Users should not need to understand chess-engine terminology to use the exercises.
-
----
-
-## 4.2 Skill First
-
-Each exercise should focus on a clearly defined chess skill.
-
-Examples:
-
-* Piece Recognition → recognizing pieces
-* Legal Destinations → legal movement
-* Captures → identifying captures
-* Pin → recognizing pins
-* Mental Calculation → calculating without seeing the board
-
-An exercise should not become a complete chess game unless explicitly designed as one.
+The product must remain useful for teenagers, adults, coaches, and serious learners.
 
 ---
 
-## 4.3 Practice Must Produce Useful Data
+## 5.2 Skill First
 
-Meaningful training activity should produce reliable historical data.
+Each exercise focuses on a clearly defined chess skill.
+
+Examples include:
+
+* recognizing pieces
+* identifying legal destinations
+* identifying captures
+* recognizing undefended pieces
+* giving check
+* escaping check
+* finding paths
+* identifying pins
+* comparing material
+* visualizing positions
+* calculating without seeing the board
+
+Exercises should remain focused on their intended skill.
+
+An exercise should not become a general chess game unless explicitly designed as one.
+
+---
+
+## 5.3 Practice Should Produce Useful Evidence
+
+Meaningful training activity should contribute to reliable historical data.
 
 The platform should eventually be able to answer questions such as:
 
 * What does this player struggle with?
-* Which exercises are improving?
+* Which skills are improving?
 * Which exercises are too easy?
 * Which exercises are too difficult?
 * How quickly does the player answer?
 * Is accuracy improving?
-* Is the player's exercise rating improving?
+* Is the exercise rating improving?
 * How consistent is the player?
 * Which skills deteriorate after inactivity?
-* Which exercises may correlate with improvement in other exercises?
 
-Data collection must be considered from the beginning so that important historical information is not lost.
+Historical training data is therefore a core product asset.
 
 ---
 
-## 4.4 Gamification Must Support Learning
+## 5.4 Gamification Supports Learning
 
-Gamification is a major product capability.
+Gamification is intended to encourage meaningful training.
 
-Rewards should encourage:
+The product may reward:
 
 * accuracy
 * improvement
@@ -151,17 +185,18 @@ Rewards should encourage:
 * meaningful practice
 * mastery
 * healthy streaks
-* meaningful milestones
+* milestones
+* achievement
 
-The system should avoid rewarding excessive low-quality activity merely because it increases attempt counts.
+The system should avoid rewarding low-quality activity merely because it increases attempt counts.
 
 ---
 
-## 4.5 Progressive Complexity
+## 5.5 Progressive Complexity
 
-The product should feel simple at the surface while becoming more powerful as the player's needs grow.
+The product should feel simple initially and become more powerful as the player's needs grow.
 
-The intended progression is approximately:
+The intended progression is:
 
 ```text
 Player
@@ -172,135 +207,173 @@ Progress
   ↓
 Ratings
   ↓
-Achievements
+Gamification
   ↓
 Analytics
   ↓
 Personalized Training
 ```
 
-Users should not need to understand the underlying platform complexity.
+Users should not need to understand the underlying system architecture.
 
 ---
 
-# 5. Primary User Types
+# 6. Product Scope Levels
 
-## 5.1 Player
+This document distinguishes three scope levels.
+
+## 6.1 Current Platform Scope
+
+Capabilities that belong to the current platform roadmap.
+
+They become implementation requirements when their corresponding phase or domain specification is active.
+
+---
+
+## 6.2 Future Product Direction
+
+Capabilities that MicroChess is intended to support later.
+
+Future direction may influence:
+
+* architectural boundaries
+* data preservation
+* product decisions
+
+but is **not implementation authorization**.
+
+A future capability becomes implementation work only when explicitly promoted into an accepted phase or specification.
+
+---
+
+## 6.3 Explicitly Out of Scope
+
+Capabilities deliberately excluded from the current product direction.
+
+They must not be implemented merely because they appear technically useful.
+
+---
+
+# 7. User Types
+
+## 7.1 Player
 
 The player is the primary product user.
 
-A registered player can:
+A registered player should eventually be able to:
 
 * create an account
 * manage a profile
+* discover exercises
 * practice exercises
 * use Practice mode
-* use Speed mode where available
+* use Speed mode where supported
+* review feedback
+* track progress
+* build exercise-specific ratings
+* review training history
 * earn XP
 * earn achievements
 * build streaks
-* improve exercise-specific ratings
-* review training history
+* view mastery
 * view analytics
-* compare progress across time periods
+* compare performance over time
 * manage privacy settings
 * connect external chess identities
-* contact administrators
+* contact support
 
 ---
 
-## 5.2 Guest Player
+## 7.2 Guest Player
 
-A guest can use the core exercise experience without creating an account.
+A guest can use the core training experience without creating an account.
 
 Guest activity may include:
 
 * exercise attempts
+* feedback
 * scores
 * temporary progress
-* temporary training state
-* session information
+* temporary training history
+* temporary ratings
+* temporary gamification state where supported
 
-Guest data should be retained sufficiently to support migration into a registered account.
+Guest data should remain sufficient for safe migration into a registered account.
 
-Guest functionality must not create a separate long-term product identity.
-
-Guest migration rules are defined in:
-
-`accounts/SESSIONS_AND_GUESTS.md`
+Guest is a temporary access state, not a long-term product identity and not a product role.
 
 ---
 
-## 5.3 Coach
+## 7.3 Coach
 
 Coach functionality is part of the product direction.
 
 A coach should eventually be able to:
 
-* manage students
-* create groups
-* assign exercises
-* assign training plans
+* manage authorized students
+* maintain student relationships
+* create or manage assignments
+* create training plans
 * monitor progress
 * review performance
-* add notes
-* compare authorized students
 * identify weaknesses
 * track improvement
+* organize students into groups/classes where justified
+* provide notes or feedback where explicitly supported
+* compare authorized students
 
-The current platform should establish the identity and relationship foundations required for these capabilities without prematurely implementing the complete coach product.
+Coach access must always be scoped to authorized relationships.
 
 ---
 
-## 5.4 Parent
+## 7.4 Parent
 
 Parent functionality is part of the product direction.
 
 A parent should eventually be able to:
 
 * manage relationships with one or more children
-* view authorized progress information
-* receive reports
+* view authorized progress
 * monitor training activity
-* manage explicitly authorized child-related settings
+* receive appropriate reports
+* manage explicitly authorized settings
 
-Parent access must always be permission-controlled.
-
-A parent must never automatically receive unrestricted access to all student data.
+A parent does not automatically receive unrestricted access to student data.
 
 ---
 
-## 5.5 Administrator
+## 7.5 Administrator
 
-Administrators manage the platform and its content.
+Administrators operate and manage the platform.
 
 The administration product should eventually support:
 
 * user management
 * role management
+* account-status management
 * exercise management
 * puzzle management
+* content lifecycle management
 * generator management
 * analytics
-* account-status management
 * audit review
 * support handling
-* relevant operational information
+* operational information
 
-Administrative functionality is a first-class product area.
+Administrative access is privileged and must remain subject to the security model.
 
 ---
 
-# 6. Account Scope
+# 8. Account Product Scope
 
-Account creation is intentionally lightweight.
+Initial account creation is intentionally lightweight.
 
-Initial registration requires only:
+Initial registration requires:
 
 * username
 * password
 
-Registration does not initially require:
+Initial registration does not require:
 
 * email
 * phone number
@@ -309,88 +382,74 @@ Registration does not initially require:
 * Lichess account
 * Chess.com account
 
-Additional information may be added later through the profile.
+Additional profile information can be added later.
 
-The detailed authentication rules belong in:
+This minimizes friction and unnecessary data collection.
 
-`accounts/AUTHENTICATION.md`
+Detailed account behavior belongs in:
+
+```text
+accounts/
+```
 
 ---
 
-# 7. Player Profile Scope
+# 9. Player Profile Scope
 
-A registered player should have a useful profile.
+Registered players should have a useful profile.
 
-## Identity
+Possible profile capabilities include:
 
 * username
 * display name
 * avatar
 * bio
-
-## Optional Personal Information
-
-The product may support optional personal information where it provides clear value and is covered by explicit privacy rules.
-
-Possible examples include:
-
-* name
-* age-related information
-* country
-* city
 * preferred language
+* optional age-related information
+* optional location information
+* privacy settings
 
-None of these should be required for initial registration unless a future accepted requirement explicitly changes that decision.
+Personal information is optional unless a later accepted product requirement makes it necessary.
 
-## External Chess Identities
-
-The profile may contain:
-
-* FIDE identity
-* FIDE rating information
-* Lichess identity
-* Lichess rating information
-* Chess.com identity
-* Chess.com rating information
-
-External ratings remain separate from MicroChess ratings.
-
-Player-supplied external information is considered self-reported unless independently verified.
-
-Detailed profile rules belong in:
-
-`accounts/USER_PROFILES.md`
+The profile must remain separate from authentication credentials.
 
 ---
 
-# 8. External Chess Profiles
+# 10. External Chess Identities
 
-Initial supported external identities:
+MicroChess may support external chess identities including:
 
 * FIDE
 * Lichess
 * Chess.com
 
-External identities may eventually support:
+External identities are optional.
 
-* initial level estimation
-* external rating comparison
-* MicroChess rating comparison
+They may eventually support:
+
+* displaying external ratings
+* comparing external and MicroChess skill
+* estimating initial difficulty
 * player segmentation
-* difficulty analysis
-* progression comparison
+* progression analysis
 
-External chess services are optional integrations and must not be required for core MicroChess training.
+External ratings are separate from MicroChess exercise ratings.
+
+Self-reported external ratings are unverified unless an explicit verification mechanism exists.
+
+External accounts are not required for core MicroChess training.
 
 ---
 
-# 9. Exercise Scope
+# 11. Exercise Product
 
-Exercises are the central training units of MicroChess.
+Exercises are the central product unit.
 
-An exercise has a stable product identity and may define:
+An exercise represents a specific chess skill and defines the experience required to practice it.
 
-* display information
+An exercise may specify:
+
+* name and description
 * category
 * availability
 * supported modes
@@ -401,48 +460,82 @@ An exercise has a stable product identity and may define:
 * content source
 * product metadata
 
-The shared exercise architecture must support different interaction models without requiring unrelated infrastructure for every exercise.
+Exercise-specific behavior remains specific to the exercise.
 
-Exercise-specific rules remain defined by the exercise itself and its domain specification.
+The platform should provide shared infrastructure without forcing every exercise into the same interaction model.
 
 ---
 
-# 10. Exercise Modes
+# 12. Exercise Experience
 
-## 10.1 Practice
+The exercise experience should follow a simple loop:
 
-Practice mode is primarily for learning.
+```text
+Select exercise
+      ↓
+Receive question
+      ↓
+Interact
+      ↓
+Submit answer
+      ↓
+Receive feedback
+      ↓
+Continue / finish
+```
+
+The platform may layer:
+
+* score
+* timing
+* rating
+* XP
+* mastery
+* history
+
+onto this experience without changing the fundamental interaction model.
+
+---
+
+# 13. Exercise Modes
+
+## Practice
+
+Practice mode prioritizes learning.
 
 It may:
 
 * be untimed
-* provide feedback
-* allow repeated attempts
-* prioritize learning over competition
+* provide detailed feedback
+* allow repetition
+* emphasize understanding
+* reduce competitive pressure
 
-## 10.2 Speed
+---
 
-Speed mode is primarily for timed performance.
+## Speed
+
+Speed mode prioritizes timed performance.
 
 It may:
 
 * use a time limit
-* track response time
+* measure response time
 * use specialized scoring
-* use streak-based progression
+* use streak-based mechanics
 * use specialized content
 
 Not every exercise must support both modes.
 
-Mode availability is an exercise-level product decision.
+Mode support is an exercise-level product decision.
 
 ---
 
-# 11. Exercise-Specific Ratings
+# 14. Exercise Ratings
 
-MicroChess should not reduce player skill to one global rating.
+MicroChess should not reduce skill to one global rating.
 
-Applicable exercises or skill areas have independent ratings.
+Applicable exercises or skill areas should have independent ratings.
 
 For example:
 
@@ -454,24 +547,25 @@ Pins                    1090
 Mental Calculation      1375
 ```
 
-The rating system must preserve:
+The rating product should support:
 
 * current rating
 * rating history
 * rating changes
 * provisional state where applicable
+* future rating improvements without destroying historical data
 
-The data should remain sufficient to support future rating improvements and recalculation.
+The rating algorithm belongs to:
 
-The exact rating algorithm belongs in:
-
-`training/RATINGS.md`
+```text
+training/RATINGS.md
+```
 
 ---
 
-# 12. Training History
+# 15. Training History
 
-MicroChess must preserve meaningful training history.
+Training history is a core product capability.
 
 Relevant historical information may include:
 
@@ -479,8 +573,9 @@ Relevant historical information may include:
 * exercise
 * puzzle/content
 * mode
-* attempt
-* result
+* session
+* question instance where applicable
+* answer
 * correctness
 * score
 * response time
@@ -488,26 +583,56 @@ Relevant historical information may include:
 * rating change
 * rating after
 * XP earned
-* session
 * timestamp
-* relevant difficulty information
-* relevant content/configuration information
+* relevant difficulty
+* relevant content/configuration version
 
-Historical records must not be casually overwritten.
+Historical records are valuable for:
 
-Training history is a primary source for progress analysis, rating history, analytics, and future personalization.
+* progress
+* ratings
+* analytics
+* gamification
+* future personalized training
 
-Detailed rules belong in:
+Historical facts should not be casually overwritten.
 
-`training/ATTEMPTS_AND_HISTORY.md`
+Detailed behavior belongs in:
+
+```text
+training/ATTEMPTS_AND_HISTORY.md
+```
 
 ---
 
-# 13. Player Dashboard
+# 16. Player Progress
 
-Registered players should eventually have a comprehensive but understandable dashboard.
+The product should make progress understandable.
 
-It may provide:
+Player-facing progress may include:
+
+* exercise completion
+* attempt count
+* accuracy
+* response time
+* training frequency
+* rating progression
+* mastery
+* streak
+* recent performance
+* personal records
+
+Basic player progress belongs to the player experience.
+
+Full cross-player/platform analytics are a separate product capability.
+
+---
+
+# 17. Player Dashboard
+
+A registered player's dashboard should eventually provide a useful summary rather than expose every available metric.
+
+Possible areas:
 
 ### Overview
 
@@ -521,7 +646,7 @@ It may provide:
 ### Skill Profile
 
 * exercise ratings
-* strongest areas
+* strengths
 * weaker areas
 * improvement areas
 * rating progression
@@ -538,30 +663,24 @@ It may provide:
 * daily
 * weekly
 * monthly
-* long-term
-
-### Analytics
-
-* accuracy
-* response time
-* rating trends
-* exercise comparison
-* period comparison
+* long-term trends
 
 ### Gamification
 
-* XP progress
-* level progress
+* XP
+* levels
 * streaks
 * achievements
 * badges
 * milestones
 
-The dashboard should prioritize useful information rather than expose every available metric at once.
+### Recommendations
+
+Future adaptive recommendations may be shown when the adaptive-training capability exists.
 
 ---
 
-# 14. Analytics Scope
+# 18. Analytics Product Scope
 
 Analytics is a first-class product capability.
 
@@ -576,12 +695,14 @@ May include:
 * response speed
 * consistency
 * engagement
+* exercise comparison
 
 ## Exercise Analytics
 
 May include:
 
 * usage
+* attempts
 * accuracy
 * completion
 * response time
@@ -596,43 +717,42 @@ May include:
 * attempts
 * accuracy
 * response time
-* observed difficulty
 * repeated failures
-* content quality indicators
+* observed difficulty
+* content-quality indicators
 
 ## Platform Analytics
 
 May include:
 
-* users
+* total users
 * active users
 * sessions
 * attempts
 * retention/activity indicators
 * exercise usage
-* performance trends
+* platform trends
 
-Detailed analytics definitions belong in:
+Detailed analytics behavior belongs in:
 
-`training/ANALYTICS.md`
-
-and:
-
-`admin/ADMIN_ANALYTICS.md`
+```text
+training/ANALYTICS.md
+admin/ADMIN_ANALYTICS.md
+```
 
 ---
 
-# 15. Time-Based Analytics
+# 19. Analytics Periods
 
-Analytics should support:
+Player-facing analytics should eventually support:
 
-* last 7 days
-* last 30 days
-* last 90 days
+* 7 days
+* 30 days
+* 90 days
 * all time
 * custom date range
 
-Where meaningful, analytics should support comparison with an equivalent previous period.
+Where useful, equivalent-period comparisons should be available.
 
 Examples:
 
@@ -648,7 +768,7 @@ vs
 Previous 30 days
 ```
 
-Comparison metrics may include:
+Possible comparison metrics include:
 
 * accuracy
 * attempts
@@ -657,13 +777,13 @@ Comparison metrics may include:
 * rating change
 * response time
 * active days
-* exercise completion
+* completion
 * XP
 * streak
 
 ---
 
-# 16. Gamification Scope
+# 20. Gamification Product Scope
 
 MicroChess should support:
 
@@ -680,46 +800,72 @@ MicroChess should support:
 * challenges
 * leaderboards
 
-Gamification must support meaningful training rather than activity farming.
+Gamification exists to reinforce meaningful learning.
+
+It should not turn the platform into an activity-counting game.
 
 Detailed rules belong in:
 
-`training/GAMIFICATION.md`
+```text
+training/GAMIFICATION.md
+```
 
 ---
 
-# 17. Administration and Content Scope
+# 21. Mastery
 
-Administration is a major product area.
+Mastery should communicate a player's current relationship with an exercise.
 
-## User Management
+Canonical states:
 
-Administrators should eventually be able to:
+```text
+NOT_STARTED
+LEARNING
+PRACTICING
+PROFICIENT
+MASTERED
+```
 
-* search users
-* filter users
-* inspect permitted profile information
-* manage account status
-* manage roles
-* review relevant progress information
+Mastery may eventually use:
 
-## Exercise Management
+* accuracy
+* repetition
+* rating
+* consistency
+* recent performance
+* difficulty
 
-Administrators should be able to manage appropriate exercise-level configuration, including:
+Mastery is a product signal, not a replacement for raw training history.
+
+---
+
+# 22. Administration Product Scope
+
+Administration is a first-class product area.
+
+It should eventually support:
+
+## Users
+
+* search
+* filtering
+* permitted profile inspection
+* role management
+* account status management
+
+## Exercises
 
 * metadata
 * availability
 * ordering
-* difficulty configuration
-* rating configuration
 * supported modes
-* scoring
-* XP
+* difficulty settings
+* rating configuration
+* scoring configuration
+* XP configuration
 * visibility
 
-## Puzzle Management
-
-Administrators should be able to:
+## Puzzles
 
 * browse
 * search
@@ -729,40 +875,88 @@ Administrators should be able to:
 * edit
 * validate
 * review
+* approve
 * publish
 * retire
 * inspect performance
 
-Content must have an explicit lifecycle so that saving or generating a puzzle does not automatically make it active.
+## Generators
+
+* generator management
+* configuration
+* generation
+* validation
+* review
+* approval
+* publication
+
+## Platform
+
+* analytics
+* audit review
+* support
+* operational indicators
+
+Administration must not bypass the product's domain rules.
 
 ---
 
-# 18. Manual Puzzle Creation
+# 23. Content Lifecycle
 
-Administrators should be able to manually create puzzles for supported exercises.
+Content should follow an explicit lifecycle:
 
-Manual creation must respect:
+```text
+Draft
+  ↓
+Created / Generated
+  ↓
+Validated
+  ↓
+Reviewed
+  ↓
+Approved
+  ↓
+Published
+  ↓
+Active
+  ↓
+Retired
+```
+
+Saving a puzzle must not automatically publish it.
+
+Generating a puzzle must not automatically make it active.
+
+Content lifecycle is part of the product's quality model.
+
+---
+
+# 24. Manual Puzzle Creation
+
+Administrators should be able to create supported puzzle types manually.
+
+Manual content creation must respect:
 
 * exercise-specific validation
 * answer validation
 * difficulty metadata
 * rating metadata
-* content status
+* lifecycle status
 * preview/review requirements
 
-A saved draft must not automatically become active content.
+Detailed behavior belongs in:
 
-Detailed content rules belong in:
-
-`admin/PUZZLE_MANAGEMENT.md`
+```text
+admin/PUZZLE_MANAGEMENT.md
+```
 
 ---
 
-# 19. Puzzle Generators
+# 25. Puzzle Generators
 
-Puzzle generation is a first-class content capability.
+Puzzle generation is a major content capability.
 
-The intended workflow is:
+Expected workflow:
 
 ```text
 Select Exercise
@@ -784,73 +978,90 @@ Approve
 Publish
 ```
 
-Administrators should eventually be able to specify:
+Generation may specify:
 
 * exercise
 * generator
-* generation constraints
+* constraints
 * target difficulty
 * target rating/range
 * quantity
 
-Generated content must pass exercise-specific validation.
+Generated content must pass the same quality boundaries as manually created content.
 
-Generation metadata should remain available for content traceability.
+A trusted generator does not bypass review or approval.
 
-Generated content must never bypass review and approval merely because it was produced by a trusted generator.
+Detailed behavior belongs in:
 
-Detailed requirements belong in:
-
-`admin/GENERATORS.md`
+```text
+admin/GENERATORS.md
+```
 
 ---
 
-# 20. Difficulty Calibration — Future Direction
+# 26. Difficulty Calibration
 
-MicroChess should eventually compare declared difficulty with observed player performance.
+The long-term product should compare declared difficulty with observed player performance.
 
-For example:
+Example:
 
 ```text
 Declared Rating: 1400
-Observed Rating: 1285
+Observed Performance: 1285
 Attempts: 4210
 Accuracy: 79%
 ```
 
-The system may eventually recommend adjusted difficulty or rating values.
+Eventually the platform may recommend:
 
-This is a **future capability**.
+* adjusted difficulty
+* adjusted target rating
+* content retirement
+* content review
 
-The current platform should preserve sufficient historical information to support it later, but does not need to implement automated calibration unless an accepted phase explicitly requires it.
+This is a future capability.
+
+The current platform only needs to preserve sufficient historical data to make it possible later.
 
 ---
 
-# 21. Support
+# 27. Support
 
-The current product direction includes a basic in-platform support/contact mechanism.
+The current product direction includes a basic in-platform support mechanism.
 
-The initial support capability should remain simple:
+The initial support experience should remain simple:
 
-* player creates a support request
-* administrators can review it
-* administrators can respond
-* request status can be managed
+```text
+Player
+  ↓
+Support Request
+  ↓
+Administrator Review
+  ↓
+Response
+  ↓
+Resolution
+```
 
-The initial implementation does not require external communication channels.
+Support may include:
 
-Future delivery channels may include:
+* ticket creation
+* ticket status
+* administrator response
+* ticket history
+
+External communication channels are not required for the core support product.
+
+Future channels may include:
 
 * email
 * push notifications
 * Telegram
-* other communication channels
-
-Detailed support behavior belongs in the relevant domain specification.
+* other delivery mechanisms
 
 ---
 
-# 22. Coach / Student Direction — Future
+# 28. Coach Product Direction
 
 The long-term coach product may support:
 
@@ -862,18 +1073,23 @@ The long-term coach product may support:
 * assignments
 * training plans
 * progress monitoring
+* performance review
 * notes
 * reports
 
-The platform should establish relationship boundaries without prematurely implementing the complete coach product.
+The platform should establish clean relationship boundaries before implementing advanced coach functionality.
 
-Detailed relationship behavior belongs in:
+Coach access must always be explicitly authorized.
 
-`relationships/COACH_STUDENT.md`
+Detailed behavior belongs in:
+
+```text
+relationships/COACH_STUDENT.md
+```
 
 ---
 
-# 23. Parent / Student Direction — Future
+# 29. Parent Product Direction
 
 The long-term parent product may support:
 
@@ -882,139 +1098,151 @@ The long-term parent product may support:
 * training activity
 * reports
 * notifications
-* explicitly authorized permissions
+* explicit child-related permissions
 
-Parent access must always be governed by explicit authorization and privacy rules.
+Parent access must always be controlled by explicit authorization and privacy rules.
 
 Detailed behavior belongs in:
 
-`relationships/PARENT_STUDENT.md`
+```text
+relationships/PARENT_STUDENT.md
+```
 
 ---
 
-# 24. Adaptive Training — Future
+# 30. Adaptive Training
 
-MicroChess should eventually support personalized training.
+Adaptive training is a future product capability.
 
-Potential capabilities include:
+Potential features include:
 
 * recommended exercises
 * recommended difficulty
 * weak-skill detection
-* personalized training plans
 * adaptive puzzle selection
+* personalized training plans
 * difficulty adjustment
 * skill progression models
 * coach-assisted recommendations
 
-These capabilities are future product direction.
+The initial adaptive system should not require machine learning.
 
-Current implementation should preserve reliable training history and analytics without introducing machine-learning infrastructure prematurely.
+The first implementation may use deterministic and explainable rules based on existing training data.
+
+Adaptive training should build on existing authoritative history rather than creating a separate competing data model.
 
 ---
 
-# 25. Notifications — Future
+# 31. Notifications
 
-Future notification capabilities may include:
+Notifications are future product functionality.
+
+Potential notifications include:
 
 * training reminders
 * streak reminders
 * achievement notifications
-* coach assignments
+* assignment notifications
 * parent notifications
 * system notifications
 
-Notification delivery channels are future concerns and are not part of the current core training experience.
+Notifications are not required for the core exercise experience.
+
+Delivery channels are future implementation decisions.
 
 ---
 
-# 26. Future Authentication — Future
+# 32. Future Authentication
 
-Future authentication capabilities may include:
+Possible future capabilities include:
 
 * email verification
-* account recovery
+* password recovery
 * MFA
 * passkeys
 * social login
 * additional identity providers
 
-These must not increase initial registration friction unless explicitly brought into current scope.
+These capabilities must not unnecessarily increase initial registration friction.
+
+They are future direction unless promoted into active scope.
 
 ---
 
-# 27. Privacy and Data Minimization
+# 33. Privacy and Data Minimization
 
 MicroChess should collect only information that provides meaningful product value.
 
-The following are intentionally not required for initial registration:
+Initial registration intentionally avoids requiring:
 
 * email
 * phone
 * real name
-* external chess identities
+* external identities
 
-Personal information should have explicit privacy rules.
-
-Public-facing features should avoid exposing private information unnecessarily.
+Public-facing features should expose only information appropriate to their purpose.
 
 Examples:
 
 * leaderboards should normally use usernames/display names
-* external identities should be optional
+* external identities are optional
 * related-user access must be permission-controlled
-* sensitive information must not be exposed merely because a relationship exists
+* sensitive personal information must not be exposed merely because a relationship exists
 
-Detailed security and privacy rules belong in:
+Detailed privacy and security requirements belong in:
 
-`SECURITY.md`
+```text
+SECURITY.md
+```
 
 ---
 
-# 28. Accessibility
+# 34. Accessibility
 
-MicroChess should support accessible interaction through:
+The product should support:
 
 * keyboard navigation
 * touch interaction
 * sufficient contrast
 * clear feedback
-* appropriately sized interactive targets
+* appropriately sized controls
 * readable typography
 * screen-reader compatibility where practical
 * reduced-motion preferences where appropriate
 
-Accessibility requirements must coexist with the child-friendly design.
+Accessibility must coexist with the child-friendly experience.
 
-Detailed UX requirements belong in:
+Detailed requirements belong in:
 
-`UX_AND_DESIGN.md`
+```text
+UX_AND_DESIGN.md
+```
 
 ---
 
-# 29. Internationalization
+# 35. Internationalization
 
-MicroChess must remain i18n-ready.
+MicroChess must be i18n-ready from the beginning.
 
-Current primary language:
+Primary language:
 
 ```text
 Persian
 ```
 
-The product must support future additional languages without redesigning the application.
+The product should support future additional languages without fundamental redesign.
 
-The UI must correctly handle:
+The UI must correctly support:
 
 * RTL languages
 * LTR languages
 * mixed-direction content
 
-Chessboard coordinates and chess notation must preserve appropriate LTR behavior inside RTL interfaces.
+Chessboard coordinates and chess notation must preserve appropriate chess-specific directionality inside RTL interfaces.
 
 ---
 
-# 30. Responsive Product Requirements
+# 36. Responsive Product Requirements
 
 MicroChess must support:
 
@@ -1023,65 +1251,84 @@ MicroChess must support:
 * mobile portrait
 * mobile landscape
 
-The exercise experience has a particularly strict requirement:
+The exercise experience has a strict requirement:
 
 > Every exercise/play screen must fit completely within the visible viewport without normal vertical page scrolling.
 
-This requirement applies across supported viewport sizes and orientations.
+This applies to supported viewport sizes and orientations.
 
-Responsive layout must be used rather than blindly hiding overflow.
-
-Detailed UX requirements belong in:
-
-`UX_AND_DESIGN.md`
+Dashboards, analytics pages, and administration pages may use normal scrolling when content requires it.
 
 ---
 
-# 31. Current Exercise Catalog
+# 37. Current Exercise Catalog
 
-The official exercise roadmap is:
+The official product exercise catalog is:
 
-|  # | Exercise               | Slug                      |
-| -: | ---------------------- | ------------------------- |
-|  1 | تشخیص مهره             | `piece-recognition`       |
-|  2 | مقصدهای قانونی         | `legal-destinations`      |
-|  3 | گرفتن مهره‌ها          | `captures`                |
-|  4 | مهره‌های بی‌دفاع       | `undefended-pieces`       |
-|  5 | کیش دادن               | `give-check`              |
-|  6 | رفع کیش                | `get-out-of-check`        |
-|  7 | مسیریابی               | `pathfinding`             |
-|  8 | مسیریابی با مانع       | `pathfinding-obstacles`   |
-|  9 | ترازو                  | `balance-scale`           |
-| 10 | کدام طرف سنگین‌تر است؟ | `heavier-side`            |
-| 11 | آچمز                   | `pin`                     |
-| 12 | صفحه‌ی حفظی            | `chinese-board`           |
-| 13 | آیا مات است؟           | `is-checkmate`            |
-| 14 | خانه‌یابی ذهنی         | `blindfold-square-vision` |
-| 15 | محاسبه‌ی ذهنی          | `blindfold-calculation`   |
-| 16 | گشایش ذهنی             | `opening-traps`           |
-| 17 | گشایش معکوس            | `reverse-opening`         |
-| 18 | مهره‌ی گرفتار          | `trapped-pieces`          |
+|  # | Exercise                | Slug                      |
+| -: | ----------------------- | ------------------------- |
+|  1 | Piece Recognition       | `piece-recognition`       |
+|  2 | Legal Destinations      | `legal-destinations`      |
+|  3 | Captures                | `captures`                |
+|  4 | Undefended Pieces       | `undefended-pieces`       |
+|  5 | Give Check              | `give-check`              |
+|  6 | Get Out of Check        | `get-out-of-check`        |
+|  7 | Pathfinding             | `pathfinding`             |
+|  8 | Pathfinding Obstacles   | `pathfinding-obstacles`   |
+|  9 | Balance Scale           | `balance-scale`           |
+| 10 | Heavier Side            | `heavier-side`            |
+| 11 | Pin                     | `pin`                     |
+| 12 | Chinese Board           | `chinese-board`           |
+| 13 | Is Checkmate?           | `is-checkmate`            |
+| 14 | Blindfold Square Vision | `blindfold-square-vision` |
+| 15 | Blindfold Calculation   | `blindfold-calculation`   |
+| 16 | Opening Traps           | `opening-traps`           |
+| 17 | Reverse Opening         | `reverse-opening`         |
+| 18 | Trapped Pieces          | `trapped-pieces`          |
 
-The roadmap number is a product identifier and must not be confused with database ordering.
+The catalog may expand later.
 
-Current implementation status is maintained in:
+The catalog number is a product identifier.
 
-`IMPLEMENTATION_STATE.md`
+It must not be confused with:
 
-The exercise catalog may expand in the future.
+* database ordering
+* exercise ID
+* implementation status
+
+Current implementation status belongs in:
+
+```text
+IMPLEMENTATION_STATE.md
+```
 
 ---
 
-# 32. Explicitly Out of Scope
+# 38. Exercise Expansion
 
-The following are not part of the current core platform expansion unless explicitly promoted into an accepted specification:
+Adding a new exercise should:
+
+* define one clear skill
+* fit the existing exercise architecture
+* preserve server-authoritative correctness
+* support meaningful training data
+* follow the shared product experience
+* avoid unnecessary platform-specific infrastructure
+
+A new exercise should not require rewriting unrelated exercises.
+
+---
+
+# 39. Explicitly Out of Scope
+
+The following are outside the current core MicroChess product unless explicitly promoted into an accepted specification:
 
 * full online chess gameplay
 * real-time multiplayer chess
 * arbitrary user-game engine analysis
 * tournament management
 * chess federation management
-* online payments
+* payments
 * subscription billing
 * marketplace
 * video courses
@@ -1091,32 +1338,33 @@ The following are not part of the current core platform expansion unless explici
 * full social network
 * advertising platform
 
-These capabilities may be considered separately in the future.
+These may be considered independently in the future.
 
 ---
 
-# 33. What MicroChess Is Not
+# 40. What MicroChess Is Not
 
 MicroChess is not:
 
-* a replacement for a full chess client
+* a full chess client
 * a chess engine
 * a tournament manager
-* a social network
-* a generic educational LMS
+* a chess federation system
+* a generic LMS
 * a video course platform
-* a chess federation database
+* a social network
+* an advertising platform
 * a replacement for FIDE
 * a replacement for Lichess
 * a replacement for Chess.com
 
-External chess services are optional integrations, not dependencies for core training.
+External chess services are optional integrations, not dependencies for the core training experience.
 
 ---
 
-# 34. Product Outcome Questions
+# 41. Product Outcome Questions
 
-The product should eventually be able to answer meaningful questions for each major user.
+The product should eventually provide meaningful answers to major user questions.
 
 ## Player
 
@@ -1124,9 +1372,9 @@ The product should eventually be able to answer meaningful questions for each ma
 * What do I need to improve?
 * Am I improving?
 * Which exercises should I practice?
-* How has my exercise rating changed?
+* How has my rating changed?
 * How consistent am I?
-* How does my recent performance compare with previous periods?
+* How does my recent performance compare with earlier periods?
 
 ## Coach
 
@@ -1134,6 +1382,13 @@ The product should eventually be able to answer meaningful questions for each ma
 * Is the student improving?
 * Which exercises are causing difficulty?
 * Is the student practicing consistently?
+
+## Parent
+
+* Is the child practicing?
+* Is the child progressing?
+* Which skills are improving?
+* Where might additional support be useful?
 
 ## Administrator
 
@@ -1155,62 +1410,120 @@ These are product outcomes, not implementation algorithms.
 
 ---
 
-# 35. Product Evolution Principle
+# 42. Product Evolution Principle
 
 MicroChess should evolve from a simple training experience into a sophisticated training platform without requiring a fundamental product redesign.
 
-The platform should therefore preserve reliable foundations for:
+The product should therefore preserve reliable foundations for:
 
-* user identity
-* player profiles
+* identity
 * guest identity
+* profiles
 * training history
 * exercise-specific ratings
 * rating history
-* analytics source data
 * gamification history
 * exercise metadata
 * puzzle metadata
 * content lifecycle
+* analytics source data
 * administrative permissions
 * relationships
 * privacy boundaries
 
-These foundations do not require implementing every future capability immediately.
+Preserving these foundations does not mean implementing every future capability immediately.
 
-Future capabilities should build on them rather than bypass them.
-
----
-
-# 36. Scope Change Rule
-
-New major capabilities must be explicitly evaluated before implementation.
-
-A proposed capability should answer:
-
-* What user problem does it solve?
-* Which user type benefits?
-* Does it support the MicroChess mission?
-* Is it current scope or future direction?
-* What data does it require?
-* What architectural impact does it have?
-* Does it introduce unnecessary complexity?
-* Can it be implemented without weakening existing product principles?
-
-Architecturally significant decisions should be recorded in an appropriate ADR.
-
-A feature must not become an implementation requirement merely because it is mentioned as future direction in this document.
+Future features should build on them rather than bypass them.
 
 ---
 
-# 37. Final Product Direction
+# 43. Scope Change Rule
+
+A major new capability must be explicitly evaluated before becoming implementation work.
+
+The proposal should answer:
+
+1. What user problem does it solve?
+2. Which user benefits?
+3. Does it support the MicroChess mission?
+4. Is it current scope or future direction?
+5. What product capabilities does it depend on?
+6. What data does it require?
+7. Does it affect existing product boundaries?
+8. Does it introduce unnecessary complexity?
+9. Does it weaken any existing product principle?
+10. Does it require an ADR?
+
+A feature mentioned as future direction is not automatically implementation scope.
+
+---
+
+# 44. Product Completeness
+
+The long-term target platform should provide:
+
+```text
+Core Exercises
++
+Guest Training
++
+Accounts
++
+Player Profiles
++
+External Chess Identities
++
+Training History
++
+Exercise Ratings
++
+Progress
++
+Gamification
++
+Administration
++
+Content Management
++
+Puzzle Generation
++
+Analytics
++
+Coach/Student Relationships
++
+Parent/Student Relationships
++
+Adaptive Training Foundation
+```
+
+The implementation roadmap determines when each capability is built.
+
+Product scope determines that these capabilities belong to the product.
+
+---
+
+# 45. Final Product Direction
 
 The long-term MicroChess vision is:
 
 > **A child-friendly, data-driven chess skill training platform that measures individual chess abilities, makes improvement visible and motivating, and eventually adapts training to each player's needs.**
 
-The product should feel simple to a child while being powerful enough for serious analysis by players, coaches, and administrators.
+The product should feel:
+
+```text
+Simple to a child
+     +
+Useful to a parent
+     +
+Powerful to a coach
+     +
+Meaningful to a serious player
+     +
+Operationally manageable for administrators
+```
 
 The complexity belongs inside the platform.
 
-The user experience should remain simple.
+The experience should remain focused on one core promise:
+
+> **Practice a chess skill, understand the result, see the improvement, and know what to practice next.**

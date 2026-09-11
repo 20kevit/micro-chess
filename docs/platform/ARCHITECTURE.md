@@ -1,794 +1,256 @@
-# MicroChess Platform Architecture
+# MicroChess Platform — Data Model
 
-## 1. Purpose
+## 1. Document Status
 
-This document defines the target technical architecture for the MicroChess platform.
+**Status:** Accepted
+**Document Type:** Target Logical Data Model
+**Scope:** Identity, training, ratings, gamification, content, administration, relationships, analytics, and historical data
 
-It describes:
+This document defines the **target logical data model** for MicroChess.
 
-* architectural style
-* module boundaries
-* dependency rules
-* backend structure
-* frontend structure
-* data ownership
-* workflow and transaction boundaries
-* authentication and authorization boundaries
-* historical data and analytics architecture
-* content and generator architecture
-* background processing
-* observability
-* extensibility
-* performance expectations
-* architectural invariants
+It does **not** require the current repository to already contain these entities, tables, fields, or relationships.
 
-This document defines the **target architecture**, not a claim about the current repository implementation.
+The repository remains the source of truth for the current implementation.
 
-Before implementing any part of this architecture, the implementation agent MUST inspect the existing repository and reconcile the target design with the actual codebase.
+The implementation agent MUST inspect existing:
 
-The existing repository is evidence of current state.
+* SQLAlchemy models
+* migrations
+* database initialization
+* seed data
+* exercise persistence
+* training persistence
+* tests
 
-This document is the source of truth for desired architecture.
+before changing the database.
 
----
+> **Documented ≠ Implemented.**
+> **Logical target ≠ required current schema.**
 
-# 2. Architectural Goals
-
-The platform must support:
-
-1. Guest exercise usage.
-2. Player accounts.
-3. Guest-to-account migration.
-4. Player profiles.
-5. Exercise-specific ratings.
-6. Detailed training history.
-7. Gamification.
-8. Player analytics.
-9. Exercise analytics.
-10. Puzzle analytics.
-11. Platform analytics.
-12. Administration.
-13. Exercise management.
-14. Puzzle management.
-15. Puzzle generation.
-16. Content validation and publishing.
-17. Coach/student relationships.
-18. Parent/student relationships.
-19. Future adaptive training.
-20. Future recommendation systems.
-21. Future authentication expansion.
-22. Future notification systems.
-
-The architecture must achieve these goals without introducing unnecessary distributed-system complexity.
+Only capabilities required by the active phase should be implemented.
 
 ---
 
-# 3. Primary Architectural Style
+# 2. Authority and Related Documents
 
-MicroChess SHALL use a:
+Data-model decisions are governed by:
 
-> **Modular Monolith with Clean Architecture principles**
+1. accepted ADRs
+2. `MASTER_PLAN.md`
+3. the most specific domain specification
+4. this document
+5. `API_CONTRACTS.md`
+6. `SECURITY.md`
+7. active phase specification
+8. repository implementation
 
-The application remains a single deployable system while being divided into strongly bounded business modules.
+This document defines:
+
+* entities
+* ownership
+* relationships
+* historical boundaries
+* important invariants
+* authoritative vs derived data
+
+It does not define:
+
+* HTTP behavior
+* UI behavior
+* authentication protocol
+* rating algorithm
+* exercise-specific algorithms
+
+Those belong to their canonical documents.
+
+---
+
+# 3. Core Data Principles
+
+The platform should use a relational transactional model with the following principles:
+
+1. Important entities have stable identifiers.
+2. Important relationships use explicit foreign keys.
+3. Important invariants are enforced at the database level where practical.
+4. Historical facts are preserved.
+5. Current state may be materialized for efficient reads.
+6. Derived data is never the sole source of truth for authoritative facts.
+7. JSON is used only where structure is genuinely flexible.
+8. Important relational entities must not be hidden inside arbitrary JSON.
+9. Indexes follow actual query patterns.
+10. Denormalization requires a concrete justification.
+11. Destructive cascades are avoided for historical facts.
+12. The model remains practical for SQLite development and PostgreSQL production.
+13. Domain ownership remains aligned with `ARCHITECTURE.md`.
+14. Future entities are not created before their phase requires them.
+
+---
+
+# 4. Current State vs Target State
+
+The following distinction is mandatory:
+
+```text
+Repository
+    = current implementation
+
+DATA_MODEL.md
+    = target logical model
+```
+
+The agent MUST NOT create every conceptual entity listed here merely because it appears in this document.
+
+Before introducing a new table or field:
+
+1. inspect existing structures
+2. determine whether an equivalent already exists
+3. determine whether the active phase actually requires it
+4. reuse existing structures where appropriate
+5. add only the missing capability
+
+Unnecessary database redesign is prohibited.
+
+---
+
+# 5. Identifier Strategy
+
+Every major entity should have a stable primary identifier.
 
 Conceptually:
 
 ```text
-One Application
-      │
-      ├── Identity & Accounts
-      ├── Player
-      ├── Training
-      ├── Ratings
-      ├── Gamification
-      ├── Analytics
-      ├── Content
-      ├── Administration
-      ├── Relationships
-      └── Support
+id
 ```
 
-Each module owns its business rules and authoritative data responsibilities.
+The exact type must follow the existing repository convention.
 
-Modules communicate through explicit public contracts rather than reaching directly into each other's internals.
+Do not introduce a new global identifier strategy merely because another strategy may be theoretically better.
 
-The system MUST NOT begin as microservices.
+Do not mix identifier strategies without a demonstrated need.
 
-Microservices may only be considered later if actual operational, scaling, security, or organizational evidence justifies extraction.
+External identifiers must remain separate from internal primary keys.
 
----
-
-# 4. Why Modular Monolith
-
-The platform currently has:
-
-* a relatively small deployment footprint
-* one primary product
-* one development team
-* strong transactional workflows
-* many interconnected business concepts
-* no demonstrated need for independent service scaling
-
-Introducing distributed services now would create unnecessary complexity around:
-
-* deployment
-* networking
-* authentication
-* consistency
-* retries
-* distributed transactions
-* observability
-* local development
-* testing
-
-The platform should instead establish strong ownership and module boundaries inside one application.
-
-The important architectural boundary is **logical ownership**, not physical deployment.
-
----
-
-# 5. Current Technology Boundary
-
-The target architecture must preserve the existing MicroChess technology direction unless repository evidence demonstrates a concrete reason to change it.
-
-## Backend
-
-* Python
-* FastAPI
-* SQLAlchemy
-* Pydantic
-* python-chess where chess-domain logic is required
-
-## Frontend
-
-* React
-* TypeScript
-* Vite
-* Tailwind CSS
-* React Router
-
-## Database
-
-Current development:
-
-* SQLite
-
-Future/production-ready direction:
-
-* PostgreSQL-compatible relational model
-
-## Existing Exercise Infrastructure
-
-The platform MUST preserve and extend the existing shared exercise architecture.
-
-Important existing concepts include:
-
-* ExercisePlay
-* ChessBoard
-* PieceGameLayout / GameShell
-* exercise catalog
-* API client
-* i18n
-* design system
-* server-authoritative validation
-* Practice mode
-* Speed mode
-
-New platform functionality MUST integrate with these concepts rather than creating independent exercise implementations.
-
----
-
-# 6. High-Level System Architecture
+Example:
 
 ```text
-┌──────────────────────────────────────────────────────────┐
-│                    React Web Client                      │
-│                                                          │
-│ Public │ Auth │ Player │ Exercise │ Admin │ Coach        │
-│ Parent │ Analytics │ Profile │ Support                  │
-└──────────────────────────────┬───────────────────────────┘
-                               │ HTTPS / JSON API
-                               ▼
-┌──────────────────────────────────────────────────────────┐
-│                     FastAPI Application                   │
-│                                                          │
-│  ┌────────────────────────────────────────────────────┐  │
-│  │                    API / Interfaces                │  │
-│  └──────────────────────────┬─────────────────────────┘  │
-│                             ▼                            │
-│  ┌────────────────────────────────────────────────────┐  │
-│  │                 Application Layer                  │  │
-│  └──────────────────────────┬─────────────────────────┘  │
-│                             ▼                            │
-│  ┌────────────────────────────────────────────────────┐  │
-│  │                    Domain Modules                  │  │
-│  │                                                    │  │
-│  │ Identity │ Player │ Training │ Ratings             │  │
-│  │ Gamification │ Analytics │ Content │ Admin         │  │
-│  │ Relationships │ Support                          │  │
-│  └──────────────────────────┬─────────────────────────┘  │
-│                             ▼                            │
-│  ┌────────────────────────────────────────────────────┐  │
-│  │                Infrastructure Layer                │  │
-│  │                                                    │  │
-│  │ SQLAlchemy │ Database │ Files │ External APIs      │  │
-│  │ Background Jobs │ Logging │ Configuration          │  │
-│  └──────────────────────────┬─────────────────────────┘  │
-└─────────────────────────────┼────────────────────────────┘
-                              ▼
-                     ┌─────────────────┐
-                     │   Relational DB │
-                     └─────────────────┘
+User.id
+ExternalIdentity.external_id
 ```
 
----
-
-# 7. Domain Modules
-
-The target architecture contains the following logical modules.
-
-## 7.1 Identity & Accounts
-
-Responsible for:
-
-* users
-* credentials
-* authentication
-* sessions
-* guest identity
-* account creation
-* account lifecycle
-* future password recovery
-* future email verification
-* future MFA/passkeys/social login
-
-It owns identity-related security state.
-
-It MUST NOT own training statistics.
-
-Guest is a temporary access subject, not a persisted application role.
+An external provider identifier is not the application's primary key.
 
 ---
 
-## 7.2 Player
+# 6. Common Metadata
 
-Responsible for:
+Use timestamps when they represent meaningful business information.
 
-* player profile
-* display name
-* avatar
-* bio
-* optional personal information
-* privacy preferences
-* external chess identities
-
-External identities include:
-
-* FIDE
-* Lichess
-* Chess.com
-
-External ratings are separate from MicroChess ratings.
-
----
-
-## 7.3 Training
-
-Responsible for:
-
-* exercise sessions
-* attempts
-* answers
-* correctness
-* response time
-* Practice/Speed mode behavior
-* exercise completion
-* training history
-
-Training owns authoritative training facts.
-
-It MUST preserve enough historical information for future analytics and adaptive training.
-
----
-
-## 7.4 Ratings
-
-Responsible for:
-
-* exercise-specific rating
-* rating state
-* rating history
-* rating changes
-* provisional state
-
-Advanced uncertainty/development modeling may be added later if required by the selected rating algorithm.
-
-Ratings are scoped to an exercise or explicitly defined training category.
-
-The exact rating algorithm is documented separately in `training/RATINGS.md`.
-
----
-
-## 7.5 Gamification
-
-Responsible for:
-
-* XP
-* levels
-* streaks
-* goals
-* achievements
-* badges
-* milestones
-* personal records
-* exercise mastery
-* challenges
-* leaderboard state
-
-Gamification consumes authoritative training outcomes and rating results.
-
-It MUST NOT independently determine whether an answer was correct.
-
----
-
-## 7.6 Analytics
-
-Analytics is a **derived/read-oriented capability**, not the owner of raw training facts.
-
-It is responsible for:
-
-* player analytics
-* exercise analytics
-* puzzle analytics
-* platform analytics
-* time-based aggregations
-* period comparisons
-* retention metrics
-* activity metrics
-* accuracy analysis
-* response-time analysis
-* rating trends
-* future difficulty-calibration analysis
-
-Authoritative raw facts remain owned by their respective modules.
-
-Analytics may maintain derived or materialized data for performance, but those records are not the source of truth for training state.
-
----
-
-## 7.7 Content
-
-Responsible for:
-
-* exercises
-* puzzles
-* puzzle metadata
-* difficulty metadata
-* target rating
-* tags
-* content status
-* validation
-* review
-* approval
-* publication
-* retirement
-* generator configuration
-* generated content
-
-Content owns the lifecycle of training material.
-
----
-
-## 7.8 Administration
-
-Administration is a privileged interface over existing domain capabilities.
-
-It is responsible for:
-
-* admin dashboard
-* user management
-* exercise administration
-* puzzle administration
-* generator administration
-* analytics views
-* audit access
-* support workflows
-* moderation
-* relevant operational controls
-
-Admin MUST NOT duplicate domain rules that already belong to another module.
-
----
-
-## 7.9 Relationships
-
-Responsible for:
-
-* coach/student relationships
-* coach invitations
-* groups/classes
-* assignments
-* progress visibility
-* coach notes
-* parent/student relationships
-* parent permissions
-
-Relationship functionality may initially expose only infrastructure and limited UI.
-
-The architecture must not require the full relationship product before these boundaries exist.
-
----
-
-## 7.10 Support
-
-Responsible for:
-
-* contact requests
-* support tickets/messages
-* issue status
-* admin responses
-
-Future notification delivery may integrate with Support, but notification delivery is not part of the initial Support domain.
-
----
-
-# 8. Module Internal Structure
-
-Each substantial backend module SHOULD follow this conceptual structure where its complexity justifies it:
+Common fields may include:
 
 ```text
-module/
-├── domain/
-│   ├── entities/
-│   ├── value_objects/
-│   ├── rules/
-│   └── services/
-│
-├── application/
-│   ├── commands/
-│   ├── queries/
-│   ├── services/
-│   └── dto/
-│
-├── infrastructure/
-│   ├── repositories/
-│   ├── persistence/
-│   ├── external/
-│   └── adapters/
-│
-└── interfaces/
-    ├── api/
-    ├── schemas/
-    └── dependencies/
+created_at
+updated_at
 ```
 
-This is a conceptual target, not a mandatory directory template.
+Lifecycle-managed entities may additionally use:
 
-Small modules MAY use a simpler structure.
+```text
+published_at
+retired_at
+deleted_at
+```
 
-The implementation agent MUST inspect the existing repository before creating or moving directories.
+Do not mechanically add every timestamp to every table.
 
-Do not reorganize the entire repository merely to make it visually match this diagram.
-
-Repository abstractions MUST NOT be created mechanically for every model. Introduce them where persistence complexity or domain/application isolation justifies them.
+Historical events should have an explicit occurrence timestamp when needed.
 
 ---
 
-# 9. Layer Dependency Rule
+# 7. Ownership Model
 
-The preferred dependency direction is:
+Owner-bearing training records use explicit ownership.
+
+For records that may belong either to a registered user or to a guest session:
 
 ```text
-Interfaces
-    ↓
-Application
-    ↓
-Domain
-
-Infrastructure
-    ↓
-Application / Domain contracts
+user_id XOR guest_session_id
 ```
 
-The domain MUST NOT depend on:
+Exactly one owner must be present.
 
-* FastAPI
-* SQLAlchemy
-* Pydantic
-* HTTP
-* database sessions
-* filesystem
-* external APIs
-* frontend concepts
+Do not use an unconstrained:
 
-Application logic may depend on domain concepts and abstract infrastructure contracts.
+```text
+owner_type
+owner_id
+```
 
-Infrastructure implements those contracts.
+pair when explicit foreign keys can preserve referential integrity.
 
-Interfaces translate external requests into application operations.
+Because SQLite and PostgreSQL differ in some nullable-constraint behavior, the implementation must use an appropriate constraint/index strategy.
 
 ---
 
-# 10. Module Boundary Rule
+# 8. Identity Domain
 
-A module MUST NOT directly access another module's:
+## 8.1 User
 
-* internal entity implementation
-* repository
-* database model
-* private service
-* internal helper
-* internal SQL query
-* internal storage implementation
+`User` represents a persistent application identity.
 
-Bad:
+Conceptual fields:
 
 ```text
-Analytics → SQLAlchemy → training_attempts table
+User
+----
+id
+username
+password_hash
+status
+created_at
+updated_at
+last_login_at
 ```
 
-Good:
+Initial registration requires:
 
 ```text
-Analytics → Training public contract
+username
+password
 ```
 
-or:
+The database must enforce username uniqueness.
 
-```text
-Training
-   │
-   └── exposes authoritative training data
-                    ↓
-               Analytics
-```
+Registration does not initially require:
 
-Internal application/domain events MAY be used where they reduce coupling, but they are not a requirement for every cross-module interaction.
-
-A distributed message broker is NOT required.
+* email
+* phone
+* real name
+* FIDE ID
+* Lichess identity
+* Chess.com identity
 
 ---
 
-# 11. Data Ownership
+# 9. User Status
 
-Every important dataset MUST have one authoritative owner.
+Possible conceptual states:
 
 ```text
-Users              → Identity
-Player profiles    → Player
-Attempts           → Training
-Training history   → Training
-Ratings            → Ratings
-Rating history     → Ratings
-XP/Achievements    → Gamification
-Exercises/Puzzles  → Content
-Derived analytics  → Analytics
-Relationships      → Relationships
-Support tickets    → Support
-Audit records      → Security / Administration boundary
+ACTIVE
+SUSPENDED
+DISABLED
+DELETED
 ```
 
-Other modules may consume information through defined contracts or read-oriented projections.
+Exact representation follows repository conventions.
 
-They must not become secondary authoritative writers of another module's data.
+Suspending or disabling an account must not destroy historical training facts.
 
 ---
 
-# 12. Database Strategy
+# 10. Roles
 
-The application may use one physical relational database.
-
-Logical ownership MUST remain modular.
-
-Conceptually:
-
-```text
-Identity tables
-Player tables
-Training tables
-Rating tables
-Gamification tables
-Content tables
-Analytics-derived tables
-Relationship tables
-Support tables
-Audit tables
-```
-
-A shared physical database does not mean a shared business data model.
-
-Modules MUST NOT casually query each other's tables.
-
-Cross-module reads should use:
-
-1. public application contracts
-2. explicitly designed query services
-3. derived/read models
-4. controlled internal application events where useful
-
-The simplest suitable mechanism should be preferred.
-
----
-
-# 13. Transaction Boundaries
-
-Transactions should protect business invariants.
-
-For an exercise submission, a conceptual workflow may be:
-
-```text
-Validate answer
-      ↓
-Persist authoritative attempt
-      ↓
-Update rating if rated
-      ↓
-Record rating history
-      ↓
-Apply gamification consequences
-```
-
-The exact atomic boundary must be determined by business invariants.
-
-In general:
-
-* authoritative answer validation and attempt persistence belong to the core training transaction
-* a rated attempt and its rating update should remain consistent
-* gamification consequences must not create duplicate rewards
-* analytics processing must not make the core training transaction unnecessarily heavy
-
-Analytics MUST NOT require a distributed transaction with Training.
-
-Because the application is a modular monolith, operations that genuinely require atomicity may use one database transaction.
-
-Modules must still preserve ownership boundaries.
-
----
-
-# 14. Exercise Attempt Architecture
-
-An exercise submission MUST follow the server-authoritative model.
-
-Conceptually:
-
-```text
-Client
-  │
-  │ answer
-  ▼
-Training API
-  │
-  ├── identify player/session
-  ├── identify exercise/session
-  ├── validate request
-  │
-  ▼
-Exercise/domain validator
-  │
-  ├── determine correctness
-  ├── calculate authoritative score
-  └── produce result
-  │
-  ▼
-Training
-  │
-  └── persist attempt/history
-  │
-  ▼
-Ratings
-  │
-  └── update exercise rating when eligible
-  │
-  ▼
-Gamification
-  │
-  ├── XP
-  ├── streak
-  └── achievements
-  │
-  ▼
-Analytics
-  │
-  └── derive/read metrics
-```
-
-The client MUST NOT be trusted for:
-
-* correctness
-* score
-* rating delta
-* XP
-* authoritative timing result
-* puzzle solution
-* authoritative FEN
-* hidden answer
-* achievement eligibility
-
-The server determines these values.
-
----
-
-# 15. Guest Architecture
-
-Guests are first-class temporary identities, but **not authenticated/persisted roles**.
-
-A guest may:
-
-* use exercises
-* accumulate temporary progress
-* receive temporary training state
-* receive temporary scoring/rating state
-* use Practice/Speed modes where supported
-
-Guest data MUST NOT automatically become permanent until an explicit migration occurs.
-
-Conceptually:
-
-```text
-Guest Session
-     │
-     ├── attempts
-     ├── temporary rating state
-     ├── temporary progress
-     └── preferences
-              │
-              ▼
-        Account Creation
-              │
-              ▼
-       Migration / Merge
-              │
-              ▼
-        Persistent Player
-```
-
-Guest migration must prevent:
-
-* duplicate ownership
-* accidental data loss
-* unauthorized migration
-* cross-account data leakage
-* duplicate rewards
-
-Detailed rules belong in `accounts/SESSIONS_AND_GUESTS.md`.
-
----
-
-# 16. Authentication Architecture
-
-Authentication is an Identity responsibility.
-
-API handlers should not implement password verification directly.
-
-Conceptually:
-
-```text
-API
- ↓
-Authentication service
- ↓
-Identity domain/application
- ↓
-Credential/session infrastructure
-```
-
-Authentication answers:
-
-> Who is this?
-
-Authorization answers:
-
-> What may this identity do?
-
-These concerns remain separate.
-
----
-
-# 17. Authorization Architecture
-
-Authorization must use the canonical capability vocabulary defined in `SECURITY.md`.
-
-Persisted application roles are exactly:
+Canonical persisted roles:
 
 ```text
 PLAYER
@@ -797,1411 +259,2274 @@ PARENT
 ADMIN
 ```
 
-with persisted identifiers:
+Guest is not a persisted role.
+
+Roles may be modeled independently:
 
 ```text
-player
-coach
-parent
-admin
+Role
+----
+id
+code
+name
 ```
 
-`GUEST` is NOT an authenticated/persisted role.
+and assigned through:
 
-Guest access is represented by a temporary access/session state and its explicitly defined capabilities.
-
-Do not encode authorization only as:
-
-```python
-if user.is_admin:
+```text
+UserRole
+--------
+id
+user_id
+role_id
+created_at
 ```
 
-Authorization should evaluate:
+Recommended invariant:
 
-* authenticated identity
-* account status
-* role/capability
-* resource ownership
-* relationship where applicable
-* resource state
-* relevant business rules
+```text
+UNIQUE(user_id, role_id)
+```
 
-Exact capability names belong in `SECURITY.md`.
+The model permits a user to have multiple roles.
+
+Example:
+
+```text
+PLAYER + COACH
+```
 
 ---
 
-# 18. Exercise Architecture
+# 11. Capabilities and Permissions
 
-The existing shared exercise architecture is a critical platform boundary.
+Authorization uses the canonical capability vocabulary defined by `SECURITY.md`.
 
-Every exercise should integrate through common infrastructure where applicable:
+A separate permission model may eventually contain:
 
 ```text
-Exercise Catalog
-      ↓
-Exercise Definition
-      ↓
-Exercise Play
-      ↓
-Exercise Session
-      ↓
-Answer Submission
-      ↓
-Training History
-      ↓
-Rating / Gamification / Analytics
+Permission
+----------
+id
+code
+description
 ```
 
-Exercise-specific logic remains inside the exercise/domain implementation.
+and:
 
-Platform functionality must not force each exercise to independently implement:
+```text
+RolePermission
+--------------
+role_id
+permission_id
+```
 
-* authentication
-* rating
+However, this is not automatically required.
+
+The initial implementation may use application-defined role-to-capability mappings.
+
+Do not build a permission-management subsystem unless the active requirements justify it.
+
+---
+
+# 12. Guest Session
+
+Guest is represented by a temporary server-controlled session.
+
+Conceptual fields:
+
+```text
+GuestSession
+------------
+id
+created_at
+last_seen_at
+expires_at
+status
+```
+
+A secure token/credential may identify the session.
+
+The raw credential should not be stored in plaintext when hashing provides an appropriate security boundary.
+
+The browser must never establish ownership merely by supplying a guest session ID.
+
+---
+
+# 13. Guest-Owned Data
+
+Temporary training records may reference:
+
+```text
+guest_session_id
+```
+
+instead of:
+
+```text
+user_id
+```
+
+Guest-owned records must remain isolated from other guests.
+
+Expired guest sessions may be retained only as long as required by the product and security policies.
+
+---
+
+# 14. Guest Migration
+
+Guest-to-account migration transfers temporary state from:
+
+```text
+GuestSession
+```
+
+to:
+
+```text
+User
+```
+
+Relevant state may include:
+
+* training attempts
+* sessions
+* ratings
 * XP
-* history
-* analytics
-* session tracking
-* navigation
-* generic feedback
+* achievements
+* progress
 
-Those belong to shared platform infrastructure.
+Migration must preserve the historical meaning of the records.
+
+It must be:
+
+* authenticated where required
+* ownership-checked
+* atomic where appropriate
+* idempotent
+* replay-resistant
+
+A conceptual migration record may be:
+
+```text
+GuestMigration
+--------------
+id
+guest_session_id
+user_id
+status
+started_at
+completed_at
+```
+
+The implementation should introduce this record only when the migration workflow requires durable migration state.
 
 ---
 
-# 19. Content Architecture
+# 15. Player Profile
 
-Content follows a lifecycle:
+Persistent account identity and player profile are separate concerns.
 
 ```text
-Draft
-  ↓
-Created / Generated
-  ↓
-Validated
-  ↓
-Reviewed
-  ↓
-Approved
-  ↓
-Published
-  ↓
-Active
-  ↓
-Retired
+User
+ │
+ └── PlayerProfile
 ```
 
-Generated content is never automatically considered production-safe merely because generation succeeded.
+Conceptual fields:
 
-A generated puzzle must pass the appropriate validation pipeline.
+```text
+PlayerProfile
+-------------
+id
+user_id
+display_name
+avatar_reference
+bio
+date_of_birth
+privacy_settings
+created_at
+updated_at
+```
 
-Publication is an explicit content decision.
+Personal information should be optional and minimized.
+
+Invariant:
+
+```text
+UNIQUE(user_id)
+```
+
+A persistent player has at most one primary player profile.
 
 ---
 
-# 20. Generator Architecture
+# 16. External Chess Identity
 
-Generators are content-producing components.
+External chess identities are separate from the MicroChess identity and rating systems.
 
-A generator SHOULD expose:
-
-```text
-Generator
- ├── identifier
- ├── supported exercise
- ├── configuration schema
- ├── generation operation
- ├── validation operation
- └── metadata
-```
-
-The system may support parameters such as:
-
-* target rating
-* target difficulty
-* quantity
-* allowed pieces
-* board constraints
-* thematic constraints
-* uniqueness constraints
-* exercise-specific constraints
-
-Target rating and difficulty are objectives, not guarantees.
-
-The generator must not directly publish content.
-
-Conceptually:
+Conceptual fields:
 
 ```text
-Admin
-  ↓
-Generator Configuration
-  ↓
-Generation
-  ↓
-Validation
-  ↓
-Deduplication
-  ↓
-Preview
-  ↓
-Review
-  ↓
-Approval
-  ↓
-Publication
+PlayerExternalIdentity
+----------------------
+id
+user_id
+provider
+external_id
+username
+rating
+rating_type
+is_verified
+verified_at
+created_at
+updated_at
 ```
+
+Possible providers include:
+
+```text
+fide
+lichess
+chess_com
+```
+
+Provider-specific capabilities must not be assumed to be identical.
+
+Where a provider exposes a stable external identifier, uniqueness should normally be enforced on:
+
+```text
+(provider, external_id)
+```
+
+Where the product requires only one identity per provider per player, an additional constraint may be applied.
+
+External identity verification is server-controlled.
 
 ---
 
-# 21. Analytics Architecture
+# 17. External Rating Independence
 
-Analytics is a read-oriented capability built from authoritative historical data.
+External ratings and MicroChess ratings are completely separate.
 
-Authoritative raw facts include:
+Example:
 
 ```text
-Attempt
-Session
-Answer
-Correctness
-Response time
-Score
+Lichess Rapid: 2050
+MicroChess Pin: 1478
+```
+
+The data model must never represent them as one rating.
+
+Self-reported external ratings may initially be unverified.
+
+---
+
+# 18. Exercise
+
+MicroChess already has an exercise concept.
+
+Conceptual fields:
+
+```text
 Exercise
+--------
+id
+slug
+title_key
+description_key
+status
+sort_order
+difficulty
+supports_practice
+supports_speed
+rating_enabled
+created_at
+updated_at
+```
+
+The implementation MUST first inspect the existing exercise model.
+
+Do not create a second exercise entity if an existing model already serves this role.
+
+---
+
+# 19. Exercise Configuration
+
+Flexible exercise-specific configuration may use JSON.
+
+Conceptual:
+
+```text
+ExerciseConfiguration
+---------------------
+exercise_id
+config_json
+schema_version
+updated_at
+```
+
+Appropriate uses include:
+
+* time limits
+* mode settings
+* selection counts
+* exercise-specific parameters
+
+Important historical facts must not depend exclusively on mutable configuration JSON.
+
+When configuration affects interpretation of historical data, the relevant version or snapshot must be preserved with the historical record.
+
+---
+
+# 20. Puzzle / Training Content
+
+A puzzle is a concrete unit of exercise content.
+
+Conceptual fields:
+
+```text
 Puzzle
-Mode
-Rating before
-Rating delta
-Rating after
-XP
-Timestamp
-Difficulty metadata
+------
+id
+exercise_id
+identifier
+status
+difficulty
+target_rating
+source
+source_reference
+content_version
+created_at
+updated_at
+published_at
+retired_at
 ```
 
-These facts remain owned by their respective modules.
+Not every exercise must use identical content semantics.
 
-Derived analytics may include:
-
-* accuracy
-* average response time
-* active days
-* attempts/day
-* exercise completion
-* rating trend
-* rating change
-* XP trend
-* streak
-* retention
-* puzzle difficulty indicators
-* exercise mastery
-* period comparisons
-
-Analytics MUST NOT replace authoritative history.
+The data model must not force every exercise into a fake universal schema.
 
 ---
 
-# 22. Analytics Flow
+# 21. Puzzle Content Payload
+
+Where exercise content varies significantly, structured JSON may be appropriate:
 
 ```text
-Authoritative Historical Data
-            │
-            ▼
-      Analytics Queries
-            │
-      ┌─────┴─────┐
-      ▼           ▼
-On-demand     Derived/
-aggregation   materialized data
-      │           │
-      └─────┬─────┘
-            ▼
-      Player/Admin UI
+PuzzleContent
+-------------
+puzzle_id
+content_json
+schema_version
 ```
 
-Initial implementation should calculate many metrics directly from relational data.
+Relational fields should be used when a value is frequently needed for:
 
-Precomputed aggregates should only be introduced when profiling demonstrates a real performance need.
+* searching
+* filtering
+* authorization
+* analytics
+* uniqueness
+* reporting
 
-Do not build a separate analytics warehouse prematurely.
+Do not hide important business entities inside JSON.
+
+The existing large read-only `puzzles.db` remains a separate content source unless an explicit import/migration requirement is approved.
 
 ---
 
-# 23. Difficulty Calibration
+# 22. Content Lifecycle
 
-The architecture must preserve enough historical evidence to eventually compare:
+Canonical conceptual lifecycle:
 
 ```text
-Declared Difficulty
-        vs
-Observed Difficulty
+DRAFT
+  ↓
+CREATED / GENERATED
+  ↓
+VALIDATED
+  ↓
+REVIEWED
+  ↓
+APPROVED
+  ↓
+PUBLISHED
+  ↓
+ACTIVE
+  ↓
+RETIRED
 ```
 
-This may require:
+The current state may live directly on `Puzzle`.
 
-* puzzle
-* player rating
-* outcome
-* response time where relevant
-* attempt count
-* mode
-* timestamp
-
-Difficulty calibration is a **future capability**, not a required current subsystem.
-
-No dedicated calibration engine is required until an accepted phase explicitly introduces it.
+Historical transitions may be recorded separately where auditability requires them.
 
 ---
 
-# 24. Gamification Architecture
+# 23. Content Status History
 
-Gamification reacts to authoritative outcomes.
+When lifecycle auditing is required:
+
+```text
+PuzzleStatusHistory
+-------------------
+id
+puzzle_id
+from_status
+to_status
+changed_by_user_id
+reason
+created_at
+```
+
+Historical lifecycle records should be treated as append-only facts.
+
+---
+
+# 24. Puzzle Tags
+
+If tags are required for filtering and analytics:
+
+```text
+PuzzleTag
+---------
+id
+code
+name
+```
+
+and:
+
+```text
+PuzzleTagAssignment
+-------------------
+puzzle_id
+tag_id
+```
+
+Invariant:
+
+```text
+UNIQUE(puzzle_id, tag_id)
+```
+
+Do not create tagging infrastructure before content requirements require it.
+
+---
+
+# 25. Training Session
+
+A training session is a bounded unit of exercise activity where the exercise requires an explicit session.
+
+Conceptual fields:
+
+```text
+TrainingSession
+---------------
+id
+user_id
+guest_session_id
+exercise_id
+mode
+started_at
+ended_at
+status
+question_count
+completed_count
+score
+```
+
+Owner invariant:
+
+```text
+user_id XOR guest_session_id
+```
+
+Not every exercise must use a formal session.
+
+The implementation must not introduce session persistence where the exercise architecture does not require it.
+
+---
+
+# 26. Question Instance
+
+A question instance represents the concrete server-issued question delivered during a training session.
+
+This is distinct from the underlying `Puzzle`.
 
 Conceptually:
 
 ```text
-Training Outcome
-      │
-      ├── Rating consequence
-      ├── XP consequence
-      ├── Streak update
-      ├── Achievement evaluation
-      └── Personal record evaluation
+Puzzle
+  ↓
+QuestionInstance
+  ↓
+Attempt
 ```
 
-Gamification must not modify training correctness.
-
-For example:
+Possible fields:
 
 ```text
-Correct answer
+QuestionInstance
+----------------
+id
+session_id
+exercise_id
+puzzle_id
+sequence_number
+issued_at
+expires_at
+status
 ```
 
-is a Training fact.
+A question instance binds content to its delivery context.
 
-```text
-+XP
-```
+It allows the server to distinguish:
 
-is a Gamification consequence.
+* the underlying reusable puzzle
+* a specific occurrence of that puzzle in a training session
 
-These remain conceptually separate.
+The client must submit the `question_instance_id`, not merely the `puzzle_id`, when the exercise uses question instances.
+
+A question-instance model is not required for exercises whose current architecture does not need it.
 
 ---
 
-# 25. Internal Event Architecture
+# 27. Training Attempt
 
-The platform MAY use lightweight in-process domain/application events where they provide real decoupling value.
+An attempt is an authoritative historical record of one submitted answer.
+
+Conceptual fields:
+
+```text
+TrainingAttempt
+---------------
+id
+user_id
+guest_session_id
+session_id
+question_instance_id
+exercise_id
+puzzle_id
+mode
+started_at
+answered_at
+response_time_ms
+is_correct
+score
+rating_before
+rating_delta
+rating_after
+xp_awarded
+difficulty_snapshot
+exercise_version
+content_version
+created_at
+```
+
+Owner invariant:
+
+```text
+user_id XOR guest_session_id
+```
+
+When applicable:
+
+```text
+question_instance_id
+```
+
+must link the attempt to the concrete delivered question.
+
+`puzzle_id` remains useful as historical/content reference.
+
+---
+
+# 28. Attempt as Historical Source
+
+The attempt record represents what happened at the time.
+
+Historical fields may include:
+
+```text
+difficulty_snapshot
+rating_before
+rating_delta
+rating_after
+response_time_ms
+exercise_version
+content_version
+```
+
+Old attempts must remain interpretable even if current:
+
+* puzzle difficulty
+* scoring configuration
+* exercise configuration
+* content version
+
+changes later.
+
+---
+
+# 29. Attempt Answer
+
+An attempt may store the submitted answer when historical/debugging value justifies retaining it.
+
+Conceptually:
+
+```text
+AttemptAnswer
+-------------
+attempt_id
+answer_json
+schema_version
+```
+
+The stored answer is evidence of what was submitted.
+
+It is not an authoritative result.
+
+Do not store unnecessarily large payloads.
+
+For chess exercises, use a canonical representation where practical.
+
+---
+
+# 30. Attempt Result
+
+Server-generated result fields may include:
+
+```text
+is_correct
+score
+feedback_code
+response_time_ms
+```
+
+The client cannot authoritatively assign these values.
+
+---
+
+# 31. Training History Immutability
+
+Completed attempts should be treated as append-only historical facts.
+
+Normal clients cannot:
+
+* edit
+* delete
+* rewrite
+* recompute
+
+historical attempts.
+
+Explicit administrative correction workflows, if ever required, must preserve the original meaning and create an auditable corrective record.
+
+---
+
+# 32. Rating State
+
+MicroChess ratings are scoped independently.
+
+At minimum, rating scope is:
+
+```text
+exercise
+```
+
+Conceptual fields:
+
+```text
+PlayerRating
+------------
+id
+user_id
+guest_session_id
+exercise_id
+rating
+rating_deviation
+is_provisional
+games_count
+updated_at
+```
+
+Owner invariant:
+
+```text
+user_id XOR guest_session_id
+```
+
+Current-state uniqueness:
+
+```text
+(user_id, exercise_id)
+```
+
+or:
+
+```text
+(guest_session_id, exercise_id)
+```
+
+as applicable.
+
+Do not create a global:
+
+```text
+User.rating
+```
+
+as the canonical MicroChess rating.
+
+---
+
+# 33. Rating History
+
+Every authoritative rating change must be represented historically.
+
+```text
+RatingEvent
+-----------
+id
+user_id
+guest_session_id
+exercise_id
+attempt_id
+rating_before
+rating_delta
+rating_after
+reason
+created_at
+```
+
+Owner invariant:
+
+```text
+user_id XOR guest_session_id
+```
+
+Possible reasons include:
+
+```text
+attempt
+initialization
+calibration
+migration
+manual_adjustment
+```
+
+Manual adjustments require an explicit controlled workflow and audit trail if ever implemented.
+
+---
+
+# 34. Rating Invariants
+
+For ordinary rating changes:
+
+```text
+rating_after = rating_before + rating_delta
+```
+
+The exact rating algorithm is defined in:
+
+```text
+training/RATINGS.md
+```
+
+The database does not reproduce the rating algorithm.
+
+The application/domain layer is authoritative.
+
+The attempt result, rating state change, and rating event must be transactionally consistent.
+
+---
+
+# 35. Gamification
+
+Gamification has two categories:
+
+```text
+Historical facts
++
+Current/materialized state
+```
+
+Historical facts include:
+
+* XP events
+* achievement unlocks
+* challenge completion
+* other reward events
+
+Current state may include:
+
+* total XP
+* level
+* current streak
+* mastery
+
+Historical records remain authoritative.
+
+---
+
+# 36. XP Event
+
+XP should be represented as historical reward events.
+
+Conceptual:
+
+```text
+XPEvent
+-------
+id
+user_id
+guest_session_id
+amount
+reason
+attempt_id
+achievement_id
+goal_id
+challenge_id
+created_at
+```
+
+Owner invariant:
+
+```text
+user_id XOR guest_session_id
+```
+
+Use explicit source relationships where practical.
+
+Avoid:
+
+```text
+source_type
+source_id
+```
+
+as a generic unconstrained pair unless a documented future requirement makes it necessary.
+
+---
+
+# 37. Current Gamification State
+
+A materialized state may be stored for efficient reads:
+
+```text
+PlayerGamificationState
+-----------------------
+id
+user_id
+guest_session_id
+total_xp
+level
+updated_at
+```
+
+Owner invariant:
+
+```text
+user_id XOR guest_session_id
+```
+
+This state is a read optimization.
+
+The XP ledger remains the historical source of truth.
+
+---
+
+# 38. Achievements
+
+Achievement definitions:
+
+```text
+Achievement
+-----------
+id
+code
+name_key
+description_key
+criteria_json
+schema_version
+active
+```
+
+Player unlocks:
+
+```text
+PlayerAchievement
+-----------------
+id
+user_id
+guest_session_id
+achievement_id
+unlocked_at
+```
+
+An unlock must reference a valid achievement definition.
+
+Client-controlled achievement unlock is prohibited.
+
+---
+
+# 39. Streaks
+
+Current streak state may be materialized.
+
+Conceptually:
+
+```text
+PlayerStreak
+------------
+id
+user_id
+guest_session_id
+current_streak
+longest_streak
+last_qualified_date
+updated_at
+```
+
+The exact streak rules belong to the gamification domain.
+
+The client cannot set streak state.
+
+---
+
+# 40. Goals
+
+Future goal infrastructure may use:
+
+```text
+TrainingGoal
+------------
+id
+user_id
+goal_type
+period
+target
+status
+started_at
+ended_at
+```
+
+Goal progress should be derived from authoritative training activity.
+
+Do not implement a large goal subsystem before Phase 5 requires it.
+
+---
+
+# 41. Mastery
+
+Exercise mastery is a current derived state.
+
+Canonical conceptual states:
+
+```text
+NOT_STARTED
+LEARNING
+PRACTICING
+PROFICIENT
+MASTERED
+```
+
+Possible representation:
+
+```text
+PlayerExerciseMastery
+---------------------
+id
+user_id
+exercise_id
+state
+score
+updated_at
+```
+
+The exact mastery algorithm belongs to the training/gamification domain.
+
+Mastery must not replace raw attempt history.
+
+---
+
+# 42. Personal Records
+
+Personal records may include:
+
+* highest exercise rating
+* best score
+* fastest valid response
+* longest streak
+* highest XP period
+
+These are derived or materialized values.
+
+They should be recalculable from authoritative history where practical.
+
+Do not create a separate record for every metric merely because a UI may display it.
+
+---
+
+# 43. Analytics
+
+Analytics is a **derived/read-oriented domain**.
+
+Analytics does not own:
+
+* attempts
+* rating events
+* XP events
+* content history
+
+Those remain owned by their source domains.
+
+Analytics may derive:
+
+* player statistics
+* exercise statistics
+* puzzle statistics
+* platform statistics
+
+A separate analytics fact table or aggregate may be introduced only when there is a demonstrated performance/query requirement.
+
+Any such projection should be rebuildable from authoritative source data where practical.
+
+---
+
+# 44. Analytics Aggregates
+
+Possible future aggregates include:
+
+```text
+PlayerDailyStats
+----------------
+user_id
+date
+attempts
+correct_attempts
+accuracy
+training_time_ms
+xp
+rating_change
+```
+
+```text
+ExerciseDailyStats
+------------------
+exercise_id
+date
+attempts
+correct_attempts
+accuracy
+avg_response_time_ms
+unique_players
+```
+
+```text
+PuzzleStats
+-----------
+puzzle_id
+attempts
+correct_attempts
+accuracy
+avg_response_time_ms
+unique_players
+observed_difficulty
+```
+
+These are derived structures.
+
+They are not required in the initial implementation.
+
+Do not duplicate the entire training history into an analytics table without evidence.
+
+---
+
+# 45. Period Comparisons
+
+Analytics must eventually support:
+
+```text
+7d
+30d
+90d
+all
+custom
+```
+
+Comparisons should be calculated from authoritative timestamps or rebuildable aggregates.
+
+Do not store every possible comparison as permanent data.
+
+---
+
+# 46. Content Generators
+
+A generator is a registered content-generation capability.
+
+Conceptual:
+
+```text
+GeneratorDefinition
+-------------------
+id
+code
+name
+exercise_id
+version
+config_schema_json
+active
+created_at
+updated_at
+```
+
+Generators are part of the content domain.
+
+Do not create generator tables until Phase 7 requires them.
+
+---
+
+# 47. Generator Run
+
+Meaningful generator operations should be traceable.
+
+Conceptual:
+
+```text
+GeneratorRun
+------------
+id
+generator_id
+requested_by_user_id
+exercise_id
+target_rating
+target_difficulty
+requested_count
+generated_count
+validated_count
+accepted_count
+status
+started_at
+completed_at
+config_snapshot_json
+error_summary
+```
+
+The configuration snapshot preserves historical interpretation when generator configuration changes later.
+
+Generator runs are operational historical records.
+
+---
+
+# 48. Generated Content Traceability
+
+Generated content must be traceable to its generator run where applicable.
+
+Prefer one clear relationship:
+
+```text
+Puzzle.generator_run_id
+```
+
+or:
+
+```text
+GeneratedPuzzle
+---------------
+generator_run_id
+puzzle_id
+```
+
+Do not create both structures without a concrete requirement.
+
+---
+
+# 49. Content Validation
+
+Where reproducibility matters:
+
+```text
+ContentValidation
+-----------------
+id
+puzzle_id
+validator
+validator_version
+status
+result_json
+validated_at
+```
+
+A validator version may affect the interpretation of a validation result.
+
+Not every validation result needs permanent storage if validation is deterministic and does not require auditability.
+
+---
+
+# 50. Content Review
+
+Where approval requires human review:
+
+```text
+ContentReview
+-------------
+id
+puzzle_id
+reviewer_user_id
+status
+notes
+created_at
+updated_at
+```
+
+This belongs to Phase 7.
+
+Do not create content-review infrastructure in earlier phases merely because the target model describes it.
+
+---
+
+# 51. Administration
+
+Administration primarily operates on entities owned by other domains.
 
 Examples:
 
 ```text
-UserRegistered
-GuestMigrated
-AttemptCompleted
-RatingChanged
-ExerciseCompleted
-AchievementUnlocked
-PuzzlePublished
-RelationshipCreated
+users        → Identity
+puzzles      → Content
+training     → Training
+ratings      → Ratings
+analytics    → Analytics
 ```
 
-These are internal application mechanisms.
-
-They do NOT imply:
-
-* Kafka
-* RabbitMQ
-* Redis Streams
-* cloud event infrastructure
-* distributed event delivery
-* event sourcing
-
-Events are not the primary source of truth.
-
-Authoritative records remain owned by their modules.
-
-Use direct application-level orchestration when it is simpler and clearer.
-
-Do not introduce an event mechanism merely because a workflow crosses modules.
+Administration does not become the owner of the underlying business facts merely because administrators can manage them.
 
 ---
 
-# 26. Event Rules
+# 52. Audit Log
 
-Events, when used, must represent meaningful business/application facts.
-
-Good:
+Sensitive administrative operations may produce:
 
 ```text
-AttemptCompleted
+AuditLog
+--------
+id
+actor_user_id
+action
+target_type
+target_id
+metadata_json
+created_at
 ```
 
-Bad:
+Audit is an administrative/security concern.
 
-```text
-DatabaseRowInserted
-```
+Audit records are historical facts.
 
-Events should not expose internal database implementation details.
-
-Consumers should be idempotent where practical.
-
-Persisted historical records are preferred when a fact must remain authoritative.
-
-Do not turn the entire system into event sourcing unless explicitly decided in an ADR.
+Do not use audit records as a generic event bus.
 
 ---
 
-# 27. Background Processing
+# 53. Support
 
-Background processing may be used for tasks such as:
-
-* large puzzle generation
-* bulk validation
-* analytics aggregation
-* imports
-* future notification delivery
-* expensive administrative operations
-
-The initial architecture MUST NOT require distributed job infrastructure.
-
-Start with the simplest reliable mechanism supported by the deployment environment.
-
-The implementation agent must inspect the actual hosting/deployment constraints before choosing a worker system.
-
----
-
-# 28. Frontend Architecture
-
-The frontend should be organized around product areas rather than one giant component tree.
+Support tickets belong to the support/administration boundary.
 
 Conceptually:
 
 ```text
-src/
-├── app/
-├── routes/
-├── features/
-│   ├── auth/
-│   ├── player/
-│   ├── training/
-│   ├── ratings/
-│   ├── gamification/
-│   ├── analytics/
-│   ├── admin/
-│   ├── coach/
-│   └── parent/
-├── exercises/
-├── components/
-├── api/
-├── i18n/
-├── hooks/
-├── state/
-└── styles/
+SupportTicket
+-------------
+id
+user_id
+guest_session_id
+subject
+status
+created_at
+updated_at
+closed_at
 ```
 
-This is a conceptual target only.
+Messages may later use:
 
-The agent MUST inspect the existing frontend before reorganizing it.
+```text
+SupportMessage
+--------------
+id
+ticket_id
+author_user_id
+author_guest_session_id
+body
+created_at
+```
 
-Do not rewrite the frontend architecture simply for naming consistency.
+Support entities are not required before the relevant administration phase.
 
 ---
 
-# 29. Frontend Shells
+# 54. Coach / Student Relationship
 
-The platform should eventually provide distinct application shells.
+Relationships use explicit lifecycle state.
 
-## Public Shell
+Canonical states:
 
-For:
+```text
+PENDING
+ACTIVE
+REVOKED
+```
 
-* landing
-* exercise discovery
-* guest usage
-* login
-* registration
-* support
+Conceptual:
 
-## Player Shell
+```text
+CoachStudentRelationship
+------------------------
+id
+coach_user_id
+student_user_id
+status
+created_at
+accepted_at
+ended_at
+```
 
-For:
+Invariant:
 
-* dashboard
-* training
-* progress
+```text
+coach_user_id != student_user_id
+```
+
+Access requires:
+
+* capability
+* active relationship
+* object authorization
+* privacy rules
+
+---
+
+# 55. Coach Assignments
+
+Assignments are a future relationship/content capability.
+
+Conceptually:
+
+```text
+TrainingAssignment
+------------------
+id
+coach_user_id
+student_user_id
+exercise_id
+status
+created_at
+due_at
+```
+
+Do not implement assignment structures until Phase 9 requires them.
+
+---
+
+# 56. Parent / Student Relationship
+
+Conceptual:
+
+```text
+ParentStudentRelationship
+------------------------
+id
+parent_user_id
+student_user_id
+status
+created_at
+accepted_at
+ended_at
+```
+
+Invariant:
+
+```text
+parent_user_id != student_user_id
+```
+
+Parents receive only data explicitly permitted by the relationship and privacy policy.
+
+---
+
+# 57. Relationship Scope
+
+Relationship-specific scopes may eventually include:
+
+```text
+view_progress
+view_analytics
+view_assignments
+view_achievements
+```
+
+Do not encode broad unrestricted access merely because a relationship exists.
+
+The exact permission/consent model belongs to:
+
+```text
+relationships/
+SECURITY.md
+```
+
+---
+
+# 58. Privacy Settings
+
+Where product behavior requires persistent privacy settings:
+
+```text
+PlayerPrivacySettings
+---------------------
+id
+user_id
+profile_visibility
+leaderboard_visibility
+coach_visibility
+parent_visibility
+analytics_visibility
+updated_at
+```
+
+Do not create a large privacy-settings table for settings that do not yet exist.
+
+Privacy semantics remain governed by `SECURITY.md`.
+
+---
+
+# 59. Notifications
+
+Notifications are **future infrastructure**.
+
+They are not required by the minimum platform data model.
+
+A future model may contain:
+
+```text
+Notification
+------------
+id
+user_id
+type
+payload_json
+read_at
+created_at
+```
+
+Do not implement notification tables or channels merely because a future architecture may use them.
+
+---
+
+# 60. Data Retention
+
+Retention differs by data category.
+
+Long-lived data may include:
+
+* account state
+* player profile
 * ratings
-* achievements
-* profile
-* history
+* rating history
+* important training history
+* achievement history
+* content lifecycle history
+* audit records
 
-## Admin Shell
+Potentially temporary data may include:
 
-For:
+* expired guest sessions
+* transient job state
+* temporary uploads
+* caches
 
-* overview
+Retention rules must be explicit.
+
+Do not delete authoritative historical facts merely to reduce storage.
+
+---
+
+# 61. Deletion Strategy
+
+The product must distinguish:
+
+```text
+account deactivation
+account anonymization
+account deletion
+```
+
+These are not automatically equivalent.
+
+Historical records must not be blindly deleted through cascading foreign keys.
+
+A future privacy policy must define which historical data is:
+
+* deleted
+* anonymized
+* retained
+
+---
+
+# 62. Foreign Keys
+
+Important relationships should use explicit foreign keys.
+
+Examples:
+
+```text
+PlayerProfile.user_id → User.id
+
+PlayerExternalIdentity.user_id → User.id
+
+Puzzle.exercise_id → Exercise.id
+
+QuestionInstance.session_id → TrainingSession.id
+
+QuestionInstance.puzzle_id → Puzzle.id
+
+TrainingAttempt.exercise_id → Exercise.id
+
+TrainingAttempt.puzzle_id → Puzzle.id
+
+TrainingAttempt.question_instance_id → QuestionInstance.id
+
+RatingEvent.attempt_id → TrainingAttempt.id
+```
+
+Foreign-key columns should be indexed when query patterns justify it.
+
+---
+
+# 63. Uniqueness Constraints
+
+Important invariants should be enforced by the database.
+
+Examples:
+
+```text
+User.username
+
+UserRole(user_id, role_id)
+
+PlayerProfile.user_id
+
+PlayerRating(user_id, exercise_id)
+
+PlayerRating(guest_session_id, exercise_id)
+
+PlayerAchievement(user_id, achievement_id)
+
+PuzzleTagAssignment(puzzle_id, tag_id)
+```
+
+External identity uniqueness should normally use:
+
+```text
+(provider, external_id)
+```
+
+where provider identifiers are stable.
+
+Database-specific nullable uniqueness behavior must be handled explicitly.
+
+---
+
+# 64. Indexing
+
+Indexes must be based on actual access patterns.
+
+Likely candidates include:
+
+```text
+User.username
+
+TrainingAttempt.user_id
+TrainingAttempt.guest_session_id
+TrainingAttempt.exercise_id
+TrainingAttempt.puzzle_id
+TrainingAttempt.question_instance_id
+TrainingAttempt.created_at
+
+RatingEvent.user_id
+RatingEvent.guest_session_id
+RatingEvent.exercise_id
+RatingEvent.created_at
+
+XPEvent.user_id
+XPEvent.guest_session_id
+XPEvent.created_at
+
+Puzzle.exercise_id
+Puzzle.status
+Puzzle.target_rating
+
+AuditLog.actor_user_id
+AuditLog.created_at
+```
+
+Composite indexes may be required for common queries such as:
+
+```text
+(user_id, exercise_id, created_at)
+```
+
+Do not index every field mechanically.
+
+---
+
+# 65. Soft Deletion
+
+Soft deletion may be appropriate for:
+
 * users
 * exercises
 * puzzles
-* generators
-* analytics
-* support
-* audit
+* relationships
+* support records
 
-## Coach Shell
+It is not mandatory for every table.
 
-Future:
-
-* students
-* groups
-* assignments
-* progress
-* notes
-
-## Parent Shell
-
-Future:
-
-* children
-* progress
-* reports
-* permissions
-* notifications
-
-These shells may share visual primitives but should not become one massive conditional layout.
+Historical facts such as attempts and rating events should generally remain immutable rather than soft-deleted.
 
 ---
 
-# 30. API Architecture
+# 66. Immutable Historical Records
 
-FastAPI routes should remain thin.
+The following should generally be append-only:
 
-A route should primarily:
+* training attempts
+* rating events
+* XP events
+* achievement unlocks
+* audit records
+* content status transitions
+* generator runs
 
-1. authenticate/identify the caller
-2. validate request schema
-3. resolve dependencies
-4. call an application operation
-5. serialize the result
-6. return the HTTP response
-
-Routes should NOT contain:
-
-* complex business rules
-* rating algorithms
-* puzzle validation
-* XP calculations
-* direct cross-module database writes
-* duplicated authorization logic
+Corrections should create explicit corrective records where practical rather than silently rewriting history.
 
 ---
 
-# 31. API Contract Boundary
+# 67. Mutable Current State
 
-API schemas are external contracts.
+The following may be mutable projections:
 
-They should not automatically become domain entities.
+* current rating
+* current XP total
+* current level
+* current streak
+* current profile
+* current content status
+* current relationship status
+* current mastery
 
-Conceptually:
+Mutable state must remain consistent with authoritative historical facts where applicable.
+
+---
+
+# 68. Snapshot vs Reference
+
+Historical records should snapshot values that can materially change over time.
+
+Examples:
 
 ```text
-HTTP Request
-     ↓
-Pydantic Request DTO
-     ↓
-Application Command
-     ↓
-Domain
-     ↓
-Application Result
-     ↓
-Pydantic Response DTO
-     ↓
-HTTP Response
+TrainingAttempt
+    ├── puzzle_id
+    ├── difficulty_snapshot
+    ├── exercise_version
+    └── content_version
 ```
 
-This separation prevents API design from contaminating domain logic.
-
----
-
-# 32. Error Handling
-
-The platform should expose consistent API errors.
-
-Errors should distinguish at least:
-
-* authentication failure
-* authorization failure
-* validation failure
-* resource not found
-* business rule violation
-* conflict
-* rate limiting
-* unexpected server failure
-
-Internal exception details MUST NOT leak to clients.
-
-User-facing messages should be localized on the frontend where appropriate.
-
----
-
-# 33. Security Boundaries
-
-Important trust boundaries:
+Do not depend solely on current:
 
 ```text
-Browser
-   │
-   │ untrusted input
-   ▼
-API
-   │
-   ▼
-Application
-   │
-   ▼
-Domain
-   │
-   ▼
-Persistence
+Puzzle.difficulty
+ExerciseConfiguration
 ```
 
-Everything arriving from the browser is untrusted.
+to interpret historical attempts.
 
-The server must validate all authoritative state.
+This principle applies to:
 
-Sensitive operations require explicit authorization.
-
-Detailed security requirements belong in:
-
-```text
-docs/platform/SECURITY.md
-```
+* difficulty
+* scoring configuration
+* exercise configuration
+* generator configuration
+* important content metadata
 
 ---
 
-# 34. File and Media Architecture
+# 69. JSON Usage
 
-Future profile/avatar/content media must not be treated as arbitrary public files.
+JSON is appropriate when:
 
-Storage should support:
+* structure varies by exercise
+* the data is configuration-oriented
+* fields are not frequently queried
+* schema versioning is needed
+* the data is not itself a major business entity
 
-* controlled upload
-* validation
-* size limits
-* content-type validation
-* safe filenames/identifiers
-* authorization
-* deletion
-* future object-storage migration
+Do not store the following exclusively in generic JSON:
 
-The exact storage mechanism is an infrastructure decision.
-
-Do not couple domain logic to local filesystem paths.
-
----
-
-# 35. Caching
-
-Caching is optional.
-
-The system should first achieve:
-
-* correct queries
-* correct indexes
-* acceptable database performance
-* efficient API contracts
-
-Only introduce caching after measuring an actual bottleneck.
-
-Caching must never become the authoritative source of:
-
-* score
-* rating
-* permissions
-* correctness
+* identity
 * ownership
-
----
-
-# 36. Performance Principles
-
-The expected scale does not justify premature distributed architecture.
-
-The system should instead focus on:
-
-* correct database indexes
-* bounded queries
-* pagination
-* avoiding N+1 queries
-* efficient analytics queries
-* efficient puzzle selection
-* appropriate API payload sizes
-* lazy loading where useful
-* background processing for expensive bulk work
-
-Large datasets must not be loaded into memory unnecessarily.
-
----
-
-# 37. Pagination
-
-Administrative and historical datasets must be paginated.
-
-Examples:
-
-* users
 * attempts
-* sessions
-* puzzles
-* audit logs
-* support tickets
-* analytics records
+* ratings
+* achievements
+* relationships
+* permissions
+* lifecycle state
+* audit identity
 
-The API must not return unlimited datasets by default.
-
----
-
-# 38. Observability
-
-The platform should provide enough observability to diagnose:
-
-* authentication problems
-* exercise failures
-* scoring bugs
-* rating inconsistencies
-* generator failures
-* database failures
-* unexpected API errors
-* performance problems
-
-At minimum:
-
-* structured application logging
-* useful error context
-* request correlation where practical
-* important business-operation logging
-* admin/audit records for sensitive actions
-
-Do not log:
-
-* plaintext passwords
-* session secrets
-* authentication tokens
-* unnecessary personal information
-* sensitive credentials
+These require relational structure.
 
 ---
 
-# 39. Audit Architecture
+# 70. JSON Schema Versioning
 
-Administrative actions affecting important state should be auditable.
-
-Examples:
-
-* user role changes
-* account suspension
-* puzzle publication
-* puzzle retirement
-* generator execution
-* bulk content operations
-* important configuration changes
-* manual rating adjustments if ever supported
-
-Audit records should capture enough information to answer:
+Persisted structured JSON should use:
 
 ```text
-Who?
-What?
-When?
-Which resource?
-What changed?
-Why, when applicable?
+schema_version
 ```
 
-Audit storage is authoritative for audit history, but it must not become a generic replacement for domain history.
+when historical interpretation may matter.
+
+Relevant examples:
+
+* puzzle content
+* exercise configuration
+* generator configuration
+* achievement criteria
+* challenge criteria
+
+The system must be able to interpret historical records after schema evolution.
 
 ---
 
-# 40. Relationships Architecture
+# 71. SQLite / PostgreSQL Compatibility
 
-Coach/parent functionality must not directly expose unrestricted player data.
-
-Access should be relationship-based.
-
-Example:
+The target model should remain compatible with:
 
 ```text
-Coach
-  │
-  └── relationship
-          │
-          ▼
-       Student
+SQLite
+PostgreSQL
 ```
 
-Authorization must verify that the relationship grants the requested access.
+Avoid relying on database-specific behavior unless the reason is documented.
 
-A coach cannot query every player's progress merely because the coach is authenticated.
+When database behavior differs, prefer a portable strategy.
 
-The same applies to parents.
+PostgreSQL-specific optimization should remain isolated to infrastructure when possible.
 
 ---
 
-# 41. Future Adaptive Training Boundary
+# 72. Migrations
 
-The architecture must preserve data needed for future:
+All schema changes must use the project's migration system.
 
-* weak-skill detection
-* personalized exercise recommendations
-* adaptive difficulty
-* next-best-exercise selection
-* spaced practice
-* individualized training plans
+Migrations must:
 
-However, no ML infrastructure is required now.
+* be deterministic
+* preserve existing data
+* support fresh databases
+* support upgrades
+* handle nullable/default transitions carefully
+* avoid unnecessary destructive operations
 
-Initial architecture:
+Never manually modify production schema outside the migration workflow.
+
+---
+
+# 73. Data Migration Safety
+
+When existing data must be transformed:
 
 ```text
-Historical Training Data
-          ↓
-Analytics / Training Signals
-          ↓
-Future Recommendation Engine
+Schema change
+    ↓
+Data migration/backfill
+    ↓
+Validation
+    ↓
+Application switch
 ```
 
-Do not build a machine-learning platform before useful data exists.
+Do not assume that adding a nullable field is sufficient for compatibility.
+
+Guest-to-user ownership migration is a data migration operation, not merely an account update.
 
 ---
 
-# 42. Internationalization Boundary
+# 74. Authoritative Data Ownership
 
-The application is i18n-ready from the beginning.
+| Data                    | Owning domain           |
+| ----------------------- | ----------------------- |
+| User identity           | Identity                |
+| Credentials             | Identity                |
+| Roles                   | Identity                |
+| Guest session           | Identity                |
+| Player profile          | Player                  |
+| External chess identity | Player                  |
+| Exercise                | Content                 |
+| Puzzle                  | Content                 |
+| Training session        | Training                |
+| Training attempt        | Training                |
+| Question instance       | Training                |
+| Rating state            | Ratings                 |
+| Rating event            | Ratings                 |
+| XP event                | Gamification            |
+| Achievement             | Gamification            |
+| Streak                  | Gamification            |
+| Mastery                 | Training/Gamification   |
+| Analytics projection    | Analytics               |
+| Coach relationship      | Relationships           |
+| Parent relationship     | Relationships           |
+| Support ticket          | Support/Administration  |
+| Audit record            | Administration/Security |
 
-Current default:
+Analytics does not own authoritative training, rating, or gamification facts.
+
+Administration may operate on another domain's data but does not automatically become its owner.
+
+---
+
+# 75. Core Relationship Map
 
 ```text
-fa
+User
+│
+├── Roles
+│
+├── PlayerProfile
+│   └── ExternalChessIdentities
+│
+├── TrainingSessions
+│   └── QuestionInstances
+│       └── TrainingAttempts
+│           ├── RatingEvents
+│           └── XPEvents
+│
+├── PlayerRatings
+│   └── RatingEvents
+│
+├── GamificationState
+│   ├── XPEvents
+│   ├── Achievements
+│   ├── Streaks
+│   └── Mastery
+│
+├── Support
+│
+└── Relationships
 ```
 
-Future languages may include others.
-
-User-facing strings should not be scattered as hard-coded text throughout business logic.
-
-Backend business logic should generally operate on stable identifiers/codes.
-
-Frontend localization maps those identifiers to user-facing strings.
-
----
-
-# 43. RTL / Chessboard Boundary
-
-The product UI is Persian RTL.
-
-Chessboard coordinate/orientation behavior remains chess-domain behavior and must not be accidentally reversed by global RTL styles.
-
-Therefore:
+For guests:
 
 ```text
-Application UI → RTL
-Chessboard → chess-coordinate-aware layout
+GuestSession
+├── TrainingSessions
+├── TrainingAttempts
+├── PlayerRatings
+└── GamificationState
 ```
 
-Exercise screens must preserve the existing responsive rule:
-
-> The complete exercise experience must fit inside the visible viewport without normal vertical page scrolling.
-
-This applies to:
-
-* desktop
-* tablet
-* mobile portrait
-* mobile landscape
-
-Do not solve this with blind `overflow: hidden`.
-
-Use responsive layout constraints and viewport-aware sizing.
+until migration.
 
 ---
 
-# 44. Shared Kernel
-
-A small shared kernel MAY contain truly universal technical primitives such as:
-
-* identifiers
-* timestamps
-* pagination primitives
-* generic result/error primitives
-* narrowly scoped localization infrastructure
-* narrowly scoped security primitives
-
-The shared kernel MUST remain small.
-
-Business concepts MUST NOT be moved into the shared kernel merely to avoid defining module boundaries.
-
-Bad:
+# 76. Content Relationship Map
 
 ```text
-shared/
-    rating.py
-    puzzle.py
-    user.py
-    achievement.py
-    training.py
+Exercise
+│
+├── Puzzles
+│   ├── Tags
+│   ├── Validation
+│   ├── Reviews
+│   └── Status History
+│
+└── Generators
+    └── Generator Runs
+        └── Generated Puzzles
 ```
 
-unless a concept is genuinely a universal technical primitive.
+Only required branches are implemented in each phase.
 
 ---
 
-# 45. Module Interaction Map
-
-Modules have conceptual relationships, but these relationships do not authorize direct access to internal implementations.
-
-The primary interaction patterns are:
+# 77. Analytics Relationship Map
 
 ```text
-Identity
-   │
-   └── provides identity/authentication context
+Training Attempts
+       │
+       ├── Rating Events
+       ├── Gamification Events
+       │
+       ▼
+   Analytics
+       │
+       ├── Player statistics
+       ├── Exercise statistics
+       ├── Puzzle statistics
+       └── Platform statistics
+```
 
-Player
-   │
-   └── owns player profile data
+Analytics is downstream of authoritative data.
 
-Content
-   │
-   └── provides exercise/puzzle definitions
-          │
-          ▼
-       Training
-          │
-          ├── authoritative attempts/history
-          │
-          ├──→ Ratings
-          │
-          ├──→ Gamification
-          │
-          └──→ Analytics
+---
 
+# 78. Data Model Invariants
+
+The following invariants are mandatory where the corresponding entities exist.
+
+### User
+
+Every persistent user has a unique username.
+
+### Profile
+
+A user has at most one primary player profile.
+
+### External Identity
+
+Provider identifiers must follow the provider-specific uniqueness model.
+
+### Guest Ownership
+
+A guest-owned record references a valid guest session.
+
+### Owner
+
+Owner-bearing records have exactly one owner:
+
+```text
+user_id XOR guest_session_id
+```
+
+### Attempt
+
+An attempt references a valid exercise.
+
+### Question Instance
+
+A question instance references a valid session and content.
+
+### Puzzle
+
+A puzzle belongs to a valid exercise.
+
+### Rating
+
+A player/guest has at most one current rating per rating scope.
+
+### Rating History
+
+Every authoritative rating change is traceable to a reason.
+
+### Gamification
+
+Reward events are traceable to legitimate sources where a source exists.
+
+### Achievement
+
+An unlock references a valid achievement definition.
+
+### Content
+
+Published content has passed required validation/review rules.
+
+### Relationships
+
+A user cannot be their own coach, student, parent, or child.
+
+### Analytics
+
+Analytics projections are never the sole source of truth.
+
+---
+
+# 79. Values That Must Never Become Client-Authoritative
+
+The database/API boundary must not accept the following client values as authoritative:
+
+```text
+score
+rating
+rating_delta
+XP
+correctness
+achievement eligibility
+server time
+session ownership
+content lifecycle state
+```
+
+A stored client answer represents what was submitted.
+
+It does not establish the result.
+
+---
+
+# 80. Historical Information Required for Future Analytics
+
+The model should preserve enough information to answer future questions such as:
+
+* Which exercises is a player weak at?
+* Which puzzles are too easy?
+* Which puzzles are too difficult?
+* How does performance change over time?
+* Which mistakes recur?
+* Which practice patterns correlate with improvement?
+* Which players stop training?
+* Which content performs well?
+* What should the player practice next?
+
+The system does not need to answer all of these immediately.
+
+It must avoid destroying the source data needed to answer them later.
+
+---
+
+# 81. Adaptive Training Readiness
+
+The future adaptive-training system may require:
+
+* historical performance
+* exercise-level performance
+* puzzle-level performance
+* response time
+* rating development
+* mastery
+* training frequency
+* recurring mistakes
+
+These are downstream consumers of authoritative history.
+
+Do not create a separate adaptive-training database merely to prepare for future recommendations.
+
+---
+
+# 82. Minimum Foundation
+
+The platform does not need every entity in this document at once.
+
+The minimum foundation evolves by phase.
+
+### Identity foundation
+
+```text
+User
+Role
+UserRole
+GuestSession
+```
+
+### Player foundation
+
+```text
+PlayerProfile
+PlayerExternalIdentity
+```
+
+### Existing training/content foundation
+
+```text
+Exercise
+Puzzle
+```
+
+### Training foundation
+
+```text
+TrainingSession
+QuestionInstance       # only where required
+TrainingAttempt
+```
+
+### Rating foundation
+
+```text
+PlayerRating
+RatingEvent
+```
+
+### Gamification foundation
+
+```text
+XPEvent
+PlayerGamificationState
+Achievement
+PlayerAchievement
+```
+
+### Administration foundation
+
+```text
+AuditLog
+SupportTicket
+```
+
+Later phases may add:
+
+```text
+GeneratorDefinition
+GeneratorRun
+ContentValidation
+ContentReview
 Relationships
-   │
-   └── provides relationship/authorization context
-          │
-          └── scoped access to Player/Training/Analytics data
+Assignments
+Analytics projections
+Adaptive-training structures
 ```
 
-The actual implementation mechanism may be:
-
-* direct application contract
-* query service
-* application orchestration
-* read model
-* lightweight in-process event
-
-Choose the simplest mechanism that preserves ownership.
+The active phase determines what is actually implemented.
 
 ---
 
-# 46. Avoiding Circular Dependencies
+# 83. Phase Alignment
 
-Circular module dependencies are architectural defects.
+The data model follows the Master Plan.
 
-Forbidden example:
+## Phase 1
+
+Foundation and safe schema/migration conventions.
+
+## Phase 2
+
+User, roles, sessions, guest identity, and account ownership.
+
+## Phase 3
+
+Player profile, external identities, player-facing progress support.
+
+## Phase 4
+
+Ratings and rating history.
+
+## Phase 5
+
+Gamification state and historical reward data.
+
+## Phase 6
+
+Administrative/audit/support foundations.
+
+## Phase 7
+
+Content lifecycle, puzzle management, validation, review, generators.
+
+## Phase 8
+
+Analytics projections and aggregates where justified.
+
+## Phase 9
+
+Coach/student and parent/student relationships and assignments.
+
+## Phase 10
+
+Adaptive-training-specific structures only where required.
+
+This document does not authorize implementation of future-phase entities ahead of their phase.
+
+---
+
+# 84. Implementation Procedure
+
+Before changing the data model, the implementation agent MUST:
+
+1. inspect current SQLAlchemy models
+2. inspect migrations
+3. inspect seed/fixture data
+4. inspect existing exercise persistence
+5. inspect existing training persistence
+6. identify equivalent existing entities
+7. identify schema duplication
+8. map existing structures to this logical model
+9. determine the minimum missing change
+10. implement only active-phase requirements
+11. create migrations incrementally
+12. verify existing data
+13. verify fresh database creation
+14. verify upgrade migration
+15. verify relevant constraints
+16. verify indexes against actual queries
+17. verify guest ownership where applicable
+18. run meaningful tests
+19. preserve existing exercise behavior
+
+The agent MUST NOT blindly create every conceptual table.
+
+---
+
+# 85. Schema Change Rules
+
+Every schema change should answer:
+
+1. Why is this required now?
+2. Which active-phase requirement needs it?
+3. Does an existing field/entity already solve it?
+4. What existing data is affected?
+5. What invariant should the database enforce?
+6. What migration path is required?
+7. What queries need indexes?
+8. What historical behavior must remain unchanged?
+
+If these questions cannot be answered from repository evidence and accepted specifications, do not invent the schema.
+
+---
+
+# 86. Final Data Model Principle
+
+The database must make the important truths of MicroChess durable:
 
 ```text
-Training → Analytics → Training
+Who is the player?
+
+What did the player do?
+
+Which question was actually delivered?
+
+What was submitted?
+
+What was the authoritative result?
+
+What was the rating at that moment?
+
+How did the rating change?
+
+What reward/progress resulted?
+
+Which content produced the result?
+
+When did it happen?
+
+Under which content/configuration version?
 ```
 
-Prefer:
+The target is not the largest possible schema.
+
+The target is:
 
 ```text
-Training
-   ↓
-authoritative training data
-   ↓
-Analytics
+Smallest coherent relational foundation
++
+Strong historical integrity
++
+Clear domain ownership
++
+Safe migrations
++
+Useful future analytical data
++
+No unnecessary abstractions
 ```
 
-Or use a dedicated application orchestration layer if the workflow genuinely requires coordination.
-
-Do not solve circular dependencies by creating a giant `utils` module.
-
----
-
-# 47. Orchestration
-
-Some workflows naturally span multiple modules.
-
-Examples:
-
-* account creation
-* guest migration
-* completed exercise attempt
-* content publication
-* coach assignment
-
-These workflows should be orchestrated at the application level.
-
-Domain modules remain owners of their own rules.
-
-Example:
-
-```text
-SubmitAttemptUseCase
- ├── Training
- ├── Ratings
- └── Gamification
-```
-
-Analytics may consume the resulting authoritative data without becoming part of the core business transaction unless a specific invariant requires it.
-
-The orchestration layer coordinates; it does not absorb the business rules of the participating modules.
-
----
-
-# 48. Read Models
-
-Read models may be introduced when a UI requires data from multiple domains.
-
-Example:
-
-```text
-Player Dashboard
-    │
-    ├── Player
-    ├── Rating
-    ├── Training
-    ├── Gamification
-    └── Analytics
-```
-
-Do not force the frontend to make many requests merely because backend boundaries exist.
-
-A dedicated dashboard query/application service may aggregate the required information.
-
-This is a read concern and must not become a new owner of the underlying business data.
-
----
-
-# 49. Admin Architecture
-
-Admin is a privileged interface, not a separate copy of the application domain.
-
-For example:
-
-```text
-Admin publishes puzzle
-        ↓
-Content application service
-        ↓
-Content domain rules
-        ↓
-Persistence
-        ↓
-Audit record
-```
-
-Not:
-
-```text
-Admin route
-   ↓
-direct SQL UPDATE
-```
-
-Admin actions must use the same authoritative business rules as normal operations.
-
----
-
-# 50. Testing Architecture
-
-Testing should follow business risk.
-
-Required categories include:
-
-## Domain Tests
-
-For:
-
-* scoring
-* validation
-* rating rules
-* gamification rules
-* content lifecycle rules
-* permission rules
-
-## Application Tests
-
-For:
-
-* workflows
-* guest migration
-* attempt submission
-* cross-module orchestration
-* authorization
-
-## Integration Tests
-
-For:
-
-* database behavior
-* repositories where present
-* API contracts
-* important persistence invariants
-
-## Frontend Tests
-
-For:
-
-* important interaction flows
-* shared exercise behavior
-* authentication state
-* critical admin/player flows
-
-Do not create tests merely to increase coverage numbers.
-
-Tests should protect meaningful behavior and discovered regressions.
-
----
-
-# 51. Architectural Tests
-
-Where practical, the project should eventually enforce:
-
-* module dependency rules
-* forbidden imports
-* no cross-module repository access
-* no route-level business logic
-* no direct database writes from UI/API handlers
-* no domain dependency on infrastructure
-* no circular module dependencies
-
-Architecture rules are most valuable when they can be automatically checked.
-
-However, architecture tests MUST remain proportional to project complexity.
-
-Do not build an elaborate architecture-testing framework before simple import/dependency checks become insufficient.
-
----
-
-# 52. Migration Strategy
-
-The platform will evolve from the existing MicroChess codebase.
-
-Therefore implementation MUST be incremental.
-
-Preferred approach:
-
-```text
-Inspect existing code
-       ↓
-Identify current boundary
-       ↓
-Add target capability
-       ↓
-Integrate with existing architecture
-       ↓
-Migrate/refactor only where necessary
-       ↓
-Test
-       ↓
-Document
-```
-
-Do NOT perform a giant rewrite.
-
-Do NOT rename or move large numbers of files merely to satisfy this document.
-
-Do NOT replace working exercise infrastructure without evidence.
-
----
-
-# 53. Backward Compatibility
-
-Existing exercises must continue to work while platform functionality is introduced.
-
-Every platform phase must preserve:
-
-* existing exercise behavior
-* existing scoring semantics
-* existing API behavior where intentionally public
-* existing seed workflows
-* existing frontend build
-* existing tests
-
-If a breaking change is genuinely required, document it explicitly before implementation.
-
----
-
-# 54. Deployment Architecture
-
-Initial target:
-
-```text
-Single frontend build
-        +
-Single backend application
-        +
-Single relational database
-```
-
-The exact hosting/deployment mechanism must be based on the repository and deployment environment.
-
-The architecture must not assume:
-
-* Kubernetes
-* Docker orchestration
-* multiple backend services
-* message brokers
-* distributed caches
-
-unless later evidence justifies them.
-
----
-
-# 55. Future Service Extraction
-
-The modular architecture should preserve the possibility of extracting a module later.
-
-Potential candidates could eventually include:
-
-* external chess identity integration
-* analytics
-* content generation
-* notification delivery
-
-But extraction is NOT a current requirement.
-
-A module should only be extracted if evidence shows:
-
-* independent scaling requirements
-* operational isolation needs
-* different deployment cadence
-* clear ownership boundary
-* resource contention
-* security isolation requirement
-* meaningful organizational benefit
-
-The existing module contract should become the extraction boundary.
-
----
-
-# 56. Architecture Invariants
-
-The following are mandatory.
-
-### Invariant 1 — Server authority
-
-The client never determines authoritative training outcomes.
-
-### Invariant 2 — One owner per important dataset
-
-There must be one authoritative writer for each business dataset.
-
-### Invariant 3 — No cross-module internals
-
-Modules never reach into another module's private implementation.
-
-### Invariant 4 — Domain independence
-
-Domain rules do not depend on HTTP, database, or frontend infrastructure.
-
-### Invariant 5 — Thin routes
-
-API routes coordinate; they do not implement business logic.
-
-### Invariant 6 — Historical data is valuable
-
-Important training facts are retained rather than overwritten.
-
-### Invariant 7 — Internal ratings are separate
-
-External chess ratings are never silently treated as MicroChess ratings.
-
-### Invariant 8 — Content publication is explicit
-
-Generated content is not automatically production content.
-
-### Invariant 9 — Authorization is explicit
-
-Authentication alone does not grant access.
-
-### Invariant 10 — No premature distributed architecture
-
-Do not introduce microservices or distributed infrastructure without evidence.
-
-### Invariant 11 — Existing exercise architecture is preserved
-
-Platform work must integrate with the shared exercise system.
-
-### Invariant 12 — Responsive exercise screens
-
-Exercise play screens must fit the viewport without normal page scrolling.
-
-### Invariant 13 — Guest is not a persisted role
-
-Guest access is temporary and must not be treated as a fourth/fifth application role.
-
-### Invariant 14 — Analytics is not source of truth
-
-Derived analytics must never replace authoritative training, rating, or gamification records.
-
----
-
-# 57. Forbidden Architectural Patterns
-
-The following are explicitly discouraged or forbidden unless a later ADR overrides them.
-
-## Giant Service
-
-```text
-PlatformService
-```
-
-containing every business rule.
-
-## Giant Model
-
-A single User/Player model containing unrelated training, analytics, gamification and admin state.
-
-## God Router
-
-A route module implementing authentication, rating, scoring, XP and analytics.
-
-## Cross-Module SQL
-
-Direct SQLAlchemy access to another module's tables.
-
-## Shared Mutable State
-
-Global mutable objects holding business state.
-
-## Client-Authoritative Scoring
-
-Never trust client-provided score/rating/correctness.
-
-## Hidden Business Rules in Serializers
-
-Pydantic schemas should validate shape, not become the business domain.
-
-## Analytics as Source of Truth
-
-Aggregates must not replace authoritative history.
-
-## Premature Microservices
-
-No service splitting without evidence.
-
-## Premature Event Infrastructure
-
-No message broker merely because internal events exist conceptually.
-
-## Generic Utility Dumping Ground
-
-Do not hide domain coupling inside `utils.py`.
-
-## Giant Refactor
-
-Do not rewrite the existing repository simply to make it match this document.
-
-## Mechanical Repository Abstraction
-
-Do not create repository interfaces solely because the architecture diagram contains a `repositories/` directory.
-
-## Architecture for Architecture's Sake
-
-Do not introduce abstractions, layers, modules, background workers, caches, events, or read models without a concrete problem they solve.
-
----
-
-# 58. Architectural Decision Process
-
-When a new architectural question appears:
-
-1. Inspect existing code.
-2. Check this architecture document.
-3. Check `MASTER_PLAN.md`.
-4. Check the relevant domain specification.
-5. Check existing ADRs.
-6. Determine whether the decision is local or architectural.
-7. If architectural and consequential, create an ADR.
-8. Implement only after the decision is clear.
-
-The implementation agent must not silently introduce a new architectural paradigm.
-
-Local implementation choices do not require ADRs when they remain consistent with existing architectural constraints.
-
----
-
-# 59. Documentation Hierarchy
-
-When documents disagree, use the priority defined by `docs/platform/README.md`.
-
-In general:
-
-```text
-Accepted ADR
-    ↓
-MASTER_PLAN.md
-    ↓
-Domain specification
-    ↓
-Architecture / Data / API / Security / UX
-    ↓
-Phase specification
-    ↓
-Current implementation
-```
-
-However, current implementation is evidence of reality and must always be inspected before modifying it.
-
----
-
-# 60. Definition of Architectural Completion
-
-The target architecture is considered established when:
-
-* modules have clear ownership
-* dependencies are understandable
-* API routes are thin
-* domain rules are isolated
-* platform functionality integrates with existing exercises
-* authoritative history is preserved
-* ratings have a dedicated boundary
-* gamification has a dedicated boundary
-* analytics has a dedicated derived/read boundary
-* content has a dedicated boundary
-* admin uses domain capabilities rather than bypassing them
-* guest migration has a defined boundary
-* relationships have a defined authorization boundary
-* future adaptive training can consume historical data
-* architectural invariants are documented and, where practical, tested
-
-The architecture does NOT require every future feature to be implemented immediately.
-
----
-
-# 61. Final Rule for Implementation Agents
-
-Before implementing any architecture described here:
-
-1. Read `docs/platform/README.md`.
-2. Read `docs/platform/MASTER_PLAN.md`.
-3. Read this file.
-4. Inspect the actual repository.
-5. Identify which parts already exist.
-6. Identify which parts are partially implemented.
-7. Identify which parts are missing.
-8. Do not recreate existing infrastructure.
-9. Do not perform speculative rewrites.
-10. Implement the smallest coherent change that advances the target architecture.
-11. Run meaningful tests.
-12. Verify existing exercises still work.
-13. Update implementation-state documentation.
-14. Continue to the next phase when no genuine blocker exists.
-
-The goal is not to make the repository look architecturally perfect.
-
-The goal is to make MicroChess **coherent, maintainable, extensible, secure, and capable of growing from an exercise platform into a complete player/training platform without architectural collapse.**
+Future capabilities must build on the same authoritative history rather than creating competing sources of truth.

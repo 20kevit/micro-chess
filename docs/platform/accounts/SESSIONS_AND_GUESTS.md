@@ -1,165 +1,197 @@
-# Sessions and Guests
+# MicroChess — Sessions and Guests
 
 ## 1. Purpose
 
-This document defines authenticated sessions and temporary guest identity.
+This document defines:
 
-Guest access must be useful without requiring registration, while remaining isolated from persistent account data.
+* authenticated session behavior
+* temporary guest identity
+* guest-owned training state
+* guest lifecycle
+* guest-to-account migration
+
+Authentication rules are defined in `AUTHENTICATION.md`.
+
+Security and authorization rules are defined in `SECURITY.md`.
+
+The logical data model is defined in `DATA_MODEL.md`.
 
 ---
 
 ## 2. Authenticated Sessions
 
-An authenticated session represents a registered user's active login.
+An authenticated session represents an active login for a registered user.
 
-The system must support:
+Sessions must support:
 
-* secure session creation
+* secure creation
 * expiration
 * logout/revocation
-* session rotation where security-sensitive changes require it
-* protection against session fixation
-* server-side validation on protected requests
+* fixation protection
+* server-side identity validation
+* rotation where required by security-sensitive changes
 
-The client must never be trusted to declare its own user identity or role.
-
----
-
-## 3. Guest Sessions
-
-A guest session creates a temporary server-controlled identity.
-
-Guest sessions may access only the canonical guest capabilities:
-
-```text
-training.read
-training.start
-training.attempt
-support.create
-accounts.migrate_guest
-```
-
-Guest sessions must not receive:
-
-* persistent account roles
-* persistent player ratings
-* unrestricted profile access
-* Coach/Parent relationships
-* administrative access
+The client cannot establish identity or role by submitting IDs or role values.
 
 ---
 
-## 4. Guest Training Data
+## 3. Guest Identity
 
-Guest activity may temporarily contain:
+A guest is a temporary server-controlled identity.
 
-* sessions
-* attempts
-* exercise progress
-* temporary scoring
-* temporary gamification state
+Guest is **not** a persisted role.
 
-Guest data must remain isolated from other guests.
+A guest session must have:
 
-Guest rating is not persistent by default.
-
-The server must be able to distinguish guest activity from registered-player activity in all relevant records.
-
----
-
-## 5. Guest Lifecycle
-
-A guest session should have:
-
-```text id="m3u9fx"
+```text id="bmsx8c"
 Created
-   ↓
+  ↓
 Active
-   ↓
+  ↓
 Expired / Revoked
 ```
 
-Expiration and revocation must prevent further training operations.
-
-Cleanup of expired guest data must follow the platform's retention policy.
+Expired or revoked sessions cannot authorize further guest operations.
 
 ---
 
-## 6. Guest → Account Migration
+## 4. Guest Scope
 
-Migration is an explicit authenticated operation.
+Guest access is intentionally narrower than registered-user access.
 
-Requirements:
+A guest may use supported training functionality without registration.
 
-* guest identity must be valid
-* target account must be authenticated/created through the supported flow
-* migration must be atomic
-* migration must be idempotent
-* replay must not duplicate data
-* ownership must be reassigned safely
-* migration must be auditable
+Guest access must not provide:
+
+* persistent account roles
+* administrative access
+* unrestricted profile access
+* Coach/Parent capabilities
+* access to another user's or guest's data
+
+The exact capability mapping is owned by `ROLES_AND_PERMISSIONS.md` and `SECURITY.md`.
+
+---
+
+## 5. Guest Training State
+
+Guest activity may temporarily include:
+
+* training sessions
+* attempts
+* progress
+* scores
+* exercise-specific rating state
+* gamification state
+
+Guest state must remain isolated from other guests.
+
+When a guest session is migrated, only explicitly migratable state is transferred to the registered account.
+
+---
+
+## 6. Guest Ownership
+
+Guest-owned records must be associated with the server-controlled guest session.
+
+The client must never establish ownership by submitting an arbitrary guest identifier.
+
+Every guest operation must verify:
+
+1. valid guest session
+2. active/non-expired state
+3. required capability
+4. resource ownership/scope
+5. domain rules
+
+---
+
+## 7. Guest Rating
+
+Guest exercise ratings may exist temporarily while the guest trains.
+
+They must remain clearly distinguishable from registered-player ratings.
+
+On migration, eligible guest rating state and history may be transferred according to the rating domain rules.
+
+The client cannot directly set or modify guest ratings.
+
+---
+
+## 8. Guest Migration
+
+Migration is an explicit operation that transfers eligible guest state to an authenticated registered account.
+
+Migration must be:
+
+* ownership-checked
+* atomic where required
+* idempotent
+* replay-safe
+* non-destructive to existing account data
+* auditable where required
+
+The server determines the source guest session and destination account.
+
+The client must not submit arbitrary source/destination ownership identifiers.
+
+---
+
+## 9. Migration Scope
 
 Only explicitly migratable data may be transferred.
 
-Existing account data must never be overwritten accidentally.
+Potential examples:
+
+* training sessions
+* attempts
+* progress
+* ratings
+* rating history
+* XP
+* achievements
+* mastery
+
+The exact migration set belongs to the relevant domain specifications.
+
+Unrelated account data must not be overwritten.
 
 ---
 
-## 7. Abuse Protection
+## 10. Abuse and Retention
 
-Guest infrastructure must account for higher abuse risk because registration is not required.
+Guest access requires proportionate abuse protection, such as:
 
-Use appropriate controls such as:
-
-* request/session rate limits
+* rate limiting
 * expiration
-* server-generated identifiers
-* suspicious activity detection
 * bounded temporary storage
+* server-generated identifiers
 * endpoint-specific limits
 
-Do not introduce CAPTCHA or similar friction unless abuse levels justify it.
+Do not add CAPTCHA or equivalent friction without evidence that it is necessary.
+
+Expired guest data must follow the platform retention policy.
 
 ---
 
-## 8. Authorization
+## 11. Privacy
 
-Guest status is not sufficient authorization.
-
-Every guest request must still pass:
-
-1. valid session
-2. active/non-expired session
-3. required guest capability
-4. object ownership/scope
-5. business rules
-
-A guest must never gain Player, Coach, Parent, or Admin capabilities through client-controlled fields.
-
----
-
-## 9. Privacy
-
-Guest data must not be publicly exposed merely because it exists.
+Guest data is private by default.
 
 Do not expose guest identifiers unnecessarily.
 
-Expired or revoked guest sessions must not remain usable through stale client state.
+Stale client state must not keep expired or revoked guest sessions usable.
 
 ---
 
-## 10. Definition of Done
+## 12. Completion Criteria
 
-Sessions and guests are complete when:
+For an active implementation phase, the applicable session/guest capability is complete when:
 
-* registered sessions are secure and revocable
-* guest sessions are server-generated and isolated
-* guest capabilities are explicitly enforced
-* guest training works without registration
-* guest data cannot access another guest's data
+* authenticated sessions work securely
+* guest sessions are server-controlled and isolated
 * expiration/revocation works
-* guest migration is atomic and replay-safe
-* cleanup/retention is defined
-* abuse controls exist
-* authentication and authorization tests cover positive and negative cases
-* frontend typecheck/build/tests pass
+* guest ownership is enforced server-side
+* migration is safe and replay-resistant where implemented
+* relevant positive and negative tests pass
+* no unnecessary authentication/session infrastructure is introduced

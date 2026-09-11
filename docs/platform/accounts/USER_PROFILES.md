@@ -1,36 +1,46 @@
-# User Profiles
+# MicroChess — User Profiles
 
 ## 1. Purpose
 
-The profile represents information about a registered user that is useful for identity, personalization, training, relationships, and privacy-aware presentation.
+A user profile contains non-authentication information used for:
 
-Profile data is separate from authentication credentials.
+* personalization
+* player identity
+* external chess identities
+* privacy-aware presentation
+* relationships
+
+Authentication credentials and account security data do not belong to the profile.
+
+`AUTHENTICATION.md` owns authentication behavior.
+`SECURITY.md` owns security and privacy rules.
+`DATA_MODEL.md` owns the logical data model.
 
 ---
 
-## 2. Core Profile
+## 2. Profile Data
 
 A profile may contain:
 
-* username
 * display name
 * avatar
 * bio
 * optional personal information
 * privacy preferences
-* creation/update timestamps
 
-Username is an account identifier and must follow the platform's canonical uniqueness and validation rules.
+The username belongs to the account identity and follows the canonical username rules defined by `AUTHENTICATION.md`.
 
-Display name is user-facing and may be changed independently where allowed.
+Not all fields are required.
+
+Do not collect personal information without a product requirement.
 
 ---
 
 ## 3. External Chess Identities
 
-Chess identities belong to the user's profile domain.
+External chess identities are part of the player's profile.
 
-Supported identity types:
+Supported providers:
 
 ```text
 FIDE
@@ -38,121 +48,132 @@ LICHESS
 CHESS_COM
 ```
 
-Each identity may contain:
+An external identity may contain:
 
 * provider
-* username or identifier
+* external username/identifier
 * optional rating
 * verification state
-* timestamps
 
-External ratings are informational and must **never** be treated as the user's MicroChess exercise rating.
+External ratings are informational and are always separate from MicroChess exercise ratings.
 
-Self-reported values are unverified unless the platform later implements provider verification.
+Self-reported ratings remain unverified unless an explicit verification mechanism exists.
 
 ---
 
 ## 4. Profile Privacy
 
-Profile fields must have explicit visibility rules.
+Profile visibility must distinguish between information that is:
 
-At minimum distinguish:
+* private
+* visible to authenticated users
+* publicly visible
 
-* private fields
-* authenticated-user-visible fields
-* public profile fields
+Only supported privacy settings should be exposed to users.
 
-Users must be able to control supported privacy settings.
+Relationship-based access does not bypass privacy restrictions.
 
-Private information must not become visible merely because another user has a relationship with the player.
-
-Coach and Parent access remains subject to capability, relationship, object authorization, and privacy rules.
+Coach and Parent access follows the canonical authorization and relationship rules defined in `SECURITY.md`.
 
 ---
 
 ## 5. Profile Editing
 
-Users may update their own editable profile fields through authorized profile operations.
+Users may update only their own editable profile fields.
 
-The server must:
+The server must validate all submitted fields.
 
-* validate all fields
-* enforce length and format limits
-* normalize values where required
-* reject unauthorized fields
-* prevent mass assignment of roles, ratings, account status, or security fields
+Profile updates must not allow modification of:
 
-Sensitive account changes must use dedicated workflows rather than ordinary profile updates.
+* roles
+* account status
+* ratings
+* security state
+* authentication credentials
+* other server-managed fields
 
----
+Sensitive account operations must use their dedicated workflows.
 
-## 6. Avatar and Media
-
-Avatar uploads must:
-
-* validate file type and size
-* reject unsafe content
-* use controlled storage
-* avoid executable/static-path exposure
-* enforce ownership and authorization
-
-The platform must not require an avatar.
+Do not implement profile editing as unrestricted mass assignment.
 
 ---
 
-## 7. Chess Profile UX
+## 6. Avatar and Profile Media
 
-Do not create a separate "Chess Profile" domain or duplicate profile page.
+Avatars are optional.
 
-FIDE, Lichess, and Chess.com identities are sections of the normal user profile.
+When uploads are supported, they must use the platform's standard secure media handling:
 
-MicroChess-specific training data remains separate:
+* allowed file types
+* size limits
+* controlled storage
+* ownership checks
+* authorized access
+
+Detailed file-security rules belong in `SECURITY.md`.
+
+---
+
+## 7. External Chess Identity Independence
+
+Do not create a separate Chess Profile domain.
+
+External identities are sections of the normal player profile.
+
+Conceptually:
 
 ```text
 Profile
 ├── External Chess Identities
 ├── Exercise Ratings
 ├── Training History
-├── Gamification
-└── Relationships
+└── Gamification
 ```
 
----
-
-## 8. Related Access
-
-Coach and Parent views may expose appropriate profile information only when:
-
-1. the viewer has the required capability
-2. the relationship is active
-3. object-level authorization succeeds
-4. privacy rules permit access
-
-Relationship access must never expose authentication or security data.
+These remain separate domains even when presented together in the UI.
 
 ---
 
-## 9. Deletion and Retention
+## 8. Related-User Access
 
-Deleting an account must follow the platform's retention and privacy policy.
+Coach and Parent views may expose profile information only when the canonical authorization rules permit it.
 
-Historical training data may require anonymization or controlled retention rather than immediate physical deletion when needed for platform integrity.
+Profile access must never expose:
 
-Profile deletion must not corrupt historical rating, attempt, analytics, or audit records.
+* passwords
+* authentication credentials
+* session secrets
+* private security information
 
 ---
 
-## 10. Definition of Done
+## 9. Account Deletion and Retention
 
-Profiles are complete when:
+Profile deletion must follow the platform's privacy and retention policy.
 
-* registered users have editable profiles
-* public/private visibility is enforced
-* external chess identities are supported
-* external ratings remain separate from MicroChess ratings
-* avatar handling is secure
-* unauthorized field updates are rejected
-* Coach/Parent access respects relationship and privacy rules
-* profile APIs do not expose authentication secrets
-* backend authorization and validation tests pass
-* frontend typecheck/build/tests pass
+Deleting a profile must not casually corrupt historical:
+
+* attempts
+* ratings
+* analytics
+* audit records
+
+Where historical integrity requires it, personal information may need to be anonymized rather than physically deleting the entire historical record.
+
+Detailed retention behavior belongs in `DATA_MODEL.md` and `SECURITY.md`.
+
+---
+
+## 10. Product Rule
+
+The profile exists to support player identity and personalization.
+
+It must not become a container for unrelated:
+
+* training logic
+* ratings
+* gamification logic
+* analytics logic
+* authorization logic
+
+Those domains retain their own ownership and behavior.
