@@ -2,7 +2,6 @@
 
 from datetime import datetime, timedelta, timezone
 
-from app.core.security import create_access_token
 from app.modules.users.models import User
 from app.modules.piece_recognition import seed as seed_mod
 from app.modules.piece_recognition.validator import SLUG
@@ -24,12 +23,17 @@ def _seeded_puzzle(db_session) -> Puzzle:
 
 def _auth_header(db_session) -> dict[str, str]:
     # Insert directly to avoid the passlib/bcrypt env issue; this test only
-    # needs an authenticated user id, not password verification.
-    user = User(email="kid@example.com", password_hash="not-verified", display_name="Kid")
+    # needs an authenticated user id, not password verification. The token
+    # is bound to a real server-side session (Phase 2 revocation model).
+    from app.modules.auth import service as auth_service
+
+    user = User(username="kid", email="kid@example.com", password_hash="not-verified", display_name="Kid")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
-    return {"Authorization": f"Bearer {create_access_token(str(user.id))}"}
+    _, token = auth_service.create_user_session(db_session, user)
+    db_session.commit()
+    return {"Authorization": f"Bearer {token}"}
 
 
 def test_puzzle_list_hides_answer_but_shows_prompt(client, db_session):

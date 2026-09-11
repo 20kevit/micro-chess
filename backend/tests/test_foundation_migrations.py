@@ -27,7 +27,16 @@ def test_import_models_covers_all_exercise_tables():
     assert "app.modules.users.models" in imported
     assert "app.modules.captures.models" in imported
     assert "app.modules.trapped_pieces.models" in imported
-    for table in ("users", "exercises", "puzzles", "attempts", "schema_version"):
+    for table in (
+        "users",
+        "user_roles",
+        "auth_sessions",
+        "guest_sessions",
+        "exercises",
+        "puzzles",
+        "attempts",
+        "schema_version",
+    ):
         assert table in Base.metadata.tables
 
 
