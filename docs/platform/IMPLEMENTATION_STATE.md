@@ -31,7 +31,8 @@ BLOCKED
 
 Phase 01 (Foundation) completed and verified. Phase 02 (Accounts)
 completed and verified. Phase 03 (Player Platform) completed and
-verified. Phase 04 (Ratings) completed and verified. No later phase
+verified. Phase 04 (Ratings) completed and verified. Phase 05
+(Gamification foundation) completed and verified. No later phase
 started.
 
 | Area                         | Status      |
@@ -40,7 +41,7 @@ started.
 | Accounts & Identity          | VERIFIED    |
 | Player Platform              | VERIFIED    |
 | Ratings                      | VERIFIED    |
-| Gamification                 | NOT_STARTED |
+| Gamification                 | VERIFIED    |
 | Administration               | NOT_STARTED |
 | Content & Generators         | NOT_STARTED |
 | Analytics                    | NOT_STARTED |
@@ -67,6 +68,63 @@ Existing exercises verified preserved after Phase 03:
 ---
 
 ## 5. Evidence
+
+Phase 05 gamification foundation (all verified by tests + live runtime checks):
+
+* XP engine (`gamification_engine/service.py`, pure + documented):
+  correct = 10 / partial = 5 / wrong = 2 per validated attempt, in
+  both practice and rated modes (gamification eligibility is separate
+  from Phase 4 rating eligibility); terminal states
+  (timeout/skipped/abandoned) and guests never earn persistent XP.
+  Numeric rules live in the service module as the single documented
+  source, as GAMIFICATION.md leaves them configurable (same precedent
+  as Phase 4 rating constants). `tests/test_gamification.py` (27 tests).
+* Levels: `level = total_xp // 100 + 1` (centralized `LEVEL_XP_STEP`),
+  derived server-side and stored on the materialized state; frontend
+  only renders the bar width.
+* Streaks: UTC-date based (repository-wide UTC timestamp convention),
+  first activity starts at 1, consecutive days extend, same-day repeats
+  are no-ops, missed days reset to 1 (longest preserved); out-of-order
+  dates never corrupt state.
+* Achievements (foundation catalog of 4, code-defined; unlocks in DB
+  with UNIQUE(user_id, achievement_code)): `first_steps` (1 qualifying
+  attempt), `steady_10` (10), `xp_100` (100 total XP), `streak_3`
+  (3-day streak). Evaluation is deterministic + idempotent.
+* Attempt integration (`progress/service.py`, single commit):
+  XP/streak/achievements apply synchronously with the attempt (all
+  speed sessions funnel through the same function); `attempt.xp_awarded`
+  stamps the snapshot; idempotent re-application returns the stored
+  event unchanged (UNIQUE on `xp_events.attempt_id` as the DB backstop).
+* Query API (`/me` scope, `player/router.py` thin; reads in
+  `gamification_engine/service.py`): `GET /me/gamification`,
+  `GET /me/gamification/xp` (newest-first), `GET /me/achievements`
+  (full catalog with unlock state). No client gamification-write
+  endpoint exists (POST/PATCH/DELETE → 405). Cross-user reads isolated,
+  anonymous → 401. Guests hold no persistent gamification rows.
+* Schema v5: `ensure_schema` upgrades Phase 4 DBs (new tables via
+  `create_all`, attempt `xp_awarded` column via idempotent ALTER; no
+  backfill, no fabricated history); fresh boot + idempotency +
+  v4→v5 data-preservation covered by tests; dev DB booted live at v5
+  with users/attempts/ratings intact.
+* Frontend: `GamificationSection` on the Progress page (XP total +
+  level/progress bar + current/longest streak + achievements with
+  Persian names + 5 most recent XP awards; loading/empty/error states),
+  `getGamification/getXpHistory/getAchievements` transport
+  (`api/client.ts`), 17 Persian strings in `fa.ts`; RTL preserved,
+  44px targets, display-only (no XP/level/streak math in the client).
+  7 new frontend tests (section states + transport); Progress page test
+  mocks extended.
+* Runtime verified live (20 checks + level transition): register →
+  login → empty gamification → practice attempt earns XP → streak 1 →
+  first_steps unlocks → history explains balance → accumulation →
+  level 1→2 at 100 XP → same-day no double count → practice earns XP
+  without rating → cross-user isolation → rated attempt rates + earns
+  XP → Phase 3 endpoints intact (history carries `xp_awarded`).
+* Intentional deferrals: leaderboards, exercise mastery, daily/weekly
+  goals, badges, personal records, admin gamification management,
+  notifications, guest XP migration (migrated attempts transfer
+  ownership only and earn no retroactive XP), Glicko/Glicko-2, adaptive
+  difficulty (all later phases or out of scope).
 
 Phase 04 ratings (all verified by tests + live runtime checks):
 
@@ -118,6 +176,10 @@ Phase 04 ratings (all verified by tests + live runtime checks):
 * Intentional deferrals: Glicko/Glicko-2, XP/achievements/streaks/
   leaderboards, admin rating correction, adaptive difficulty,
   analytics time ranges (all later phases).
+
+  (Phase 05 note: XP/achievements/streaks are now implemented per the
+  Phase 05 scope above; leaderboards, mastery, goals, badges, and
+  personal records remain deferred.)
 
 Phase 03 player platform (all verified by tests + live runtime checks):
 
@@ -314,15 +376,16 @@ Required follow-up: Small UI notice when a product flow requires it.
 
 ## 7. Testing State
 
-* backend tests: 954 passed (`pytest`; includes 28 account tests in
+* backend tests: 981 passed (`pytest`; includes 28 account tests in
   `tests/test_accounts.py`, 15 player-platform tests in
   `tests/test_player_platform.py`, 19 rating tests in
-  `tests/test_ratings.py`, plus the Phase 04 v4-upgrade contract
+  `tests/test_ratings.py`, 27 gamification tests in
+  `tests/test_gamification.py`, plus the Phase 05 v5-upgrade contract
   updates)
-* frontend tests: 259 passed (`npm test`, 26 files; includes 10
+* frontend tests: 266 passed (`npm test`, 27 files; includes 10
   auth-context/login/protected-account tests, 14 player
-  transport/page/nav tests, and 6 new rating transport/section
-  tests)
+  transport/page/nav tests, 6 rating transport/section tests, and 7
+  new gamification transport/section tests)
 * typecheck: `npm run typecheck` clean
 * build: `npm run build` succeeds (pre-existing chunk-size warning only)
 * migration verification: fresh-boot, idempotency, data preservation,
