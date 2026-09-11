@@ -27,6 +27,8 @@ import type {
   Generator,
   GeneratorRun,
   HistoryAttempt,
+  NotificationItem,
+  NotificationPreference,
   PathStepResponse,
   PlayerAnalytics,
   PlayerComparison,
@@ -44,6 +46,8 @@ import type {
   SpeedSession,
   SpeedSubmitResponse,
   SpeedSummary,
+  SupportMessage,
+  SupportTicket,
   XpHistoryResponse,
 } from "./types";
 
@@ -994,6 +998,44 @@ export const api = {
     }),
 };
 
+// Support & notifications transport (Phase 11). UX only — ownership,
+// capabilities, preferences, and delivery are enforced server-side.
+export const supportApi = {
+  create: (body: { subject: string; message: string; category?: string }) =>
+    request<SupportTicket>("/api/v1/support/tickets", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  myTickets: (params?: { status?: string; page?: number; page_size?: number }) =>
+    request<SupportTicket[]>(`/api/v1/me/support/tickets${adminQuery(params)}`),
+  myTicket: (id: number) => request<SupportTicket>(`/api/v1/me/support/tickets/${id}`),
+  reply: (id: number, body: string) =>
+    request<SupportMessage>(`/api/v1/me/support/tickets/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
+};
+
+export const notificationsApi = {
+  list: (params?: { unread_only?: boolean; page?: number; page_size?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.unread_only) query.set("unread_only", "true");
+    if (params?.page !== undefined) query.set("page", String(params.page));
+    if (params?.page_size !== undefined) query.set("page_size", String(params.page_size));
+    const suffix = query.toString();
+    return request<NotificationItem[]>(`/api/v1/me/notifications${suffix ? `?${suffix}` : ""}`);
+  },
+  unreadCount: () => request<{ unread_count: number }>("/api/v1/me/notifications/unread-count"),
+  markRead: (id: number) =>
+    request<NotificationItem>(`/api/v1/me/notifications/${id}/read`, { method: "POST" }),
+  preferences: () => request<NotificationPreference[]>("/api/v1/me/notification-preferences"),
+  updatePreference: (body: { category: string; channel: string; enabled: boolean }) =>
+    request<NotificationPreference>("/api/v1/me/notification-preferences", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+};
+
 // Relationships transport (Phase 9). UX only — every endpoint
 // authorizes server-side via capability + active relationship.
 export const relationshipsApi = {
@@ -1180,4 +1222,16 @@ export const adminApi = {
     request<AdminExerciseAnalytics[]>(`/api/v1/admin/analytics/exercises${adminQuery(params)}`),
   puzzleAnalytics: (params?: { period?: string; exercise?: string; page?: number; page_size?: number }) =>
     request<AdminPuzzleAnalytics[]>(`/api/v1/admin/analytics/puzzles${adminQuery(params)}`),
+  // Staff support workflows (Phase 11). UX only — every endpoint
+  // authorizes server-side via support.read/respond/close.
+  supportTickets: (params?: { status?: string; page?: number; page_size?: number }) =>
+    request<SupportTicket[]>(`/api/v1/admin/support/tickets${adminQuery(params)}`),
+  supportTicket: (id: number) => request<SupportTicket>(`/api/v1/admin/support/tickets/${id}`),
+  respondSupport: (id: number, body: string) =>
+    request<SupportMessage>(`/api/v1/admin/support/tickets/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
+  closeSupport: (id: number) =>
+    request<SupportTicket>(`/api/v1/admin/support/tickets/${id}/close`, { method: "POST" }),
 };

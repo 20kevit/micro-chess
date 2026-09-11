@@ -143,6 +143,11 @@ export function AdminDashboardPage() {
               {t("admin.generators")}
             </Button>
           </Link>
+          <Link to="/admin/support" className="block">
+            <Button variant="secondary" className="w-full">
+              {t("admin.support")}
+            </Button>
+          </Link>
         </div>
       </div>
     </div>

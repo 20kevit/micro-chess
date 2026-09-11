@@ -1,16 +1,40 @@
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { notificationsApi } from "../../api/client";
 import { t } from "../../i18n";
 import { useAuth } from "../../lib/auth-context";
 import { isAdminRole } from "../../lib/require-admin";
+import { faNum } from "../../lib/playerDisplay";
 
 // Mobile-first shell: content + bottom nav on phones, top bar on desktop.
 export function AppShell() {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [unread, setUnread] = useState(0);
   const link = ({ isActive }: { isActive: boolean }) =>
     `flex min-h-[44px] flex-1 items-center justify-center rounded-2xl text-base font-bold ${
       isActive ? "bg-violet-600 text-white" : "text-violet-700"
     }`;
+
+  // Unread badge refreshes on navigation (no polling); the server owns
+  // the count and failures simply hide the badge.
+  useEffect(() => {
+    if (!user) {
+      setUnread(0);
+      return;
+    }
+    let alive = true;
+    notificationsApi
+      .unreadCount()
+      .then((r) => {
+        if (alive) setUnread(r.unread_count);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [user, location.pathname]);
 
   async function onLogout() {
     await logout();
@@ -21,9 +45,27 @@ export function AppShell() {
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col bg-[#f6f4ff]">
       <header className="flex items-center justify-between gap-2 px-4 pt-4">
         <span className="text-xl font-black text-violet-700">{t("app.name")}</span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {loading ? null : user ? (
             <>
+              <Link
+                to="/notifications"
+                aria-label={t("nav.notifications")}
+                className="flex min-h-[44px] items-center gap-1 rounded-2xl px-3 text-sm font-bold text-violet-700"
+              >
+                {t("nav.notifications")}
+                {unread > 0 ? (
+                  <span className="flex min-h-[24px] min-w-[24px] items-center justify-center rounded-full bg-red-500 px-1 text-xs font-black text-white">
+                    {faNum(unread)}
+                  </span>
+                ) : null}
+              </Link>
+              <Link
+                to="/support"
+                className="flex min-h-[44px] items-center rounded-2xl px-3 text-sm font-bold text-violet-700"
+              >
+                {t("nav.support")}
+              </Link>
               <Link
                 to="/account"
                 className="flex min-h-[44px] items-center rounded-2xl px-3 text-sm font-bold text-violet-700"

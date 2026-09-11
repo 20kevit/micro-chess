@@ -684,3 +684,44 @@ export interface AdaptiveRecommendation {
   result: string | null;
   created_at: string;
 }
+
+// Support & notifications (Phase 11). Display-only transport: the
+// server owns tickets, messages, notifications, and preferences.
+export type SupportTicketStatus = "open" | "answered" | "closed";
+
+export interface SupportMessage {
+  id: number;
+  author: "user" | "staff";
+  body: string;
+  created_at: string;
+}
+
+export interface SupportTicket {
+  id: number;
+  subject: string;
+  category: string;
+  status: SupportTicketStatus;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  messages?: SupportMessage[];
+  user_id?: number;
+  assigned_admin_id?: number | null;
+}
+
+export interface NotificationItem {
+  id: number;
+  type: string;
+  category: string;
+  title: string;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface NotificationPreference {
+  category: string;
+  channel: string;
+  enabled: boolean;
+  mandatory: boolean;
+}

@@ -39,6 +39,10 @@ import { PieceRecognitionPage } from "./pages/PieceRecognitionPage";
 import { PinPage } from "./pages/PinPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ProgressPage } from "./pages/ProgressPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
+import { SupportDetailPage } from "./pages/SupportDetailPage";
+import { SupportPage } from "./pages/SupportPage";
+import { AdminSupportPage } from "./pages/AdminSupportPage";
 import { TrappedPiecesPage } from "./pages/TrappedPiecesPage";
 import { UndefendedPiecesPage } from "./pages/UndefendedPiecesPage";
 import "./index.css";
@@ -83,6 +87,30 @@ const router = createBrowserRouter([
         element: (
           <RequireAuth>
             <RelationshipsPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/support",
+        element: (
+          <RequireAuth>
+            <SupportPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/support/:id",
+        element: (
+          <RequireAuth>
+            <SupportDetailPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/notifications",
+        element: (
+          <RequireAuth>
+            <NotificationsPage />
           </RequireAuth>
         ),
       },
@@ -166,6 +194,14 @@ const router = createBrowserRouter([
         element: (
           <RequireAdmin>
             <AdminGeneratorsPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/support",
+        element: (
+          <RequireAdmin>
+            <AdminSupportPage />
           </RequireAdmin>
         ),
       },

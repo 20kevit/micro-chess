@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HomePage } from "./HomePage";
 import { AppShell } from "../components/ui/AppShell";
 import { useAuth } from "../lib/auth-context";
-import { api } from "../api/client";
+import { api, notificationsApi } from "../api/client";
 
 vi.mock("../lib/auth-context", () => ({ useAuth: vi.fn() }));
 vi.mock("../api/client", () => ({
@@ -12,6 +12,10 @@ vi.mock("../api/client", () => ({
     dashboard: vi.fn(),
     progress: vi.fn(),
     trainingAttempts: vi.fn(),
+  },
+  // AppShell fetches the unread badge through this transport.
+  notificationsApi: {
+    unreadCount: vi.fn().mockResolvedValue({ unread_count: 0 }),
   },
   apiStatus: () => null,
   getToken: () => null,
@@ -38,6 +42,8 @@ function authState(user: boolean) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // AppShell reads the unread badge through this transport.
+  vi.mocked(notificationsApi.unreadCount).mockResolvedValue({ unread_count: 0 });
 });
 
 describe("player home", () => {

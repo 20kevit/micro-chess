@@ -1,0 +1,174 @@
+import { useCallback, useEffect, useState } from "react";
+import { apiDetail, notificationsApi } from "../api/client";
+import type { NotificationItem, NotificationPreference } from "../api/types";
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { PageHeader } from "../components/ui/PageHeader";
+import { t } from "../i18n";
+
+// Notification center: server-owned list with read/unread state plus
+// preference controls. Refreshing preserves state (server is the source
+// of truth, never localStorage).
+export function NotificationsPage() {
+  const [rows, setRows] = useState<NotificationItem[]>([]);
+  const [prefs, setPrefs] = useState<NotificationPreference[]>([]);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setFailed(false);
+    Promise.all([notificationsApi.list({ unread_only: unreadOnly }), notificationsApi.preferences()])
+      .then(([items, matrix]) => {
+        setRows(items);
+        setPrefs(matrix);
+        setLoading(false);
+      })
+      .catch(() => {
+        setFailed(true);
+        setLoading(false);
+      });
+  }, [unreadOnly]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function markRead(id: number) {
+    setNotice("");
+    try {
+      const updated = await notificationsApi.markRead(id);
+      setRows((prev) => prev.map((n) => (n.id === id ? updated : n)));
+    } catch (e) {
+      setNotice(apiDetail(e) || t("common.error"));
+    }
+  }
+
+  async function togglePref(pref: NotificationPreference) {
+    if (pref.mandatory) return;
+    setNotice("");
+    try {
+      const updated = await notificationsApi.updatePreference({
+        category: pref.category,
+        channel: pref.channel,
+        enabled: !pref.enabled,
+      });
+      setPrefs((prev) =>
+        prev.map((p) =>
+          p.category === updated.category && p.channel === updated.channel ? updated : p,
+        ),
+      );
+    } catch (e) {
+      setNotice(apiDetail(e) || t("common.error"));
+    }
+  }
+
+  function typeTitle(ntype: string): string {
+    if (ntype === "support.response") return t("notif.type.support.response");
+    if (ntype === "support.closed") return t("notif.type.support.closed");
+    if (ntype === "account.suspended") return t("notif.type.account.suspended");
+    if (ntype === "account.reactivated") return t("notif.type.account.reactivated");
+    return ntype;
+  }
+
+  function prefLabel(category: string): string {
+    return category === "account" ? t("notif.account") : t("notif.support");
+  }
+
+  return (
+    <div>
+      <PageHeader title={t("notif.title")} subtitle={t("notif.subtitle")} />
+      <Card>
+        <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm font-bold">
+          <input
+            type="checkbox"
+            checked={unreadOnly}
+            onChange={(e) => setUnreadOnly(e.target.checked)}
+            className="h-5 w-5"
+          />
+          {t("notif.unreadOnly")}
+        </label>
+      </Card>
+      <div className="mt-3">
+        {loading ? (
+          <p className="py-8 text-center text-stone-500">{t("common.loading")}</p>
+        ) : failed ? (
+          <div className="py-8 text-center">
+            <p className="text-stone-500">{t("common.error")}</p>
+            <div className="mx-auto mt-3 max-w-xs">
+              <Button onClick={load} className="w-full">
+                {t("common.retry")}
+              </Button>
+            </div>
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="py-8 text-center text-stone-500">{t("notif.empty")}</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {rows.map((n) => (
+              <li key={n.id}>
+                <Card className={n.read_at ? undefined : "border-violet-300 bg-violet-50"}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-black">{typeTitle(n.type)}</p>
+                    {n.read_at ? <Badge>{t("notif.read")}</Badge> : null}
+                  </div>
+                  {n.title && n.title !== n.type ? (
+                    <p className="mt-1 font-bold">{n.title}</p>
+                  ) : null}
+                  {n.body ? <p className="mt-1 whitespace-pre-wrap text-sm">{n.body}</p> : null}
+                  {!n.read_at ? (
+                    <div className="mt-2">
+                      <Button variant="secondary" onClick={() => markRead(n.id)}>
+                        {t("notif.markRead")}
+                      </Button>
+                    </div>
+                  ) : null}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <Card>
+        <h2 className="font-black">{t("notif.prefsTitle")}</h2>
+        <p className="mt-1 text-sm text-stone-500">{t("notif.prefsSubtitle")}</p>
+        <ul className="mt-2 flex flex-col gap-2">
+          {prefs
+            .filter((p) => p.channel === "in_app")
+            .map((p) => (
+              <li
+                key={`${p.category}:${p.channel}`}
+                className="flex min-h-[44px] items-center justify-between gap-2 rounded-xl bg-stone-50 px-3 py-2"
+              >
+                <span className="text-sm font-bold">
+                  {prefLabel(p.category)}{" "}
+                  {p.mandatory ? (
+                    <span className="text-xs font-normal text-stone-500">
+                      ({t("notif.mandatory")})
+                    </span>
+                  ) : null}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={p.enabled}
+                  aria-label={prefLabel(p.category)}
+                  disabled={p.mandatory}
+                  onClick={() => togglePref(p)}
+                  className={`flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl px-3 text-sm font-bold ${
+                    p.enabled ? "bg-violet-600 text-white" : "bg-stone-200 text-stone-600"
+                  } ${p.mandatory ? "opacity-60" : ""}`}
+                >
+                  {p.enabled ? "✓" : "–"}
+                </button>
+              </li>
+            ))}
+        </ul>
+        {notice ? <p className="mt-2 text-sm font-bold text-violet-700">{notice}</p> : null}
+      </Card>
+    </div>
+  );
+}
