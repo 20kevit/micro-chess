@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 class SchemaVersion(Base):
@@ -284,6 +284,19 @@ def _migrate_v7_content(conn) -> None:
             logger.warning("content migration: could not ensure index %s", index_sql)
 
 
+def _migrate_v8_relationships(conn) -> None:
+    """Phase 9 relationships: relationship + assignment tables.
+
+    The ``relationships`` and ``assignments`` tables are created by
+    ``ensure_schema`` via ``Base.metadata.create_all`` on fresh and
+    existing databases alike; no data backfill exists (relationship
+    history starts with Phase 9, no historical edges are fabricated).
+    This step exists so the version history records the change
+    explicitly.
+    """
+    _ = conn
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
     (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
@@ -291,6 +304,7 @@ MIGRATIONS: list[tuple[int, str, object]] = [
     (5, "phase-05 gamification: attempt XP snapshot column", _migrate_v5_gamification),
     (6, "phase-06 administration: persistent audit log", _migrate_v6_admin),
     (7, "phase-07 content & generators: puzzle lifecycle, provenance, generator jobs", _migrate_v7_content),
+    (8, "phase-09 relationships: coach/parent relationships, assignments", _migrate_v8_relationships),
 ]
 
 

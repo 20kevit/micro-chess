@@ -26,6 +26,10 @@ from app.modules.pathfinding.router import router as pathfinding_router
 from app.modules.pathfinding_obstacles.router import router as obstacle_pathfinding_router
 from app.modules.piece_recognition.router import router as piece_recognition_router
 from app.modules.player.router import router as player_router
+from app.modules.relationships.router import coach_router as coach_router
+from app.modules.relationships.router import own_router as relationships_own_router
+from app.modules.relationships.router import parent_router as parent_router
+from app.modules.relationships.router import router as relationships_router
 from app.modules.progress.router import router as attempts_router
 from app.modules.puzzles.router import router as puzzles_router
 from app.modules.trapped_pieces.router import router as trapped_pieces_router
@@ -99,6 +103,10 @@ app.include_router(pathfinding_router, prefix=API_V1_PREFIX)
 app.include_router(obstacle_pathfinding_router, prefix=API_V1_PREFIX)
 app.include_router(piece_recognition_router, prefix=API_V1_PREFIX)
 app.include_router(player_router, prefix=API_V1_PREFIX)
+app.include_router(relationships_router, prefix=API_V1_PREFIX)
+app.include_router(coach_router, prefix=API_V1_PREFIX)
+app.include_router(parent_router, prefix=API_V1_PREFIX)
+app.include_router(relationships_own_router, prefix=API_V1_PREFIX)
 app.include_router(legal_destinations_router, prefix=API_V1_PREFIX)
 app.include_router(heavier_side_router, prefix=API_V1_PREFIX)
 app.include_router(reconstruction_router, prefix=API_V1_PREFIX)

@@ -62,6 +62,9 @@ class Capability(str, Enum):
     AUDIT_VIEW = "audit.view"
     SUPPORT_MANAGE = "support.manage"
     RELATIONSHIPS_MANAGE = "relationships.manage"
+    RELATIONSHIPS_CREATE = "relationships.create"
+    RELATIONSHIPS_ACCEPT = "relationships.accept"
+    RELATIONSHIPS_REVOKE = "relationships.revoke"
     GUEST_MIGRATE = "accounts.migrate_guest"
 
 
@@ -72,6 +75,14 @@ _PLAYER_CAPABILITIES = frozenset(
         Capability.ATTEMPTS_SUBMIT,
         Capability.USERS_READ,
         Capability.GUEST_MIGRATE,
+        # Phase 9: every account may take part in relationship flows
+        # (initiate, accept, revoke) for relationships it belongs to.
+        # Object-level checks in the relationships service enforce party
+        # membership; the capability alone never grants access to another
+        # student's data.
+        Capability.RELATIONSHIPS_CREATE,
+        Capability.RELATIONSHIPS_ACCEPT,
+        Capability.RELATIONSHIPS_REVOKE,
     }
 )
 

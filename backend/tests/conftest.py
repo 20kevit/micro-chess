@@ -32,6 +32,7 @@ def db_session():
     from app.modules.player import models as _player  # noqa: F401
     from app.modules.progress import models as _pr  # noqa: F401
     from app.modules.puzzles import models as _pz  # noqa: F401
+    from app.modules.relationships import models as _rel  # noqa: F401
     from app.modules.trapped_pieces import models as _tp  # noqa: F401
     from app.modules.undefended_pieces import models as _up  # noqa: F401
     from app.modules.users import models as _u  # noqa: F401
