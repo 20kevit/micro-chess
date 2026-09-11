@@ -31,14 +31,15 @@ BLOCKED
 
 Phase 01 (Foundation) completed and verified. Phase 02 (Accounts)
 completed and verified. Phase 03 (Player Platform) completed and
-verified. No later phase started.
+verified. Phase 04 (Ratings) completed and verified. No later phase
+started.
 
 | Area                         | Status      |
 | ---------------------------- | ----------- |
 | Foundation                   | VERIFIED    |
 | Accounts & Identity          | VERIFIED    |
 | Player Platform              | VERIFIED    |
-| Ratings                      | NOT_STARTED |
+| Ratings                      | VERIFIED    |
 | Gamification                 | NOT_STARTED |
 | Administration               | NOT_STARTED |
 | Content & Generators         | NOT_STARTED |
@@ -66,6 +67,57 @@ Existing exercises verified preserved after Phase 03:
 ---
 
 ## 5. Evidence
+
+Phase 04 ratings (all verified by tests + live runtime checks):
+
+* Rating state: `player_ratings(user_id, exercise_slug UNIQUE, rating,
+  rating_deviation, is_provisional, games_count)` + immutable
+  `rating_events(attempt_id UNIQUE, rating_before/delta/after,
+  rating_deviation_before/after, reason)` (`rating_engine/models.py`).
+  One row per player+exercise; guests hold no ratings (rated mode
+  requires an account). `tests/test_ratings.py` (19 tests).
+* Rating algorithm (`rating_engine/service.py`, pure + documented):
+  Elo-style expected score vs `Puzzle.initial_rating`, actual
+  1.0/0.5/0.0 for correct/partial/wrong, K=32 provisional / K=16
+  established, clamp [100, 3000] with exact `after = before + delta`,
+  RD `*0.97` floored at 50. Initial 1200 / RD 350 / provisional until
+  10 rated attempts (configured by the implementation, as RATINGS.md
+  permits; no canonical numbers exist). Glicko-2 math deferred; the
+  stored deviation keeps the upgrade path open.
+* Attempt integration (`progress/service.py`, single commit):
+  server-decided eligibility (rated mode + account + validated
+  correct/partial/wrong); practice, guest, and timeout/skipped/
+  abandoned attempts never rate and keep NULL snapshots. Rated
+  attempts stamp `rating_before/delta/after` on the attempt row.
+  Idempotent re-application returns the stored pair unchanged
+  (UNIQUE on `rating_events.attempt_id` as the DB backstop).
+* Query API (`/me` scope, `player/router.py` thin; reads in
+  `rating_engine/service.py`): `GET /me/ratings`,
+  `GET /me/ratings/{slug}` (404 EXERCISE_NOT_FOUND vs
+  RATING_NOT_FOUND), `GET /me/ratings/{slug}/history`
+  (newest-first, paginated). No client rating-write endpoint exists
+  (POST/PATCH/DELETE → 405). Cross-user reads miss (404/empty),
+  anonymous → 401. External FIDE/Lichess/Chess.com ratings untouched
+  and separate.
+* Schema v4: `ensure_schema` upgrades Phase 1/2/3 DBs (new tables via
+  `create_all`, attempt snapshot columns via idempotent ALTER; no
+  backfill, no fabricated history); fresh boot + idempotency +
+  v3→v4 data-preservation covered by tests; dev DB booted live at v4
+  with users/attempts intact.
+* Frontend: `RatingsSection` on the Progress page (per-exercise
+  rating + موقت badge + rated-game counts; loading/empty/error
+  states), `getRatings/getExerciseRating/getRatingHistory` transport
+  (`api/client.ts`), 5 Persian strings in `fa.ts`; RTL preserved,
+  44px targets, display-only (no rating math in the client). 6 new
+  frontend tests (section states + transport); 15 existing fixtures
+  extended with the new snapshot fields.
+* Runtime verified live (13/13): register → login → empty ratings →
+  rated attempt moves rating → detail/history match → practice
+  no-op → second rated appends → cross-user isolation → Phase 3
+  endpoints intact → legacy rows preserved.
+* Intentional deferrals: Glicko/Glicko-2, XP/achievements/streaks/
+  leaderboards, admin rating correction, adaptive difficulty,
+  analytics time ranges (all later phases).
 
 Phase 03 player platform (all verified by tests + live runtime checks):
 
@@ -262,13 +314,15 @@ Required follow-up: Small UI notice when a product flow requires it.
 
 ## 7. Testing State
 
-* backend tests: 935 passed (`pytest`; includes 28 account tests in
+* backend tests: 954 passed (`pytest`; includes 28 account tests in
   `tests/test_accounts.py`, 15 player-platform tests in
-  `tests/test_player_platform.py`, plus the Phase 03
-  migration-table and v3-upgrade contract updates)
-* frontend tests: 253 passed (`npm test`, 25 files; includes 10
-  auth-context/login/protected-account tests and 14 new player
-  transport/page/nav tests)
+  `tests/test_player_platform.py`, 19 rating tests in
+  `tests/test_ratings.py`, plus the Phase 04 v4-upgrade contract
+  updates)
+* frontend tests: 259 passed (`npm test`, 26 files; includes 10
+  auth-context/login/protected-account tests, 14 player
+  transport/page/nav tests, and 6 new rating transport/section
+  tests)
 * typecheck: `npm run typecheck` clean
 * build: `npm run build` succeeds (pre-existing chunk-size warning only)
 * migration verification: fresh-boot, idempotency, data preservation,
