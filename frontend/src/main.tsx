@@ -4,6 +4,7 @@ import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AppShell } from "./components/ui/AppShell";
 import { AccountPage } from "./pages/AccountPage";
+import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { AuthProvider } from "./lib/auth-context";
@@ -27,17 +28,20 @@ import { PathfindingPage } from "./pages/PathfindingPage";
 import { PathfindingObstaclesPage } from "./pages/PathfindingObstaclesPage";
 import { PieceRecognitionPage } from "./pages/PieceRecognitionPage";
 import { PinPage } from "./pages/PinPage";
+import { ProfilePage } from "./pages/ProfilePage";
+import { ProgressPage } from "./pages/ProgressPage";
 import { TrappedPiecesPage } from "./pages/TrappedPiecesPage";
 import { UndefendedPiecesPage } from "./pages/UndefendedPiecesPage";
 import "./index.css";
 
 // Routes only. Keep data fetching inside pages via api client.
-// "/" is the main exercise-selection menu; "/exercises" is an alias.
+// "/" is the player home (dashboard when logged in, exercise menu when
+// anonymous); "/exercises" is the exercise menu alias.
 const router = createBrowserRouter([
   {
     element: <AppShell />,
     children: [
-      { path: "/", element: <ExercisesPage /> },
+      { path: "/", element: <HomePage /> },
       { path: "/exercises", element: <ExercisesPage /> },
       { path: "/login", element: <LoginPage /> },
       { path: "/register", element: <RegisterPage /> },
@@ -46,6 +50,22 @@ const router = createBrowserRouter([
         element: (
           <RequireAuth>
             <AccountPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/progress",
+        element: (
+          <RequireAuth>
+            <ProgressPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/profile",
+        element: (
+          <RequireAuth>
+            <ProfilePage />
           </RequireAuth>
         ),
       },

@@ -32,6 +32,11 @@ export function AccountPage() {
             .join("، ")}
         </p>
         <div className="mt-4 flex flex-col gap-2">
+          <Link to="/profile" className="block">
+            <Button variant="secondary" className="w-full">
+              {t("auth.goToProfile")}
+            </Button>
+          </Link>
           <Link to="/exercises" className="block">
             <Button variant="secondary" className="w-full">
               {t("auth.backToExercises")}

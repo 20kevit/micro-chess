@@ -4,8 +4,14 @@ import type {
   AttemptResponse,
   AuthToken,
   AuthUser,
+  ChessIdentity,
+  Dashboard,
   Exercise,
+  ExerciseProgress,
+  HistoryAttempt,
   PathStepResponse,
+  PlayerProfile,
+  ProgressSummary,
   Puzzle,
   ReconstructionStepResponse,
   SpeedReport,
@@ -845,6 +851,58 @@ export const api = {
       method: "POST",
     }),
   me: () => request<AuthUser>("/api/v1/users/me"),
+  // Player platform transport. Ownership always derives from the
+  // authenticated session; no user ids travel in these requests.
+  getProfile: () => request<PlayerProfile>("/api/v1/me/profile"),
+  updateProfile: (body: { display_name?: string; bio?: string; avatar_reference?: string }) =>
+    request<PlayerProfile>("/api/v1/me/profile", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  listIdentities: () => request<ChessIdentity[]>("/api/v1/me/chess-identities"),
+  addIdentity: (body: {
+    provider: string;
+    username: string;
+    rating?: number | null;
+    rating_type?: string | null;
+  }) =>
+    request<ChessIdentity>("/api/v1/me/chess-identities", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateIdentity: (
+    id: number,
+    body: { username?: string; rating?: number | null; rating_type?: string | null },
+  ) =>
+    request<ChessIdentity>(`/api/v1/me/chess-identities/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteIdentity: (id: number) =>
+    request<void>(`/api/v1/me/chess-identities/${id}`, {
+      method: "DELETE",
+    }),
+  trainingAttempts: (params?: {
+    exercise?: string;
+    mode?: AttemptMode;
+    correct?: boolean;
+    page?: number;
+    page_size?: number;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.exercise) query.set("exercise", params.exercise);
+    if (params?.mode) query.set("mode", params.mode);
+    if (params?.correct !== undefined) query.set("correct", String(params.correct));
+    if (params?.page !== undefined) query.set("page", String(params.page));
+    if (params?.page_size !== undefined) query.set("page_size", String(params.page_size));
+    const suffix = query.toString();
+    return request<HistoryAttempt[]>(`/api/v1/me/training/attempts${suffix ? `?${suffix}` : ""}`);
+  },
+  trainingAttempt: (id: number) => request<HistoryAttempt>(`/api/v1/me/training/attempts/${id}`),
+  progress: () => request<ProgressSummary>("/api/v1/me/progress"),
+  exerciseProgress: (slug: string) => request<ExerciseProgress>(`/api/v1/me/progress/${slug}`),
+  dashboard: () => request<Dashboard>("/api/v1/me/dashboard"),
+  exerciseDetail: (slug: string) => request<Exercise>(`/api/v1/exercises/${slug}`),
   // Guest identity transport (server-controlled temporary sessions).
   createGuestSession: () =>
     request<{ guest_token: string; expires_at: string }>("/api/v1/guest/session", {

@@ -75,8 +75,9 @@ describe("protected account route", () => {
     );
     expect(screen.getByText("حساب من")).toBeTruthy();
     expect(screen.getByText("kid_01")).toBeTruthy();
-    expect(screen.getByText(/بازیکن/)).toBeTruthy();
-    expect(screen.getByText(/مربی/)).toBeTruthy();
+    // Roles render joined in one line ("بازیکن، مربی"); match the whole line
+    // so the "پروفایل بازیکن" button never collides.
+    expect(screen.getByText("نقش‌ها: بازیکن، مربی")).toBeTruthy();
   });
 
   it("logout returns to the home screen", async () => {

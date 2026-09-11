@@ -65,6 +65,16 @@ export function AppShell() {
         <NavLink to="/exercises" className={link}>
           {t("nav.exercises")}
         </NavLink>
+        {user ? (
+          <>
+            <NavLink to="/progress" className={link}>
+              {t("nav.progress")}
+            </NavLink>
+            <NavLink to="/profile" className={link}>
+              {t("nav.profile")}
+            </NavLink>
+          </>
+        ) : null}
       </nav>
     </div>
   );

@@ -140,6 +140,59 @@ export interface SpeedReport {
   entries: ReportEntry[];
 }
 
+// Player platform (mirrors backend modules/player/schemas.py).
+// The server owns identity, ownership, and aggregation; these are read models.
+export interface PlayerProfile {
+  display_name: string;
+  bio: string;
+  avatar_reference: string;
+  updated_at: string | null;
+}
+
+export type ChessProvider = "fide" | "lichess" | "chess_com";
+
+export interface ChessIdentity {
+  id: number;
+  provider: string;
+  username: string;
+  rating: number | null;
+  rating_type: string | null;
+  is_verified: boolean;
+}
+
+export interface HistoryAttempt {
+  id: number;
+  puzzle_id: number;
+  exercise_slug: string;
+  mode: AttemptMode;
+  result: AttemptResult;
+  score: number;
+  duration_ms: number | null;
+  hints_used: string[];
+  created_at: string;
+}
+
+export interface ExerciseProgress {
+  exercise: string;
+  attempts: number;
+  correct: number;
+  accuracy: number;
+  last_practiced_at: string | null;
+}
+
+export interface ProgressSummary {
+  attempts: number;
+  correct: number;
+  accuracy: number;
+  exercises: ExerciseProgress[];
+}
+
+export interface Dashboard {
+  profile: PlayerProfile;
+  progress: ProgressSummary;
+  recent_attempts: HistoryAttempt[];
+}
+
 // Authentication state (mirrors backend users/schemas.py UserOut).
 // The server owns roles/capabilities; the client only renders them.
 export interface AuthUser {
