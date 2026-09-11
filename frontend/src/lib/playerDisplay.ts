@@ -27,6 +27,24 @@ export function modeLabel(mode: string): string {
   return mode === "rated" ? t("play.rated") : t("play.practice");
 }
 
+const ACHIEVEMENT_CODES = ["first_steps", "steady_10", "xp_100", "streak_3"] as const;
+
+export type AchievementCode = (typeof ACHIEVEMENT_CODES)[number];
+
+// Achievement display text. Unknown codes fall back to the raw code so a
+// future server-side addition never breaks rendering.
+export function achievementName(code: string): string {
+  const key = `game.achievement.${code}.name` as FaKey;
+  const text = t(key);
+  return text === key ? code : text;
+}
+
+export function achievementDescription(code: string): string {
+  const key = `game.achievement.${code}.desc` as FaKey;
+  const text = t(key);
+  return text === key ? "" : text;
+}
+
 export function faNum(n: number): string {
   return n.toLocaleString("fa-IR");
 }

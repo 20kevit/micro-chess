@@ -1,5 +1,6 @@
 // Thin HTTP client. Backend is authoritative; this only transports data.
 import type {
+  AchievementsResponse,
   AttemptMode,
   AttemptResponse,
   AuthToken,
@@ -8,6 +9,7 @@ import type {
   Dashboard,
   Exercise,
   ExerciseProgress,
+  GamificationSummary,
   HistoryAttempt,
   PathStepResponse,
   PlayerProfile,
@@ -21,6 +23,7 @@ import type {
   SpeedSession,
   SpeedSubmitResponse,
   SpeedSummary,
+  XpHistoryResponse,
 } from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -910,6 +913,12 @@ export const api = {
   getExerciseRating: (slug: string) => request<PlayerRating>(`/api/v1/me/ratings/${slug}`),
   getRatingHistory: (slug: string) =>
     request<RatingHistoryResponse>(`/api/v1/me/ratings/${slug}/history`),
+  // Player gamification (Phase 5). Read-only display data; the server
+  // owns every value and there is no client-facing gamification-write
+  // endpoint.
+  getGamification: () => request<GamificationSummary>("/api/v1/me/gamification"),
+  getXpHistory: () => request<XpHistoryResponse>("/api/v1/me/gamification/xp"),
+  getAchievements: () => request<AchievementsResponse>("/api/v1/me/achievements"),
   dashboard: () => request<Dashboard>("/api/v1/me/dashboard"),
   exerciseDetail: (slug: string) => request<Exercise>(`/api/v1/exercises/${slug}`),
   // Guest identity transport (server-controlled temporary sessions).

@@ -11,6 +11,9 @@ vi.mock("../api/client", () => ({
     progress: vi.fn(),
     trainingAttempts: vi.fn(),
     getRatings: vi.fn(),
+    getGamification: vi.fn(),
+    getAchievements: vi.fn(),
+    getXpHistory: vi.fn(),
   },
   apiStatus: () => null,
 }));
@@ -39,6 +42,14 @@ function attempt(id: number): HistoryAttempt {
 beforeEach(() => {
   vi.resetAllMocks();
   mockedApi.getRatings.mockResolvedValue({ items: [] });
+  mockedApi.getGamification.mockResolvedValue({
+    xp: { total: 0, level: 1, xp_in_level: 0, xp_for_next: 100 },
+    streak: { current: 0, longest: 0 },
+    achievements_unlocked: 0,
+    total_achievements: 4,
+  });
+  mockedApi.getAchievements.mockResolvedValue({ items: [] });
+  mockedApi.getXpHistory.mockResolvedValue({ items: [] });
 });
 
 function renderPage() {

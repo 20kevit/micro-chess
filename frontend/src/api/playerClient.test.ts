@@ -72,6 +72,24 @@ describe("player platform transport", () => {
     }
   });
 
+  it("fetches gamification without sending user ids", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ok({ items: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.getGamification();
+    await api.getXpHistory();
+    await api.getAchievements();
+    const calls = fetchMock.mock.calls.map((call) => call[0]);
+    expect(calls).toEqual([
+      "/api/v1/me/gamification",
+      "/api/v1/me/gamification/xp",
+      "/api/v1/me/achievements",
+    ]);
+    for (const call of fetchMock.mock.calls) {
+      const init = call[1] as RequestInit | undefined;
+      expect(init?.method ?? "GET").toBe("GET");
+      expect(String(call[0])).not.toContain("user_id");
+    }
+  });
   it("fetches progress, dashboard, and exercise detail", async () => {
     const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ok({}));
     vi.stubGlobal("fetch", fetchMock);

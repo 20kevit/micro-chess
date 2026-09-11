@@ -67,6 +67,9 @@ export interface AttemptResponse {
   rating_before: number | null;
   rating_delta: number | null;
   rating_after: number | null;
+  // Server-authoritative XP awarded for this attempt (Phase 5).
+  // Null for non-qualifying attempts (guests, terminal states).
+  xp_awarded?: number | null;
   detail: {
     correct: string[];
     missed: string[];
@@ -177,6 +180,8 @@ export interface HistoryAttempt {
   rating_before: number | null;
   rating_delta: number | null;
   rating_after: number | null;
+  // XP awarded for this attempt (null for non-qualifying attempts).
+  xp_awarded?: number | null;
   created_at: string;
 }
 
@@ -229,6 +234,45 @@ export interface RatingHistoryItem {
 
 export interface RatingHistoryResponse {
   items: RatingHistoryItem[];
+}
+
+// Gamification (mirrors backend player/schemas gamification outputs).
+// Display-only: the server owns every value; nothing here is trusted for logic.
+export interface GamificationSummary {
+  xp: {
+    total: number;
+    level: number;
+    xp_in_level: number;
+    xp_for_next: number;
+  };
+  streak: {
+    current: number;
+    longest: number;
+  };
+  achievements_unlocked: number;
+  total_achievements: number;
+}
+
+export interface XpHistoryItem {
+  attempt_id: number;
+  amount: number;
+  reason: string;
+  balance_after: number;
+  occurred_at: string;
+}
+
+export interface XpHistoryResponse {
+  items: XpHistoryItem[];
+}
+
+export interface AchievementItem {
+  code: string;
+  unlocked: boolean;
+  unlocked_at: string | null;
+}
+
+export interface AchievementsResponse {
+  items: AchievementItem[];
 }
 
 // Authentication state (mirrors backend users/schemas.py UserOut).

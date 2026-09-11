@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import { api, apiStatus } from "../api/client";
-import type { AttemptMode, HistoryAttempt, PlayerRating, ProgressSummary } from "../api/types";
+import type {
+  AchievementItem,
+  AttemptMode,
+  GamificationSummary,
+  HistoryAttempt,
+  PlayerRating,
+  ProgressSummary,
+  XpHistoryItem,
+} from "../api/types";
+import { GamificationSection } from "../components/player/GamificationSection";
 import { RatingsSection } from "../components/player/RatingsSection";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -18,6 +27,10 @@ export function ProgressPage() {
   const [history, setHistory] = useState<HistoryAttempt[]>([]);
   const [ratings, setRatings] = useState<PlayerRating[] | null>(null);
   const [ratingsFailed, setRatingsFailed] = useState(false);
+  const [gamification, setGamification] = useState<GamificationSummary | null>(null);
+  const [achievements, setAchievements] = useState<AchievementItem[] | null>(null);
+  const [recentXp, setRecentXp] = useState<XpHistoryItem[] | null>(null);
+  const [gamificationFailed, setGamificationFailed] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [exercise, setExercise] = useState("");
@@ -33,6 +46,10 @@ export function ProgressPage() {
     setFailed(false);
     setRatings(null);
     setRatingsFailed(false);
+    setGamification(null);
+    setAchievements(null);
+    setRecentXp(null);
+    setGamificationFailed(false);
     // Ratings load independently: a ratings failure shows a section-level
     // error without hiding progress and history.
     api
@@ -44,6 +61,18 @@ export function ProgressPage() {
       .catch(() => {
         if (!alive) return;
         setRatingsFailed(true);
+      });
+    // Gamification loads independently with the same isolation.
+    Promise.all([api.getGamification(), api.getAchievements(), api.getXpHistory()])
+      .then(([summary, unlocked, history]) => {
+        if (!alive) return;
+        setGamification(summary);
+        setAchievements(unlocked.items);
+        setRecentXp(history.items.slice(0, 5));
+      })
+      .catch(() => {
+        if (!alive) return;
+        setGamificationFailed(true);
       });
     Promise.all([api.progress(), api.trainingAttempts({ page: 1, page_size: PAGE_SIZE })])
       .then(([summary, first]) => {
@@ -99,6 +128,20 @@ export function ProgressPage() {
     setHasMore(rows.length === PAGE_SIZE);
   }
 
+  function retryGamification() {
+    setGamification(null);
+    setAchievements(null);
+    setRecentXp(null);
+    setGamificationFailed(false);
+    Promise.all([api.getGamification(), api.getAchievements(), api.getXpHistory()])
+      .then(([summary, unlocked, history]) => {
+        setGamification(summary);
+        setAchievements(unlocked.items);
+        setRecentXp(history.items.slice(0, 5));
+      })
+      .catch(() => setGamificationFailed(true));
+  }
+
   if (loading) return <p className="py-8 text-center text-stone-500">{t("common.loading")}</p>;
   if (failed || !progress)
     return (
@@ -141,6 +184,13 @@ export function ProgressPage() {
               .then((res) => setRatings(res.items))
               .catch(() => setRatingsFailed(true));
           }}
+        />
+        <GamificationSection
+          summary={gamification}
+          achievements={achievements}
+          recentXp={recentXp}
+          failed={gamificationFailed}
+          onRetry={retryGamification}
         />
         <Card>
           <h2 className="font-black">{t("player.perExercise")}</h2>
