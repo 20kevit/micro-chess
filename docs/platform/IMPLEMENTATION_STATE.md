@@ -36,6 +36,7 @@ verified. Phase 04 (Ratings) completed and verified. Phase 05
 (Administration foundation) completed and verified. Phase 07
 (Content & Generators) completed and verified. Phase 08
 (Analytics) completed and verified. Phase 09 (Relationships)
+completed and verified. Phase 10 (Adaptive Training Foundation)
 completed and verified. No later phase started.
 
 | Area                         | Status      |
@@ -49,7 +50,7 @@ completed and verified. No later phase started.
 | Content & Generators         | VERIFIED    |
 | Analytics                    | VERIFIED    |
 | Relationships                | VERIFIED    |
-| Adaptive Training Foundation | NOT_STARTED |
+| Adaptive Training Foundation | VERIFIED    |
 | Support & Notifications      | NOT_STARTED |
 
 Foundation primitives that later phases build on (password hashing +
@@ -71,6 +72,80 @@ Existing exercises verified preserved after Phase 03:
 ---
 
 ## 5. Evidence
+
+Phase 10 adaptive training foundation (all verified by tests + live runtime checks):
+
+* Policy (`backend/app/modules/adaptive/service.py`, pure + documented):
+  deterministic, explainable selection over authoritative state —
+  per-exercise ability is the current rating (else the documented 1200
+  default); signals derive read-only from attempts (accuracy, recent
+  accuracy/failures, repeated mistakes, response time, recency),
+  rating events (trend), and ratings (provisional/games). One
+  machine-readable reason per scope (`WEAK_EXERCISE`,
+  `RECENT_FAILURES`, `READY_FOR_HARDER`, `LOW_RECENT_ACTIVITY`,
+  `MASTERY_REVIEW` with a documented stale+strong definition,
+  `APPROPRIATE_DIFFICULTY`, `COLD_START` baseline), classified by a
+  pure function with a documented priority (struggling first).
+  Difficulty targets are ability-relative (remediation −200,
+  challenge +150, else ability; clamped to [100, 3000]); candidates
+  rank by distance to target with id tie-breaks. An explicit caller
+  `seed` picks reproducibly among the top-5 via `random.Random(seed)`
+  (injectable; global random never touched). All knobs are centralized
+  constants in the service module (same precedent as Phase 04/05).
+* Eligibility (database-side): published + not archived only (Phase 07
+  projection); disabled exercises yield nothing; unknown exercises 404;
+  scope is strictly per-exercise for `next` (cross-exercise choice
+  lives only in `overview`). Recent content (last 20 own attempts) is
+  avoided; when everything was seen, recency relaxes (flagged
+  `fallback: true`) rather than stranding the learner — lifecycle rules
+  never relax; empty sets return 404 `no_eligible_content`.
+* Observed difficulty reuses the Phase 08 derived label (≥5-attempt
+  gate, never persisted, never rewritten by selection).
+* Feedback loop (`adaptive_recommendations`, the module's only table):
+  every `next` call records a `shown` row (exercise/puzzle/reason/
+  ability/target/seed); the owner advances it `shown -> accepted/
+  skipped`, `accepted -> completed/skipped` (terminal states never
+  reopen; optional informational `result`). Selection otherwise
+  mutates nothing — verified by test (attempts/ratings/XP/puzzle rows
+  identical before/after).
+* API (thin routers, `/api/v1`, `USERS_READ`, error envelope):
+  `GET /me/adaptive/overview` (signals + recommended exercise),
+  `GET /me/adaptive/next?exercise=&seed=`, `GET /me/adaptive/history`,
+  `POST /me/adaptive/outcomes/{id}` (owner-only; foreign ids 404).
+  Coach/parent get derived overviews only
+  (`/coach/students/{id}/adaptive/overview`,
+  `/coach/.../adaptive/exercises/{slug}`, same under `/parent`) under
+  the Phase 09 capability + active-relationship + kind-filtered model
+  (unrelated/guessed ids 404, revoked edges lose access immediately,
+  issuance/outcomes stay owner-only so viewing never fabricates
+  history). Answers never leave the server (`PuzzleOut`).
+* Schema v9: fresh boots to v9 (`adaptive_recommendations` via
+  `create_all`); v1–v8 DBs upgrade with data preserved (no backfill,
+  no fabricated recommendations); legacy upgrade-contract tests bumped
+  `== 8` → `== 9`; idempotency + downgrade refusal covered.
+* Frontend: `AdaptiveSection` on the Progress page (recommended
+  exercise + Persian reason, per-exercise signals, next-item request
+  with ability/target/observed display, start-training link recording
+  `accepted`, skip recording `skipped`, loading/empty/error states) +
+  adaptive card in coach/parent student detail, `adaptiveApi`/
+  `coachApi.adaptive`/`parentApi.adaptive` transport, ~25 Persian
+  strings in `fa.ts`; RTL preserved, 44px targets. Backend remains the
+  sole policy owner. 9 new frontend tests (6 section + 3 transport).
+* Runtime verified live on a fresh DB (33 checks): cold-start baseline
+  → nearest-ability selection → 5 failures flip the reason to
+  `RECENT_FAILURES` with a below-ability target → seeded
+  reproducibility → empty-exercise 404 → outcome lifecycle + history →
+  no-mutation → cross-user isolation → coach invite/pending-deny/
+  accept/read/unrelated-deny/revoke-block → parent read/unrelated-deny
+  → anon 401 → Phase 01–09 regressions green → schema v9 with the
+  2→9 migration chain.
+* `tests/test_adaptive.py` (33 tests): cold start, eligibility,
+  difficulty, signals, repetition/fallback, determinism (incl. global-
+  RNG independence), outcomes, security matrix, invariants, migration.
+* Intentional deferrals: ML/ranking models, Glicko-2, mastery tables,
+  spacing/remediation scheduling beyond reason-targeted difficulty,
+  coach-issued recommendations for students, exploration beyond the
+  seeded top-5 pick, leaderboards, notifications (all out of scope).
 
 Phase 09 relationships (all verified by tests + live runtime checks):
 
@@ -651,23 +726,30 @@ Required follow-up: Small UI notice when a product flow requires it.
 
 ## 7. Testing State
 
-* backend tests: 1068 passed (`pytest`; includes 28 account tests in
+* backend tests: 1099 passed, 2 pre-existing failures (`pytest`;
+  the 2 failures are `test_gamification.py` streak tests that also fail
+  on pristine pre-Phase-10 HEAD — a real-date/timezone edge between
+  `date.today()` and server UTC dates, unrelated to this phase and left
+  untouched; includes 33 new adaptive tests in
+  `tests/test_adaptive.py` plus the Phase 10 v9-upgrade contract
+  updates; other suites include 28 account tests in
   `tests/test_accounts.py`, 15 player-platform tests in
   `tests/test_player_platform.py`, 19 rating tests in
   `tests/test_ratings.py`, 27 gamification tests in
   `tests/test_gamification.py`, 28 admin tests in
   `tests/test_admin.py`, 18 content/generator tests in
   `tests/test_content_lifecycle.py`, 21 analytics tests in
-  `tests/test_analytics.py`, 19 new relationship tests in
-  `tests/test_relationships.py`, plus the Phase 09 v8-upgrade contract
+  `tests/test_analytics.py`, 19 relationship tests in
+  `tests/test_relationships.py`, plus the Phase 10 v9-upgrade contract
   updates)
-* frontend tests: 310 passed (`npm test`, 34 files; includes 10
+* frontend tests: 319 passed (`npm test`, 36 files; includes 10
   auth-context/login/protected-account tests, 14 player
   transport/page/nav tests, 6 rating transport/section tests, 7
   gamification transport/section tests, 15 admin
   transport/guard/page/nav tests, 4 content-lifecycle/
-  generator transport/page tests, 8 analytics section/page tests, and
-  17 new relationship transport/page tests)
+  generator transport/page tests, 8 analytics section/page tests,
+  17 relationship transport/page tests, and 9 new adaptive
+  transport/section tests)
 * typecheck: `npm run typecheck` clean
 * build: `npm run build` succeeds (pre-existing chunk-size warning only)
 * migration verification: fresh-boot, idempotency, data preservation,
