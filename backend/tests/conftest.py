@@ -13,6 +13,7 @@ from app.db.base import Base
 @pytest.fixture()
 def db_session():
     from app.modules.admin import models as _admin  # noqa: F401
+    from app.modules.adaptive import models as _adapt  # noqa: F401
     from app.modules.auth import models as _auth  # noqa: F401
     from app.modules.balance_scale import models as _bs  # noqa: F401
     from app.modules.blindfold_calculation import models as _bc  # noqa: F401

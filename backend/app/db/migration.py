@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 class SchemaVersion(Base):
@@ -297,6 +297,19 @@ def _migrate_v8_relationships(conn) -> None:
     _ = conn
 
 
+def _migrate_v9_adaptive(conn) -> None:
+    """Phase 10 adaptive training: recommendation history.
+
+    The ``adaptive_recommendations`` table is created by
+    ``ensure_schema`` via ``Base.metadata.create_all`` on fresh and
+    existing databases alike; no data backfill exists (recommendation
+    history starts with Phase 10, no historical suggestions are
+    fabricated). This step exists so the version history records the
+    change explicitly.
+    """
+    _ = conn
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
     (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
@@ -305,6 +318,7 @@ MIGRATIONS: list[tuple[int, str, object]] = [
     (6, "phase-06 administration: persistent audit log", _migrate_v6_admin),
     (7, "phase-07 content & generators: puzzle lifecycle, provenance, generator jobs", _migrate_v7_content),
     (8, "phase-09 relationships: coach/parent relationships, assignments", _migrate_v8_relationships),
+    (9, "phase-10 adaptive training: recommendation history", _migrate_v9_adaptive),
 ]
 
 

@@ -11,6 +11,9 @@ from app.core.errors import register_error_handlers
 from app.core.logging import RequestIdMiddleware, configure_logging
 from app.db.session import init_db
 from app.modules.admin.router import router as admin_router
+from app.modules.adaptive.router import coach_router as adaptive_coach_router
+from app.modules.adaptive.router import me_router as adaptive_router
+from app.modules.adaptive.router import parent_router as adaptive_parent_router
 from app.modules.auth.router import router as auth_router
 from app.modules.balance_scale.router import router as balance_scale_router
 from app.modules.blindfold_calculation.router import router as blindfold_calculation_router
@@ -103,6 +106,9 @@ app.include_router(pathfinding_router, prefix=API_V1_PREFIX)
 app.include_router(obstacle_pathfinding_router, prefix=API_V1_PREFIX)
 app.include_router(piece_recognition_router, prefix=API_V1_PREFIX)
 app.include_router(player_router, prefix=API_V1_PREFIX)
+app.include_router(adaptive_router, prefix=API_V1_PREFIX)
+app.include_router(adaptive_coach_router, prefix=API_V1_PREFIX)
+app.include_router(adaptive_parent_router, prefix=API_V1_PREFIX)
 app.include_router(relationships_router, prefix=API_V1_PREFIX)
 app.include_router(coach_router, prefix=API_V1_PREFIX)
 app.include_router(parent_router, prefix=API_V1_PREFIX)
