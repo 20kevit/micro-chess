@@ -18,6 +18,11 @@ class Attempt(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # Nullable user: allows future anonymous-transfer flow without restructuring.
     user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    # Guest-owned attempts reference the server-controlled guest session.
+    # At most one of user_id / guest_session_id is set (enforced in service).
+    guest_session_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("guest_sessions.id"), nullable=True, index=True
+    )
     puzzle_id: Mapped[int] = mapped_column(Integer, ForeignKey("puzzles.id"), index=True)
     exercise_slug: Mapped[str] = mapped_column(String(100), index=True)
     # "rated" | "practice" (see rule_engine.base.AttemptMode).

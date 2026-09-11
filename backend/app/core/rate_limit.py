@@ -36,6 +36,10 @@ class RateLimiter:
         if not self.allow(key):
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="rate_limited")
 
+    def reset(self) -> None:
+        """Clear recorded hits (used by tests to isolate rate-limit windows)."""
+        self._hits.clear()
+
 
 auth_limiter = RateLimiter(per_minute=settings.auth_rate_limit_per_minute)
 

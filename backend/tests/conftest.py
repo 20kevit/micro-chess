@@ -12,6 +12,7 @@ from app.db.base import Base
 
 @pytest.fixture()
 def db_session():
+    from app.modules.auth import models as _auth  # noqa: F401
     from app.modules.balance_scale import models as _bs  # noqa: F401
     from app.modules.blindfold_calculation import models as _bc  # noqa: F401
     from app.modules.blindfold_square_vision import models as _bsv  # noqa: F401
@@ -44,6 +45,16 @@ def db_session():
     finally:
         session.close()
         Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture(autouse=True)
+def _reset_auth_limiter():
+    """Isolate the in-memory auth rate limiter between tests."""
+    from app.core.rate_limit import auth_limiter
+
+    auth_limiter.reset()
+    yield
+    auth_limiter.reset()
 
 
 @pytest.fixture()

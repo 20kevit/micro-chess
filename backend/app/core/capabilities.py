@@ -6,9 +6,10 @@ via require_capability(), never as scattered role comparisons.
 
 Deny by default: anything not explicitly granted is denied.
 
-Phase 1 note: the User model has no persisted role yet (roles land in
-Phase 2), so every active account acts as PLAYER. Administrative
-capabilities therefore deny everyone for now — fail closed by design.
+Phase 2: roles are persisted in ``user_roles`` and resolved server-side
+from the database on every request. The JWT carries no role information,
+so a stale or forged role claim can never escalate. Accounts without an
+explicit role row act as PLAYER.
 """
 
 from enum import Enum
@@ -41,34 +42,63 @@ class Capability(str, Enum):
     AUDIT_VIEW = "audit.view"
     SUPPORT_MANAGE = "support.manage"
     RELATIONSHIPS_MANAGE = "relationships.manage"
+    GUEST_MIGRATE = "accounts.migrate_guest"
 
+
+_PLAYER_CAPABILITIES = frozenset(
+    {
+        Capability.EXERCISES_READ,
+        Capability.PUZZLES_READ,
+        Capability.ATTEMPTS_SUBMIT,
+        Capability.USERS_READ,
+        Capability.GUEST_MIGRATE,
+    }
+)
 
 ROLE_CAPABILITIES: dict[Role, frozenset[Capability]] = {
-    Role.PLAYER: frozenset(
-        {
-            Capability.EXERCISES_READ,
-            Capability.PUZZLES_READ,
-            Capability.ATTEMPTS_SUBMIT,
-            Capability.USERS_READ,
-        }
-    ),
-    # Coach/parent/admin grants are defined in Phase 2 together with the
-    # persisted role model. Until then these roles grant nothing: any
-    # endpoint requiring their capabilities denies by default.
-    Role.COACH: frozenset(),
-    Role.PARENT: frozenset(),
-    Role.ADMIN: frozenset(),
+    Role.PLAYER: _PLAYER_CAPABILITIES,
+    # Coach/parent keep full player access. Student-scoped capabilities
+    # arrive with the relationship model (Phase 9); granting broader
+    # object access now would bypass the required active-relationship
+    # check, so these roles intentionally map to the player set.
+    Role.COACH: _PLAYER_CAPABILITIES,
+    Role.PARENT: _PLAYER_CAPABILITIES,
+    # Platform operations (user/role/content management) land in later
+    # phases; ADMIN already carries their capabilities so those endpoints
+    # are authorized correctly when introduced. No admin endpoint exists
+    # yet, so this grants nothing reachable today.
+    Role.ADMIN: frozenset(Capability),
 }
 
 
-def role_for_user(user) -> Role:
-    """Phase 1: every authenticated account acts as PLAYER.
+def roles_for_user(user) -> list[Role]:
+    """Persisted roles for an account, resolved server-side from the DB.
 
-    Role persistence (including ADMIN) arrives in Phase 2. This helper
-    is the single place that mapping changes.
+    Unknown role codes are ignored (fail closed); accounts with no role
+    row act as PLAYER.
     """
-    _ = user
-    return Role.PLAYER
+    codes: list[str] = []
+    try:
+        rows = getattr(user, "roles", None) or []
+        codes = [getattr(row, "role", "") for row in rows]
+    except Exception:
+        codes = []
+    valid = {Role(code) for code in codes if code in Role._value2member_map_}
+    # Deterministic canonical order (PLAYER first = primary role).
+    ordered = [role for role in Role if role in valid]
+    return ordered or [Role.PLAYER]
+
+
+def role_for_user(user) -> Role:
+    """Primary role (first persisted row, else PLAYER)."""
+    return roles_for_user(user)[0]
+
+
+def capabilities_for_roles(roles: list[Role]) -> frozenset[Capability]:
+    granted: set[Capability] = set()
+    for role in roles:
+        granted |= set(ROLE_CAPABILITIES.get(role, frozenset()))
+    return frozenset(granted)
 
 
 def has_capability(role: Role, capability: Capability) -> bool:
@@ -87,7 +117,7 @@ def require_capability(capability: Capability, *, allow_anonymous: bool = False)
             if allow_anonymous:
                 return None
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="auth_required")
-        if not has_capability(role_for_user(user), capability):
+        if capability not in capabilities_for_roles(roles_for_user(user)):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
         return user
 

@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     # centralized here, never hard-coded in route handlers.
     rate_limit_enabled: bool = True
     auth_rate_limit_per_minute: int = 30
+    # Server-side session lifetimes (single place; never scattered).
+    guest_session_expire_days: int = 30
 
     def is_production(self) -> bool:
         return self.environment.strip().lower() == "production"

@@ -19,10 +19,11 @@ on both backends.
 
 import importlib
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import Integer, String, inspect
+from sqlalchemy import Integer, String, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -30,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class SchemaVersion(Base):
@@ -45,7 +46,88 @@ class SchemaVersion(Base):
 # Future schema changes append: (target_version, "description", callable).
 # Each callable receives the engine and must be idempotent-safe to skip
 # when the database is already at or past its version.
-MIGRATIONS: list[tuple[int, str, object]] = []
+def _derive_username_base(email: object, user_id: object) -> str:
+    """Deterministic Phase 1 email -> username backfill (migration only)."""
+    local = str(email or "").split("@")[0].strip().lower()
+    base = re.sub(r"[^a-z0-9_]", "_", local).strip("_") or f"user{user_id}"
+    if len(base) < 3:
+        base = (base + "xxx")[:3]
+    return base[:30]
+
+
+def _migrate_v2_accounts(conn) -> None:
+    """Phase 2 accounts: username identity, roles, sessions, guests.
+
+    Idempotent: every step checks current state first. Existing rows are
+    preserved; Phase 1 emails backfill canonical usernames.
+    """
+    insp = inspect(conn)
+    tables = set(insp.get_table_names())
+
+    if "users" in tables:
+        user_cols = {c["name"]: c for c in insp.get_columns("users")}
+        if "username" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN username VARCHAR(30)"))
+            user_cols = {c["name"]: c for c in insp.get_columns("users")}
+        # Backfill every row lacking a username (Phase 1 email -> username).
+        rows = conn.execute(text("SELECT id, email FROM users WHERE username IS NULL")).fetchall()
+        used = {
+            r[0]
+            for r in conn.execute(text("SELECT username FROM users WHERE username IS NOT NULL"))
+        }
+        for uid, email in rows:
+            base = _derive_username_base(email, uid)
+            candidate, n = base, 0
+            while candidate in used:
+                n += 1
+                candidate = f"{base[:27]}_{n}"[:30]
+            used.add(candidate)
+            conn.execute(
+                text("UPDATE users SET username = :u WHERE id = :i"), {"u": candidate, "i": uid}
+            )
+        # Relax the Phase 1 email NOT NULL so new accounts carry no email.
+        email_col = {c["name"]: c for c in insp.get_columns("users")}.get("email")
+        rebuilt = False
+        if email_col is not None and not email_col.get("nullable", True):
+            if conn.dialect.name == "sqlite":
+                # SQLite cannot ALTER nullability: rebuild via the v2 model DDL
+                # (which already carries the username unique index).
+                from app.modules.users.models import User
+
+                conn.execute(text("ALTER TABLE users RENAME TO users_legacy_v1"))
+                User.__table__.create(bind=conn)
+                cols = "id, username, email, password_hash, display_name, is_active, created_at"
+                conn.execute(
+                    text(f"INSERT INTO users ({cols}) SELECT {cols} FROM users_legacy_v1")
+                )
+                conn.execute(text("DROP TABLE users_legacy_v1"))
+                rebuilt = True
+            else:
+                conn.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
+        if not rebuilt:
+            conn.execute(
+                text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username ON users (username)")
+            )
+
+    if "attempts" in tables:
+        attempt_cols = {c["name"] for c in insp.get_columns("attempts")}
+        if "guest_session_id" not in attempt_cols:
+            conn.execute(text("ALTER TABLE attempts ADD COLUMN guest_session_id INTEGER"))
+
+    # Every account holds at least the default PLAYER role.
+    if "users" in tables and "user_roles" in tables:
+        conn.execute(
+            text(
+                "INSERT INTO user_roles (user_id, role, created_at) "
+                "SELECT u.id, 'PLAYER', CURRENT_TIMESTAMP FROM users u "
+                "WHERE NOT EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id)"
+            )
+        )
+
+
+MIGRATIONS: list[tuple[int, str, object]] = [
+    (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
+]
 
 
 def import_models() -> list[str]:

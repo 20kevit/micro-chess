@@ -41,6 +41,7 @@ def submit_attempt(
     db: Session,
     *,
     user_id: int | None,
+    guest_session_id: int | None = None,
     puzzle_id: int,
     answer: dict,
     mode: AttemptMode,
@@ -88,8 +89,11 @@ def submit_attempt(
         rating_delta = preview_rating_delta(score=score)
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if user_id is not None and guest_session_id is not None:
+        raise ValueError("attempt_owner_conflict")
     attempt = Attempt(
         user_id=user_id,
+        guest_session_id=guest_session_id,
         puzzle_id=puzzle.id,
         exercise_slug=puzzle.exercise_slug,
         mode=mode.value,
