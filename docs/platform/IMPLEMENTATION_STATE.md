@@ -35,7 +35,8 @@ verified. Phase 04 (Ratings) completed and verified. Phase 05
 (Gamification foundation) completed and verified. Phase 06
 (Administration foundation) completed and verified. Phase 07
 (Content & Generators) completed and verified. Phase 08
-(Analytics) completed and verified. No later phase started.
+(Analytics) completed and verified. Phase 09 (Relationships)
+completed and verified. No later phase started.
 
 | Area                         | Status      |
 | ---------------------------- | ----------- |
@@ -47,7 +48,7 @@ verified. Phase 04 (Ratings) completed and verified. Phase 05
 | Administration               | VERIFIED    |
 | Content & Generators         | VERIFIED    |
 | Analytics                    | VERIFIED    |
-| Relationships                | NOT_STARTED |
+| Relationships                | VERIFIED    |
 | Adaptive Training Foundation | NOT_STARTED |
 | Support & Notifications      | NOT_STARTED |
 
@@ -70,6 +71,85 @@ Existing exercises verified preserved after Phase 03:
 ---
 
 ## 5. Evidence
+
+Phase 09 relationships (all verified by tests + live runtime checks):
+
+* Model (`backend/app/modules/relationships/models.py`, schema v8):
+  one `relationships` table with a `kind` discriminator (`coach` /
+  `parent`, CHECK-constrained) plus `assignments`; lifecycle is exactly
+  `pending -> active -> revoked` (declining a pending invitation revokes
+  it; no separate rejected/suspended states; history rows are never
+  deleted). Duplicate pending/active edges for the same
+  (kind, mentor, student) are rejected; a fresh invitation is allowed
+  after revocation (new row, history preserved).
+* Creation/acceptance (`service.py`, server-enforced): either party
+  invites by the other account's username, creating PENDING with zero
+  access (knowing a username alone proves nothing); the non-creating
+  party accepts (idempotent; creator self-accept → 403). Role
+  combination is explicit (coach edges need one COACH party, parent
+  edges one PARENT party); self-edges, unknown users, and inactive
+  accounts are rejected. Multiple coaches/parents per student allowed;
+  each edge authorizes independently.
+* Authorization (capability + active relationship + object scope +
+  privacy, checked per request, deny by default): new
+  `relationships.create/accept/revoke` capabilities (all accounts hold
+  them; ADMIN holds all); reads require `users.read` plus a fresh
+  ACTIVE edge of the matching kind with both accounts active. Coach
+  routes (`/coach/students...`) and parent routes
+  (`/parent/children...`) filter by kind, so edges never cross
+  (coach ⇏ parent endpoints and vice versa); unrelated/guessed student
+  ids uniformly return 404 (no existence leak); revoked edges lose
+  access immediately; ADMIN gains no edge access (not a party → 404).
+  Collection endpoints use database-side joins (no Python post-filter).
+* Scope: related-student reads reuse the existing read-only services
+  (progress, attempts incl. detail, ratings + per-exercise history,
+  gamification summary, achievements, `player_overview` analytics) with
+  privacy-scoped shapes (identity limited to id/username/display_name;
+  never password hashes, emails, sessions, tokens, answers, or admin
+  data). Student `/me/*` access is untouched by relationships.
+* Assignments foundation (`assignments` + coach/parent/`/me` routes):
+  coaches create exercise assignments (stable slug, note ≤500, optional
+  ISO deadline) only under an ACTIVE coach edge — pending/revoked
+  block creation; `assigned -> completed` (coach or owning student) /
+  `assigned -> cancelled` (coach only); terminal states never reopen;
+  parents see the child's assignments read-only; completing/cancelling
+  never touches attempts, ratings, XP, or analytics.
+* Audit (existing Phase 6 system, secret-free): `relationships.create/
+  accept/revoke`, `assignments.create/update` persist actor/action/
+  target/timestamp rows; ordinary related-student reads create no rows.
+* Schema v8: fresh boots to v8 (`relationships`, `assignments` via
+  `create_all`); v1–v7 DBs upgrade with data preserved (no backfill, no
+  fabricated edges); legacy upgrade-contract tests bumped `== 7` →
+  `== 8`; idempotency + downgrade refusal covered.
+* Frontend: `/relationships` (invite form by username + incoming/
+  outgoing pending with scope hints + active/revoked lists, accept/
+  revoke with confirmation), `/coach/students` + `/parent/children`
+  (role-gated nav; lists + scoped detail with progress/ratings/
+  gamification/analytics/recent attempts + assignment management for
+  coaches, read-only for parents), `relationshipsApi`/`coachApi`/
+  `parentApi` transport, ~45 Persian strings in `fa.ts`; RTL preserved,
+  44px targets, loading/empty/error states. Backend remains the sole
+  authorizer. 17 new frontend tests.
+* Runtime verified live on a fresh DB (38 checks): register ×4 →
+  coach/parent invites (pending grants nothing) → accept →
+  permitted coach/parent reads (secret-free) → assignment
+  create/parent-read/student-complete → cross-student denial both kinds
+  → kind separation → student self-access intact → duplicate/invalid
+  transitions rejected → revocation removes reads + blocks new
+  assignments (parent edge unaffected) → foreign relationship ids 404,
+  anon 401 → audit rows present and secret-free → Phase 8 analytics +
+  exercise catalog regressions green → schema v8.
+* Drive-by fix: `positions/repository.py` `random_position_fen` dropped
+  the caller's RNG on the `puzzles.db` path and drew from global
+  `random`, so "seeded" generation depended on ambient test-order
+  consumption (surfaced as an order-dependent trapped-pieces failure
+  once Phase 09 tests were added). The RNG is now threaded through;
+  seeded generation is reproducible and the full suite is
+  order-independent (1068 passed twice consecutively).
+* Intentional deferrals: groups/classes tables (multiple simultaneous
+  edges are the foundation; no classroom hierarchy built), coach notes
+  beyond assignment notes, notifications/messaging, public profiles,
+  leaderboards, adaptive training (Phase 10), Glicko-2.
 
 Phase 08 analytics (all verified by tests + live runtime checks):
 
@@ -517,10 +597,12 @@ Required follow-up: Docs fix outside any implementation phase.
 
 ```text
 Area: Coach/Parent scoped capabilities
-Current limitation: COACH/PARENT map to the player capability set; no
-student-scoped object access exists (no relationship model yet).
-Impact: None; student data access arrives with Phase 9 relationships.
-Required follow-up: Phase 9 relationship + object authorization.
+Current state (Phase 9): COACH/PARENT keep the player capability set
+plus relationships.create/accept/revoke; related-student access is
+granted only by an ACTIVE relationship of the matching kind, checked
+per request at the object level (verified by tests + live runtime
+checks). No global coach/parent data access exists.
+Required follow-up: none (adaptive training arrives in Phase 10).
 ```
 
 ```text
@@ -569,21 +651,23 @@ Required follow-up: Small UI notice when a product flow requires it.
 
 ## 7. Testing State
 
-* backend tests: 1049 passed (`pytest`; includes 28 account tests in
+* backend tests: 1068 passed (`pytest`; includes 28 account tests in
   `tests/test_accounts.py`, 15 player-platform tests in
   `tests/test_player_platform.py`, 19 rating tests in
   `tests/test_ratings.py`, 27 gamification tests in
   `tests/test_gamification.py`, 28 admin tests in
   `tests/test_admin.py`, 18 content/generator tests in
-  `tests/test_content_lifecycle.py`, 21 new analytics tests in
-  `tests/test_analytics.py`, plus the Phase 07 v7-upgrade contract updates)
-* frontend tests: 293 passed (`npm test`, 31 files; includes 10
+  `tests/test_content_lifecycle.py`, 21 analytics tests in
+  `tests/test_analytics.py`, 19 new relationship tests in
+  `tests/test_relationships.py`, plus the Phase 09 v8-upgrade contract
+  updates)
+* frontend tests: 310 passed (`npm test`, 34 files; includes 10
   auth-context/login/protected-account tests, 14 player
   transport/page/nav tests, 6 rating transport/section tests, 7
   gamification transport/section tests, 15 admin
   transport/guard/page/nav tests, 4 content-lifecycle/
-  generator transport/page tests, and 8 new analytics
-  section/page tests)
+  generator transport/page tests, 8 analytics section/page tests, and
+  17 new relationship transport/page tests)
 * typecheck: `npm run typecheck` clean
 * build: `npm run build` succeeds (pre-existing chunk-size warning only)
 * migration verification: fresh-boot, idempotency, data preservation,
