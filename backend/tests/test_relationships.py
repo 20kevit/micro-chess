@@ -571,6 +571,6 @@ def test_v8_upgrade_preserves_data_and_is_idempotent(client, db_session):
     rel_rows = db_session.query(Relationship).count()
     user_rows = db_session.query(User).count()
     assert db_session.query(Assignment).count() == 0
-    assert ensure_schema(engine) == 9
+    assert ensure_schema(engine) == 10
     assert db_session.query(Relationship).count() == rel_rows
     assert db_session.query(User).count() == user_rows
