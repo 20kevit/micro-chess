@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 class SchemaVersion(Base):
@@ -137,9 +137,32 @@ def _migrate_v3_player(conn) -> None:
     _ = conn
 
 
+def _migrate_v4_ratings(conn) -> None:
+    """Phase 4 ratings: snapshot columns on attempts.
+
+    New tables (``player_ratings``, ``rating_events``) are created by
+    ``ensure_schema`` via ``Base.metadata.create_all`` on fresh and
+    existing databases alike; profiles stay lazy and old attempts are
+    never rewritten. SQLite ``ALTER TABLE ... ADD COLUMN`` cannot add a
+    non-NULL column without a default, and the rating snapshot is
+    legitimately NULL for all pre-rating rows, so plain nullable columns
+    are added idempotently when missing.
+    """
+    insp = inspect(conn)
+    tables = set(insp.get_table_names())
+    if "attempts" in tables:
+        attempt_cols = {c["name"] for c in insp.get_columns("attempts")}
+        if "rating_before" not in attempt_cols:
+            conn.execute(text("ALTER TABLE attempts ADD COLUMN rating_before FLOAT"))
+        if "rating_after" not in attempt_cols:
+            # ``rating_delta`` already exists (nullable since Phase 1).
+            conn.execute(text("ALTER TABLE attempts ADD COLUMN rating_after FLOAT"))
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
     (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
+    (4, "phase-04 ratings: attempt rating snapshot columns", _migrate_v4_ratings),
 ]
 
 

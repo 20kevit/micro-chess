@@ -31,8 +31,12 @@ class Attempt(Base):
     result: Mapped[str] = mapped_column(String(20), index=True)
     answer_json: Mapped[dict] = mapped_column(JSON, default=dict)
     score: Mapped[float] = mapped_column(Float, default=0.0)
-    # Reserved for future rating engine; null until rating is implemented.
+    # Rating snapshot for rated attempts (server-authoritative; Phase 4).
+    # Practice/unrated attempts keep all three NULL. For rated attempts
+    # ``rating_after = rating_before + rating_delta`` always holds.
+    rating_before: Mapped[float | None] = mapped_column(Float, nullable=True)
     rating_delta: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rating_after: Mapped[float | None] = mapped_column(Float, nullable=True)
     # Client-reported start of the attempt (nullable for old rows).
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Milliseconds between started_at and submission. None when unknown.
