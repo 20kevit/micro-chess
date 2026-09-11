@@ -399,6 +399,21 @@ def update_coach_assignment(
     return row
 
 
+@parent_router.get("/children/{student_id}/assignments", response_model=list[schemas.AssignmentOut])
+def list_child_assignments(
+    student_id: int,
+    page: PageQuery = 1,
+    page_size: PageSizeQuery = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.USERS_READ)),
+):
+    """Read-only assignment visibility for an authorized parent."""
+    rows = service.list_assignments_for_parent(db, parent=user, student_id=student_id, page=page, page_size=page_size)
+    if rows is None:
+        raise HTTPException(status_code=404, detail="student_not_found")
+    return rows
+
+
 @own_router.get("/assignments", response_model=list[schemas.AssignmentOut])
 def list_own_assignments(
     page: PageQuery = 1,

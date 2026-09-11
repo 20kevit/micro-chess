@@ -505,6 +505,35 @@ def test_assignment_foundation_requires_active_relationship(client, db_session):
     assert len(client.get("/api/v1/me/assignments", headers=_bearer(student_token)).json()) == 2
 
 
+def test_parent_sees_child_assignments_read_only(client, db_session):
+    m = _matrix(client, db_session)
+    puzzle = _seeded_piece_puzzle(db_session)
+    created = client.post(
+        "/api/v1/coach/assignments",
+        json={"student_id": m["student_a_id"], "exercise_slug": puzzle.exercise_slug, "note": "daily set"},
+        headers=_bearer(m["coach_a"]),
+    )
+    assert created.status_code == 201, created.text
+    rows = client.get(
+        f"/api/v1/parent/children/{m['student_a_id']}/assignments", headers=_bearer(m["parent_a"])
+    )
+    assert rows.status_code == 200 and len(rows.json()) == 1
+    assert rows.json()[0]["note"] == "daily set"
+    # Unrelated parent and unrelated student stay invisible.
+    assert client.get(
+        f"/api/v1/parent/children/{m['student_a_id']}/assignments", headers=_bearer(m["parent_b"])
+    ).status_code == 404
+    assert client.get(
+        f"/api/v1/parent/children/{m['student_b_id']}/assignments", headers=_bearer(m["parent_a"])
+    ).status_code == 404
+    # Parents cannot create or modify assignments.
+    assert client.post(
+        "/api/v1/coach/assignments",
+        json={"student_id": m["student_a_id"], "exercise_slug": puzzle.exercise_slug},
+        headers=_bearer(m["parent_a"]),
+    ).status_code == 403
+
+
 # --- audit ---------------------------------------------------------------------------
 
 

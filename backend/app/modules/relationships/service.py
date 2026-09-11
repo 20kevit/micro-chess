@@ -418,6 +418,25 @@ def list_assignments_for_student(
     )
 
 
+def list_assignments_for_parent(
+    db: Session, *, parent, student_id: int, page: int = 1, page_size: int = 50
+) -> list[Assignment] | None:
+    """Assignments visible to a parent: the child's rows, gated by an
+    ACTIVE parent relationship. None when unauthorized (callers map to
+    404). Parents never create, modify, or cancel assignments."""
+    student = assert_authorized_student(db, kind=KIND_PARENT, mentor=parent, student_id=student_id)
+    if student is None:
+        return None
+    return (
+        db.query(Assignment)
+        .filter(Assignment.student_user_id == student.id)
+        .order_by(Assignment.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+
 def update_assignment(
     db: Session, *, actor: User, assignment_id: int, status: str
 ) -> tuple[Assignment, bool] | None:
@@ -476,6 +495,7 @@ __all__ = [
     "get_relationship",
     "has_role",
     "list_assignments_for_coach",
+    "list_assignments_for_parent",
     "list_assignments_for_student",
     "list_related_students",
     "list_relationships",
