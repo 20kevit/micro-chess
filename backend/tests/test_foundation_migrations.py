@@ -45,6 +45,10 @@ def test_import_models_covers_all_exercise_tables():
         "puzzles",
         "attempts",
         "audit_logs",
+        "generator_runs",
+        "puzzle_status_history",
+        "puzzle_validations",
+        "puzzle_reviews",
         "schema_version",
     ):
         assert table in Base.metadata.tables
@@ -105,3 +109,58 @@ def test_puzzle_list_is_bounded(client, db_session):
     too_big = client.get(f"/api/v1/puzzles?exercise={SLUG}&page_size=1000")
     assert too_big.status_code == 422
     assert too_big.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_v6_database_upgrades_to_v7_with_lifecycle_backfill():
+    """A pre-Phase-07 database (legacy puzzles table without lifecycle
+    columns) upgrades to v7: status/source/hash backfilled from legacy
+    flags, existing rows intact, and the step is safe to re-run."""
+    import json
+
+    from sqlalchemy import text
+
+    from app.db.migration import _migrate_v7_content, import_models
+
+    engine = _fresh_engine()
+    import_models()
+    # Build a legacy-shaped puzzles table (Phase 06 columns only).
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE TABLE puzzles ("
+                "id INTEGER PRIMARY KEY, exercise_slug VARCHAR(100), fen VARCHAR(255), "
+                "position_json JSON, answer_json JSON, hint_json JSON, "
+                "prompt_fa VARCHAR(500) DEFAULT '', explanation VARCHAR(2000) DEFAULT '', "
+                "initial_rating FLOAT DEFAULT 1200.0, "
+                "is_published BOOLEAN DEFAULT 0, is_archived BOOLEAN DEFAULT 0, "
+                "published_at DATETIME, created_at DATETIME)"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO puzzles (id, exercise_slug, answer_json, is_published, is_archived) "
+                "VALUES (1, 'pin', :a, 0, 0), (2, 'pin', :a, 1, 0), (3, 'pin', :a, 1, 1)"
+            ),
+            {"a": json.dumps({"moves": ["e2e4"]})},
+        )
+    with engine.begin() as conn:
+        _migrate_v7_content(conn)
+    with engine.connect() as conn:
+        rows = {
+            r[0]: r
+            for r in conn.execute(
+                text("SELECT id, status, source, content_hash FROM puzzles ORDER BY id")
+            ).fetchall()
+        }
+    assert rows[1][1] == "draft"
+    assert rows[2][1] == "published"
+    assert rows[3][1] == "retired"
+    assert all(r[2] == "manual" for r in rows.values())
+    assert all(r[3] for r in rows.values())
+    # Re-running never demotes content that already advanced: a puzzle
+    # moved to validated keeps its state and hash.
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE puzzles SET status = 'validated' WHERE id = 1"))
+        _migrate_v7_content(conn)
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT status FROM puzzles WHERE id = 1")).scalar() == "validated"

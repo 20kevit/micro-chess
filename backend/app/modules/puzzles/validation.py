@@ -155,12 +155,15 @@ def validate_puzzle_fields(
             hook_errors = [{"code": "exercise_check_failed", "detail": "exercise invariant check failed"}]
         errors.extend(hook_errors or [])
 
-    # 7. Deduplication against live (non-retired) content.
+    # 7. Deduplication against gated (non-draft, non-retired) content.
+    # Drafts are work-in-progress and excluded: when two identical
+    # drafts exist, the first one to validate wins and the second is
+    # then rejected as a duplicate.
     content_hash = content_hash_for(slug, fen, answer)
     if answer and slug:
-        dup_query = (
-            db.query(Puzzle)
-            .filter(Puzzle.content_hash == content_hash, Puzzle.status != "retired")
+        dup_query = db.query(Puzzle).filter(
+            Puzzle.content_hash == content_hash,
+            Puzzle.status.in_(["validated", "reviewed", "approved", "published"]),
         )
         if exclude_puzzle_id is not None:
             dup_query = dup_query.filter(Puzzle.id != exclude_puzzle_id)
