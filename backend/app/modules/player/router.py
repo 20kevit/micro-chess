@@ -13,6 +13,7 @@ from app.core.capabilities import Capability, require_capability
 from app.core.deps import get_db
 from app.core.pagination import DEFAULT_PAGE_SIZE, PageQuery, PageSizeQuery
 from app.modules.player import schemas, service
+from app.modules.rating_engine import service as ratings_service
 from app.modules.rule_engine.base import AttemptMode
 from app.modules.users.models import User
 
@@ -177,6 +178,48 @@ def get_exercise_progress(
     if progress is None:
         raise HTTPException(status_code=404, detail="exercise_not_found")
     return progress
+
+
+# --- ratings ------------------------------------------------------------------------
+
+
+@router.get("/ratings", response_model=schemas.RatingsOut)
+def list_ratings(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.USERS_READ)),
+):
+    rows = ratings_service.list_ratings(db, user.id)
+    return schemas.RatingsOut(items=[schemas.rating_to_out(row) for row in rows])
+
+
+@router.get("/ratings/{exercise_slug}", response_model=schemas.RatingOut)
+def get_rating(
+    exercise_slug: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.USERS_READ)),
+):
+    if not service.is_known_exercise(db, exercise_slug):
+        raise HTTPException(status_code=404, detail="exercise_not_found")
+    row = ratings_service.get_rating(db, user.id, exercise_slug)
+    if row is None:
+        raise HTTPException(status_code=404, detail="rating_not_found")
+    return schemas.rating_to_out(row)
+
+
+@router.get("/ratings/{exercise_slug}/history", response_model=schemas.RatingHistoryOut)
+def get_rating_history(
+    exercise_slug: str,
+    page: PageQuery = 1,
+    page_size: PageSizeQuery = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.USERS_READ)),
+):
+    if not service.is_known_exercise(db, exercise_slug):
+        raise HTTPException(status_code=404, detail="exercise_not_found")
+    rows = ratings_service.list_history(
+        db, user.id, exercise_slug, page=page, page_size=page_size
+    )
+    return schemas.RatingHistoryOut(items=[schemas.rating_event_to_out(row) for row in rows])
 
 
 # --- dashboard ------------------------------------------------------------------

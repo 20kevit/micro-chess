@@ -80,6 +80,10 @@ class HistoryAttemptOut(BaseModel):
     score: float
     duration_ms: int | None = None
     hints_used: list[str] = []
+    # Rating snapshot for rated attempts (all NULL for practice/unrated).
+    rating_before: float | None = None
+    rating_delta: float | None = None
+    rating_after: float | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -101,6 +105,63 @@ class ProgressOut(BaseModel):
     correct: int
     accuracy: float
     exercises: list[ExerciseProgressOut]
+
+
+# --- ratings ------------------------------------------------------------------------
+
+
+class RatingOut(BaseModel):
+    exercise: str
+    rating: float
+    rating_deviation: float
+    provisional: bool
+    attempts_count: int
+    updated_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+def rating_to_out(row) -> RatingOut:
+    return RatingOut(
+        exercise=row.exercise_slug,
+        rating=row.rating,
+        rating_deviation=row.rating_deviation,
+        provisional=row.is_provisional,
+        attempts_count=row.games_count,
+        updated_at=row.updated_at,
+    )
+
+
+class RatingsOut(BaseModel):
+    items: list[RatingOut]
+
+
+class RatingHistoryItemOut(BaseModel):
+    attempt_id: int
+    before: float
+    delta: float
+    after: float
+    rating_deviation_before: float
+    rating_deviation_after: float
+    reason: str
+    occurred_at: datetime
+
+
+def rating_event_to_out(row) -> RatingHistoryItemOut:
+    return RatingHistoryItemOut(
+        attempt_id=row.attempt_id,
+        before=row.rating_before,
+        delta=row.rating_delta,
+        after=row.rating_after,
+        rating_deviation_before=row.rating_deviation_before,
+        rating_deviation_after=row.rating_deviation_after,
+        reason=row.reason,
+        occurred_at=row.created_at,
+    )
+
+
+class RatingHistoryOut(BaseModel):
+    items: list[RatingHistoryItemOut]
 
 
 # --- dashboard ----------------------------------------------------------------------

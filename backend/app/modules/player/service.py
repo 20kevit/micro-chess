@@ -322,6 +322,11 @@ def _known_exercise_slugs(db: Session) -> set[str]:
     return slugs
 
 
+def is_known_exercise(db: Session, slug: str) -> bool:
+    """True when the slug names a registered or catalogued exercise."""
+    return slug in _known_exercise_slugs(db)
+
+
 def progress_summary(db: Session, user) -> dict:
     """Basic personal summary (all-time): totals plus per-exercise
     attempts/correct/accuracy/last-practiced. Straightforward queries over
