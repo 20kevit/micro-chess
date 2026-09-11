@@ -33,7 +33,8 @@ Phase 01 (Foundation) completed and verified. Phase 02 (Accounts)
 completed and verified. Phase 03 (Player Platform) completed and
 verified. Phase 04 (Ratings) completed and verified. Phase 05
 (Gamification foundation) completed and verified. Phase 06
-(Administration foundation) completed and verified. No later phase
+(Administration foundation) completed and verified. Phase 07
+(Content & Generators) completed and verified. No later phase
 started.
 
 | Area                         | Status      |
@@ -44,7 +45,7 @@ started.
 | Ratings                      | VERIFIED    |
 | Gamification                 | VERIFIED    |
 | Administration               | VERIFIED    |
-| Content & Generators         | NOT_STARTED |
+| Content & Generators         | VERIFIED    |
 | Analytics                    | NOT_STARTED |
 | Relationships                | NOT_STARTED |
 | Adaptive Training Foundation | NOT_STARTED |
@@ -69,6 +70,74 @@ Existing exercises verified preserved after Phase 03:
 ---
 
 ## 5. Evidence
+
+Phase 07 content & generators (all verified by tests + live runtime checks):
+
+* Lifecycle (`puzzles/models.py` `status`: draft → validated →
+  reviewed → approved → published → retired, server-enforced;
+  `is_published`/`is_archived` stay synced as the player-visibility
+  projection so player queries are untouched; legacy/runtime rows
+  enter via the model default; meaning locks after draft,
+  retired rows are fully immutable). Publish requires approved state
+  + final validation; direct draft → publish is rejected (409).
+  `tests/test_content_lifecycle.py` (18 tests).
+* Validation (`puzzles/validation.py`, v1): known exercise,
+  non-empty answer, FEN legality via the chess-engine wrapper,
+  difficulty 1–5 / rating 100–3000 bounds, answer-leakage guard,
+  dedup hash over canonical (exercise, fen, answer) against gated
+  content (first-to-validate wins; drafts excluded), plus
+  exercise-specific solution-legality hooks registered inside the
+  exercise domain (`captures`, `piece-recognition`,
+  `legal-destinations` `content.py`; no slug chains in core flow).
+* Review/approval: `POST validate/review/approve` under new
+  `puzzles.validate/approve` capabilities (`puzzles.review` already
+  existed); `request_changes`/`reject` return to draft with the
+  decision preserved; every run/decision persists append-only
+  (`puzzle_validations`, `puzzle_reviews`, `puzzle_status_history`)
+  and is audited; `GET puzzles/{id}/history` exposes the trail.
+* Generators (`modules/generators/`, code registry of 3 versioned
+  entries reusing each exercise's pure builders; admin cannot invent
+  executable generators): bounded synchronous jobs (1–50, no
+  queues/workers), seed + version + validated-config snapshot for
+  reproducibility, per-candidate validation, in-batch + DB dedup,
+  accepted persist as `validated` with provenance
+  (`source=generated`, `generator_run_id`), rejected stay traceable
+  in the job result; never auto-published; failures are atomic (no
+  partial persistence); cancel only non-terminal jobs.
+  Endpoints: `GET /admin/generators`, `POST
+  /admin/generators/{code}/runs`, `GET /admin/generator-runs[/{id}]`,
+  `POST .../cancel` under `generators.read/run/cancel`.
+* Unpublished isolation: draft/validated/reviewed/approved return
+  404 on player puzzle/attempt APIs; answers never leave the server
+  except in admin views.
+* Schema v7: fresh boots to v7 (new `generator_runs`,
+  `puzzle_status_history`, `puzzle_validations`, `puzzle_reviews`
+  tables via `create_all`); v1–v6 DBs upgrade with lifecycle columns
+  backfilled from legacy flags + canonical hashes (NULL-only
+  backfill, re-run safe; no fabricated history); legacy
+  upgrade-contract tests bumped `== 6` → `== 7`. Idempotency +
+  downgrade refusal covered.
+* Frontend: puzzle page lifecycle buttons + history viewer + new
+  status filters, `/admin/generators` (registry + run form with
+  count/seed/target/difficulty + run history + cancel),
+  `adminApi` transport, ~25 Persian strings in `fa.ts`; RTL
+  preserved, 44px targets, loading/empty/error states. Backend
+  remains the sole authorizer. 4 new frontend tests (lifecycle
+  actions, generators page, transport).
+* Runtime verified live on a fresh DB (32 checks): 401/403
+  boundaries → draft → invalid-FEN stays draft → invalid
+  transitions rejected → validate/review/approve → unpublished
+  hidden → publish (visible w/o answer) → immutability →
+  registry + seeded job (provenance, hidden) → bad config 422 →
+  cancel-terminal 409 → audit present and secret-free → attempt →
+  retire (hidden, history kept) → dashboard intact → schema v7.
+* Intentional deferrals: bulk validation/review/publish (spec
+  allows but does not require), puzzle tags, observed-difficulty
+  analytics (Phase 8 owns analytics), runtime on-the-fly practice
+  puzzles keep `source=manual` (they predate provenance tracking;
+  managed content is fully traced), generator create/update/delete
+  (registry is code-defined by safety design), exercise create/
+  delete, user deletion (all prior deferrals unchanged).
 
 Phase 06 administration foundation (all verified by tests + live runtime checks):
 
@@ -439,17 +508,19 @@ Required follow-up: Small UI notice when a product flow requires it.
 
 ## 7. Testing State
 
-* backend tests: 1009 passed (`pytest`; includes 28 account tests in
+* backend tests: 1028 passed (`pytest`; includes 28 account tests in
   `tests/test_accounts.py`, 15 player-platform tests in
   `tests/test_player_platform.py`, 19 rating tests in
   `tests/test_ratings.py`, 27 gamification tests in
-  `tests/test_gamification.py`, 28 new admin tests in
-  `tests/test_admin.py`, plus the Phase 06 v6-upgrade contract updates)
-* frontend tests: 281 passed (`npm test`, 29 files; includes 10
+  `tests/test_gamification.py`, 28 admin tests in
+  `tests/test_admin.py`, 18 new content/generator tests in
+  `tests/test_content_lifecycle.py`, plus the Phase 07 v7-upgrade contract updates)
+* frontend tests: 285 passed (`npm test`, 29 files; includes 10
   auth-context/login/protected-account tests, 14 player
   transport/page/nav tests, 6 rating transport/section tests, 7
-  gamification transport/section tests, and 15 new admin
-  transport/guard/page/nav tests)
+  gamification transport/section tests, 15 admin
+  transport/guard/page/nav tests, and 4 new content-lifecycle/
+  generator transport/page tests)
 * typecheck: `npm run typecheck` clean
 * build: `npm run build` succeeds (pre-existing chunk-size warning only)
 * migration verification: fresh-boot, idempotency, data preservation,
