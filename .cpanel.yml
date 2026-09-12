@@ -1,0 +1,56 @@
+# MicroChess cPanel Git deployment (Phase 12, Beta readiness).
+#
+# How it runs (cPanel "Git Version Control" model):
+#   GitHub -> cPanel "Update from Remote" -> "Deploy HEAD Commit" ->
+#   the tasks below execute with the cloned repository as working dir ->
+#   production application files under $DEPLOYPATH.
+#
+# OPERATOR: set DEPLOYPATH to this account's deployment root before the
+# first deploy. Everything else below is repository-relative and needs
+# no per-account edits.
+#
+# Deliberately NOT done here (verified assumptions are documented in
+# docs/platform/IMPLEMENTATION_STATE.md, Phase 12 section):
+#   * no `pip install` / `npm install` / `npm run build` on cPanel
+#     (build tooling on the account is unverified; build the frontend
+#     bundle locally with `npm run build` and publish `frontend/dist`
+#     through the account's static hosting instead)
+#   * no Python-App / Passenger wiring (configured in cPanel's UI)
+#   * no secrets: `.env` files, database files, and credentials are
+#     NEVER copied (they are not even in the clone: gitignored) and
+#     must be configured in cPanel's environment / application settings
+#
+# What IS deployed: explicit tracked source paths only. Never deployed:
+# `.git`, local databases (`microchess.db`, `puzzles.db`), `.env` files,
+# `node_modules`, `frontend/dist`, backend `tests/`, frontend `qa/`
+# scripts, or colocated frontend `*.test.*` files (pruned explicitly).
+---
+deployment:
+  tasks:
+    # Deployment root for this cPanel account. ADJUST before deploying.
+    - export DEPLOYPATH=/home/example/microchess
+    # Deterministic code dirs. The SQLite database and `.env` files must
+    # live OUTSIDE these paths (see .env.example files), so clearing them
+    # can never delete production data or secrets.
+    - /bin/rm -rf "$DEPLOYPATH/backend" "$DEPLOYPATH/frontend" "$DEPLOYPATH/docs"
+    - /bin/mkdir -p "$DEPLOYPATH/backend" "$DEPLOYPATH/frontend" "$DEPLOYPATH/docs"
+    # Backend source: FastAPI app (`app.main:app`), packaging metadata,
+    # and the env template (reference only, never used as configuration).
+    - /bin/cp -r backend/app "$DEPLOYPATH/backend/app"
+    - /bin/cp backend/pyproject.toml "$DEPLOYPATH/backend/pyproject.toml"
+    - /bin/cp backend/.env.example "$DEPLOYPATH/backend/.env.example"
+    # Frontend source (Vite + React + TypeScript). Built artifacts are
+    # produced locally, never on cPanel; see the header comment.
+    - /bin/cp -r frontend/src "$DEPLOYPATH/frontend/src"
+    - /bin/cp -r frontend/public "$DEPLOYPATH/frontend/public"
+    - /bin/cp frontend/index.html "$DEPLOYPATH/frontend/index.html"
+    - /bin/cp frontend/package.json "$DEPLOYPATH/frontend/package.json"
+    - /bin/cp frontend/package-lock.json "$DEPLOYPATH/frontend/package-lock.json"
+    - /bin/cp frontend/vite.config.ts "$DEPLOYPATH/frontend/vite.config.ts"
+    - /bin/cp frontend/tsconfig.json "$DEPLOYPATH/frontend/tsconfig.json"
+    - /bin/cp frontend/.env.example "$DEPLOYPATH/frontend/.env.example"
+    # Prune colocated frontend test files (explicit test-artifact rule).
+    - /usr/bin/find "$DEPLOYPATH/frontend/src" -name '*.test.*' -delete
+    # Documentation and repo notes.
+    - /bin/cp -r docs "$DEPLOYPATH/docs"
+    - /bin/cp README.md AGENTS.md "$DEPLOYPATH/"
