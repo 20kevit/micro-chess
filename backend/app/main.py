@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.api import API_V1_PREFIX
 from app.core.config import settings
 from app.core.errors import register_error_handlers
+from app.core.frontend import mount_spa_if_present
 from app.core.logging import RequestIdMiddleware, configure_logging
 from app.db.session import init_db
 from app.modules.admin.router import router as admin_router
@@ -124,3 +125,9 @@ app.include_router(puzzles_router, prefix=API_V1_PREFIX)
 app.include_router(attempts_router, prefix=API_V1_PREFIX)
 app.include_router(trapped_pieces_router, prefix=API_V1_PREFIX)
 app.include_router(undefended_pieces_router, prefix=API_V1_PREFIX)
+
+# Last: serve the prebuilt frontend (Vite dist/ deployed as
+# backend/static/) with SPA fallback. No-op when the bundle is absent
+# (local development, where the Vite dev server owns the frontend), so
+# API-only behavior is unchanged there.
+mount_spa_if_present(app)
