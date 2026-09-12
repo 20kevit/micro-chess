@@ -11,8 +11,11 @@ puzzles.db
 backend/puzzles.db
 # ---> Node
 node_modules/
-frontend/dist/
 frontend/.env
+# NOTE: frontend/dist/ is intentionally COMMITTED: it is the prebuilt
+# production artifact for git-push deployment (no server-side build on
+# the current host). Rebuild with `npm ci && npm run build`
+# (VITE_API_BASE_URL empty for same-origin) before committing.
 # ---> Misc
 .opencode/
 *.log
