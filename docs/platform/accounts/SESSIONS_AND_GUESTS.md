@@ -33,6 +33,25 @@ Sessions must support:
 
 The client cannot establish identity or role by submitting IDs or role values.
 
+### Active role per session
+
+A user may hold several persisted roles, but each authenticated session
+carries exactly one active role:
+
+* single-role accounts: the session's active role is that role
+* multi-role accounts: the role is selected at login (from the account's
+  own assigned set, only after successful authentication) or switched
+  later through an authenticated role-switch operation
+
+The active role selects which role-based capability set applies to the
+session; object-level checks (relationships, ownership, privacy) still
+apply unchanged. The active role is resolved server-side on every
+request and is never trusted from the client: a requested role outside
+the account's assigned set is rejected, and a session whose active role
+is no longer assigned authorizes as nothing (fail closed) until the
+client re-authenticates. Role selection/switching never grants, revokes,
+or otherwise modifies the account's assigned roles.
+
 ---
 
 ## 3. Guest Identity

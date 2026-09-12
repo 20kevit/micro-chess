@@ -38,7 +38,9 @@ verified. Phase 04 (Ratings) completed and verified. Phase 05
 (Analytics) completed and verified. Phase 09 (Relationships)
 completed and verified. Phase 10 (Adaptive Training Foundation)
 completed and verified. Phase 11 (Support & Notifications)
-completed and verified. No later phase started.
+completed and verified. Phase 12 (Beta Readiness: active roles,
+admin bootstrap, cPanel deployment) completed and verified.
+No later phase started.
 
 | Area                         | Status      |
 | ---------------------------- | ----------- |
@@ -53,6 +55,7 @@ completed and verified. No later phase started.
 | Relationships                | VERIFIED    |
 | Adaptive Training Foundation | VERIFIED    |
 | Support & Notifications      | VERIFIED    |
+| Beta Readiness (Phase 12)    | VERIFIED    |
 
 Foundation primitives that later phases build on (password hashing +
 policy, JWT sessions, capability registry, token transport, audit
@@ -73,6 +76,89 @@ Existing exercises verified preserved after Phase 03:
 ---
 
 ## 5. Evidence
+
+Phase 12 beta readiness — active roles, admin bootstrap, cPanel
+deployment (all verified by tests + live runtime checks):
+
+* Active-role model (`auth_sessions.active_role`, schema v11):
+  assigned roles stay in `user_roles`; each session carries exactly one
+  active role, always a member of the assigned set (`service.py`
+  `assigned_role_codes/validate_session_role/active_role_for`;
+  `create_user_session` requires a validated role; JWTs still carry no
+  role). Single-role accounts log in directly (backward compatible);
+  multi-role logins without a role get 409 `ROLE_SELECTION_REQUIRED`
+  with the account's own assigned roles in `error.details` (only after
+  successful authentication, so no cross-user role enumeration); an
+  unassigned/unknown role is 422 `invalid_role`. `POST
+  /api/v1/auth/active-role` switches the current session only (nothing
+  else changes). A session whose active role is no longer assigned
+  authorizes as nothing (401 `active_role_revoked`, fail closed, no
+  silent fallback); fresh login recovers deterministically.
+* Authorization (`core/capabilities.py`): the capability set resolves
+  from the session's active role (`active_role_for_session`,
+  `capabilities_for_session`), not the assigned union — a PLAYER-active
+  session of an ADMIN user gets 403 on admin endpoints while an
+  ADMIN-active session passes. Object-level checks (relationships,
+  ownership, 404 scope) are untouched and remain authoritative:
+  coach/parent reads still require an ACTIVE edge of the matching kind.
+  `require_capability` keeps its direct-call unit-test seam (unresolved
+  `Depends` markers fall back to the assigned union; real requests stay
+  strict). `/users/me` now also returns server-resolved `active_role`.
+* Admin bootstrap (`backend/app/cli.py`, no HTTP/frontend path):
+  `python -m app.cli create-admin <username>` promotes an existing
+  account to ADMIN only (never creates accounts, no password handling,
+  idempotent `already_admin` no-op, username canonicalized) and
+  refuses production without `--confirm-production`.
+  `tests/test_admin_bootstrap.py` (8 tests).
+* cPanel deployment (`/.cpanel.yml`, valid YAML, root-level): explicit
+  tracked source paths only (backend `app/`, packaging, env template;
+  frontend `src/`, `public/`, build config; docs); never `.git`,
+  databases, `.env`, `node_modules`, `dist/`, backend `tests/`,
+  frontend `qa/`, or colocated `*.test.*` (pruned). No secrets, no
+  wildcard copies, no on-server builds (tooling unverified): the
+  frontend bundle is built locally (`npm run build`) and the Python app
+  is wired in cPanel's UI. Verified assumptions: file layout above,
+  code-only deploy dirs (DB/env live outside). Unresolved (operator):
+  exact `DEPLOYPATH`, Python-App root/startup/venv, env values, DB
+  location, static hosting of `dist/`. Live cPanel deploy untested.
+* Schema v11: fresh boots to v11; v1–v10 DBs upgrade with data
+  preserved (v11 step adds `active_role` + backfills NULL rows to the
+  owner's first canonical role, PLAYER fallback; re-run safe, never
+  overwrites chosen roles). Legacy upgrade-contract tests bumped
+  `== 10` → `== 11`. Only portable column types.
+* Frontend: 409-driven Persian RTL role-selection step on the login
+  page (server list only), `نقش فعلی` + `تغییر نقش` switcher on the
+  account page (multi-role only, server-authoritative via
+  `switchActiveRole` + reload), active-role-aware `RequireAdmin` and
+  nav tabs (coach/parent/admin follow the session role), `apiRoles`/
+  `apiDetails` transport, `active_role` on `AuthUser`, 6 new Persian
+  strings in `fa.ts`. Backend remains the sole authorizer. 12 new
+  frontend tests (transport + selection + switcher + guard/nav +
+  context).
+* Runtime verified live on a fresh DB (26 checks): register → single
+  login → multi 409 + roles → invalid role 422 → coach login →
+  invite/accept → coach read 200 / foreign 404 → switch → scope
+  unchanged → bootstrap → admin dashboard → anon 401 / wrong-role 403
+  → logout/revoke → re-login → support + notifications + exercise
+  attempt → schema v11 with the v2→v11 migration chain.
+* `tests/test_active_roles.py` (19 tests): backward-compat login,
+  selection matrix, switching (incl. other-session isolation),
+  revoked-role fail-closed, active-role authorization, coach/parent
+  scope under both roles, exact 409 envelope, v10→v11 backfill.
+* Phase-mandated updates to existing tests (behavior change, not
+  weakening): admin/staff helpers re-login with an ADMIN-active
+  session after promotion (sessions fix their role at creation);
+  `test_promoted_admin_gains_access` now asserts the old session stays
+  403 while a fresh ADMIN session passes; demoted-admin session is 401
+  `ACTIVE_ROLE_REVOKED` (was 403); `/me` shape test covers
+  `active_role`; `test_piece_attempts_api` passes the required role.
+* Intentional deferrals: live cPanel deploy test (no account access),
+  `passenger_wsgi.py` (startup wiring stays in cPanel's UI, no invented
+  entrypoint), frontend build on the server, PostgreSQL migration,
+  leaderboards, Glicko-2, ML/adaptive models, mastery, gamification
+  additions, analytics additions, messaging, notifications providers,
+  attachments, public profiles, new exercises/generators, MFA, password
+  reset, passkeys (all out of scope per the phase boundary).
 
 Phase 11 support & notifications (all verified by tests + live runtime checks):
 
@@ -749,6 +835,17 @@ Phase 01 foundation (all verified by tests + live runtime checks):
 ## 6. Known Gaps
 
 ```text
+Area: cPanel live deployment
+Current limitation: `.cpanel.yml` is validated (YAML parses, explicit
+paths resolve, no secrets/wildcards/excluded content) but a live
+cPanel Git deploy was never executed (no account access); DEPLOYPATH,
+Python-App wiring, env values, DB location, and static hosting of the
+locally built `frontend/dist/` are operator steps.
+Impact: Deployment configuration is ready but unproven end-to-end.
+Required follow-up: operator deploy + checklist before Stable 1.0.0.
+```
+
+```text
 Area: Architecture docs
 Current limitation: docs/platform/ARCHITECTURE.md and DATA_MODEL.md are byte-identical (both hold the data-model text).
 Impact: No implementation impact; architecture boundaries live in code + AGENTS.md.
@@ -811,14 +908,11 @@ Required follow-up: Small UI notice when a product flow requires it.
 
 ## 7. Testing State
 
-* backend tests: 1120 passed, 2 pre-existing failures (`pytest`;
-  the 2 failures are `test_gamification.py` streak tests that also fail
-  on pristine pre-Phase-10 HEAD — a real-date/timezone edge between
-  `date.today()` and server UTC dates, unrelated to this phase and left
-  untouched; includes 21 new support/notification tests in
-  `tests/test_support_notifications.py` plus the Phase 11 v10-upgrade
-  contract updates; other suites include 28 account tests in
-  `tests/test_accounts.py`, 15 player-platform tests in
+* backend tests: 1149 passed, 0 failed (`pytest`; includes 19
+  new active-role tests in `tests/test_active_roles.py`, 8 new
+  bootstrap tests in `tests/test_admin_bootstrap.py`, plus the Phase
+  12 v11-upgrade contract updates; other suites include 28 account
+  tests in `tests/test_accounts.py`, 15 player-platform tests in
   `tests/test_player_platform.py`, 19 rating tests in
   `tests/test_ratings.py`, 27 gamification tests in
   `tests/test_gamification.py`, 28 admin tests in
@@ -826,17 +920,20 @@ Required follow-up: Small UI notice when a product flow requires it.
   `tests/test_content_lifecycle.py`, 21 analytics tests in
   `tests/test_analytics.py`, 19 relationship tests in
   `tests/test_relationships.py`, 33 adaptive tests in
-  `tests/test_adaptive.py` plus the Phase 11 v10-upgrade contract
-  updates)
-* frontend tests: 333 passed (`npm test`, 40 files; includes 10
+  `tests/test_adaptive.py`, 21 support/notification tests in
+  `tests/test_support_notifications.py` plus the Phase 12 v11-upgrade
+  contract updates)
+* frontend tests: 345 passed (`npm test`, 40 files; includes 10
   auth-context/login/protected-account tests, 14 player
   transport/page/nav tests, 6 rating transport/section tests, 7
   gamification transport/section tests, 15 admin
   transport/guard/page/nav tests, 4 content-lifecycle/
   generator transport/page tests, 8 analytics section/page tests,
   17 relationship transport/page tests, 9 adaptive
-  transport/section tests, and 14 new support/notification
-  transport/page tests)
+  transport/section tests, 14 support/notification
+  transport/page tests, and 12 new active-role tests: 4 transport
+  (details/roles/login-with-role/switch), 3 login selection, 3
+  account switcher, 1 guard/nav active-role, 1 context switchRole)
 * typecheck: `npm run typecheck` clean
 * build: `npm run build` succeeds (pre-existing chunk-size warning only)
 * migration verification: fresh-boot, idempotency, data preservation,
