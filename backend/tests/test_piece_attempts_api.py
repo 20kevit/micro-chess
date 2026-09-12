@@ -31,7 +31,7 @@ def _auth_header(db_session) -> dict[str, str]:
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
-    _, token = auth_service.create_user_session(db_session, user)
+    _, token = auth_service.create_user_session(db_session, user, "PLAYER")
     db_session.commit()
     return {"Authorization": f"Bearer {token}"}
 

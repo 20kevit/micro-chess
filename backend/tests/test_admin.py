@@ -29,9 +29,16 @@ def _make_admin(db_session, username):
 
 
 def _admin_token(client, db_session, username="the_admin"):
-    token = _register(client, username=username).json()["access_token"]
+    _register(client, username=username)
     _make_admin(db_session, username)
-    return token
+    # The pre-promotion session stays PLAYER-active (sessions fix their
+    # role at creation); open a fresh ADMIN-active session instead.
+    res = client.post(
+        "/api/v1/auth/login",
+        json={"username": username, "password": "secret123", "role": "ADMIN"},
+    )
+    assert res.status_code == 200, res.text
+    return res.json()["access_token"]
 
 
 def _seed_exercise(db_session, slug="pin"):
@@ -268,15 +275,25 @@ def test_last_admin_is_protected(client, db_session):
     assert "ADMIN" in [r.role for r in admin.roles]
 
     # With a second admin present, revocation succeeds.
-    second_token = _register(client, username="second_admin").json()["access_token"]
+    _register(client, username="second_admin")
     second = db_session.query(User).filter(User.username == "second_admin").one()
     db_session.add(UserRole(user_id=second.id, role="ADMIN"))
     db_session.commit()
+    # The pre-promotion session stays PLAYER-active; the second admin
+    # acts through a fresh ADMIN-active session.
+    second_token = client.post(
+        "/api/v1/auth/login",
+        json={"username": "second_admin", "password": "secret123", "role": "ADMIN"},
+    ).json()["access_token"]
     res = client.delete(f"/api/v1/admin/users/{admin.id}/roles/ADMIN", headers=_bearer(second_token))
     assert res.status_code == 200
     assert res.json() == {"roles": ["PLAYER"]}
-    # The demoted admin loses admin access immediately.
-    assert client.get("/api/v1/admin/dashboard", headers=headers).status_code == 403
+    # The demoted admin's live session dies entirely (its active role is
+    # no longer assigned, so it authorizes as nothing): fail closed with
+    # 401, forcing a fresh login that picks a still-assigned role.
+    demoted = client.get("/api/v1/admin/dashboard", headers=headers)
+    assert demoted.status_code == 401
+    assert demoted.json()["error"]["code"] == "ACTIVE_ROLE_REVOKED"
 
 
 def test_promoted_admin_gains_access(client, db_session):
@@ -286,7 +303,17 @@ def test_promoted_admin_gains_access(client, db_session):
     assert client.get("/api/v1/admin/dashboard", headers=_bearer(token)).status_code == 403
     res = client.post(f"/api/v1/admin/users/{rising.id}/roles", json={"role": "ADMIN"}, headers=_bearer(admin_token))
     assert res.status_code == 200
-    assert client.get("/api/v1/admin/dashboard", headers=_bearer(token)).status_code == 200
+    # The pre-promotion session stays PLAYER-active (a granted role never
+    # upgrades a live session); a fresh ADMIN-active session gains access.
+    assert client.get("/api/v1/admin/dashboard", headers=_bearer(token)).status_code == 403
+    admin_session = client.post(
+        "/api/v1/auth/login",
+        json={"username": "rising", "password": "secret123", "role": "ADMIN"},
+    )
+    assert admin_session.status_code == 200
+    assert client.get(
+        "/api/v1/admin/dashboard", headers=_bearer(admin_session.json()["access_token"])
+    ).status_code == 200
 
 
 def test_player_cannot_assign_roles(client, db_session):
@@ -560,10 +587,10 @@ def test_fresh_database_boots_to_v9_with_content_tables():
     from app.db.base import Base
     from app.db.migration import SCHEMA_VERSION, ensure_schema, get_schema_version
 
-    assert SCHEMA_VERSION == 10
+    assert SCHEMA_VERSION == 11
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    assert ensure_schema(engine) == 10
-    assert get_schema_version(engine) == 10
+    assert ensure_schema(engine) == 11
+    assert get_schema_version(engine) == 11
     assert "audit_logs" in inspect(engine).get_table_names()
     assert "audit_logs" in Base.metadata.tables
     assert "generator_runs" in inspect(engine).get_table_names()
@@ -571,7 +598,7 @@ def test_fresh_database_boots_to_v9_with_content_tables():
     assert "puzzle_validations" in inspect(engine).get_table_names()
     assert "puzzle_reviews" in inspect(engine).get_table_names()
     # Idempotent re-run.
-    assert ensure_schema(engine) == 10
+    assert ensure_schema(engine) == 11
     assert "relationships" in inspect(engine).get_table_names()
     assert "assignments" in inspect(engine).get_table_names()
     assert "adaptive_recommendations" in inspect(engine).get_table_names()

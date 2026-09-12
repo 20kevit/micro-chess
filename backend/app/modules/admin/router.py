@@ -12,7 +12,7 @@ from app.core.capabilities import (
     ensure_capability,
     require_capability,
 )
-from app.core.deps import get_current_user_optional, get_db
+from app.core.deps import get_current_session_optional, get_current_user_optional, get_db
 from app.core.pagination import DEFAULT_PAGE_SIZE, PageQuery, PageSizeQuery
 from app.modules.admin import schemas, service
 from app.modules.analytics import schemas as analytics_schemas
@@ -226,19 +226,21 @@ def patch_exercise(
     body: schemas.ExerciseUpdateIn,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_optional),
+    session=Depends(get_current_session_optional),
 ):
     # Per-field least privilege: metadata needs exercises.update,
     # availability flips need exercises.enable / exercises.disable.
+    # Capabilities resolve from the session's active role (server-side).
     patch = body.model_dump(exclude_unset=True)
     if not patch:
         raise HTTPException(status_code=422, detail="empty_patch")
     metadata_keys = {"title_fa", "title_en", "description", "sort_order"}
     if any(key in patch for key in metadata_keys):
-        ensure_capability(user, Capability.EXERCISES_UPDATE)
+        ensure_capability(user, Capability.EXERCISES_UPDATE, session)
     if patch.get("is_active") is True:
-        ensure_capability(user, Capability.EXERCISES_ENABLE)
+        ensure_capability(user, Capability.EXERCISES_ENABLE, session)
     if patch.get("is_active") is False:
-        ensure_capability(user, Capability.EXERCISES_DISABLE)
+        ensure_capability(user, Capability.EXERCISES_DISABLE, session)
     try:
         exercise = service.update_exercise(db, actor_id=user.id, slug=exercise_slug, patch=patch)
     except ValueError as exc:

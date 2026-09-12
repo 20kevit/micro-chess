@@ -284,7 +284,7 @@ def test_streak_first_day_second_day_same_day_and_missed_day(db_session):
 
 
 def test_streak_longest_survives_and_reprocessing_is_idempotent(client, db_session):
-    from datetime import timedelta
+    from datetime import datetime, timedelta, timezone
     from app.modules.users.models import User
 
     token = _token(client, "xp_streak")
@@ -295,7 +295,7 @@ def test_streak_longest_survives_and_reprocessing_is_idempotent(client, db_sessi
     # next two consecutive UTC dates so the test never depends on the
     # calendar day it runs on.
     _submit(client, token, puzzle.id, _correct_answer(puzzle))
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
     gamification.update_streak(db_session, user_id=owner.id, active_date=today + timedelta(days=1))
     gamification.update_streak(db_session, user_id=owner.id, active_date=today + timedelta(days=2))
     db_session.commit()
@@ -380,7 +380,7 @@ def test_steady_10_unlocks_on_tenth_qualifying_attempt(client, db_session):
 
 
 def test_streak_3_unlocks_on_third_consecutive_day(client, db_session):
-    from datetime import timedelta
+    from datetime import datetime, timedelta, timezone
     from app.modules.users.models import User
 
     token = _token(client, "xp_streak3")
@@ -390,7 +390,7 @@ def test_streak_3_unlocks_on_third_consecutive_day(client, db_session):
 
     # The submission marks today (server UTC date); build forward from it.
     _submit(client, token, puzzle.id, _correct_answer(puzzle))
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
     gamification.update_streak(db_session, user_id=owner.id, active_date=today + timedelta(days=1))
     db_session.commit()
     catalog = client.get("/api/v1/me/achievements", headers=headers).json()
@@ -608,8 +608,8 @@ def test_phase4_database_upgrades_to_v6_preserving_data():
             {"u": user_id, "p": puzzle_id},
         )
 
-    assert ensure_schema(engine) == SCHEMA_VERSION == 10
-    assert ensure_schema(engine) == 10  # idempotent re-run
+    assert ensure_schema(engine) == SCHEMA_VERSION == 11
+    assert ensure_schema(engine) == 11  # idempotent re-run
 
     names = inspect(engine).get_table_names()
     assert "player_gamification_state" in names

@@ -30,6 +30,17 @@ def _token(client, username):
     return _register(client, username).json()["access_token"]
 
 
+def _login_admin(client, username, password="secret123"):
+    """Fresh ADMIN-active session (a pre-promotion session stays
+    PLAYER-active; sessions fix their role at creation)."""
+    res = client.post(
+        "/api/v1/auth/login",
+        json={"username": username, "password": password, "role": "ADMIN"},
+    )
+    assert res.status_code == 200, res.text
+    return res.json()["access_token"]
+
+
 def _grant(db_session, username, role):
     user = db_session.query(User).filter(User.username == username).one()
     if db_session.get(UserRole, (user.id, role)) is None:
@@ -166,6 +177,7 @@ def test_owner_cannot_reply_to_foreign_or_closed_tickets(client, db_session):
     alice = _token(client, "support_closed_a")
     bob = _token(client, "support_closed_b")
     _grant(db_session, "support_closed_b", "ADMIN")
+    bob = _login_admin(client, "support_closed_b")
     ticket_id = _ticket(client, alice).json()["id"]
     # Foreign reply reads as not-found.
     assert client.post(
@@ -191,6 +203,7 @@ def test_staff_list_respond_close_lifecycle_with_notifications(client, db_sessio
     owner = _token(client, "support_staff_user")
     staff = _token(client, "support_staff_admin")
     _grant(db_session, "support_staff_admin", "ADMIN")
+    staff = _login_admin(client, "support_staff_admin")
     ticket_id = _ticket(client, owner).json()["id"]
 
     listing = client.get("/api/v1/admin/support/tickets", headers=_bearer(staff))
@@ -289,6 +302,7 @@ def test_support_staff_endpoints_enforce_capabilities(client, db_session):
     assert client.get("/api/v1/admin/support/tickets").status_code == 401
     # A second player sees no tickets in the staff list (ownership first).
     _grant(db_session, "support_nocap_b", "ADMIN")
+    other = _login_admin(client, "support_nocap_b")
     assert [t["id"] for t in client.get(
         "/api/v1/admin/support/tickets", headers=_bearer(other)
     ).json()] == [ticket_id]
@@ -301,6 +315,7 @@ def test_notification_list_unread_filter_and_mark_read(client, db_session):
     owner = _token(client, "support_notify_a")
     staff = _token(client, "support_notify_admin")
     _grant(db_session, "support_notify_admin", "ADMIN")
+    staff = _login_admin(client, "support_notify_admin")
     ticket_id = _ticket(client, owner).json()["id"]
     client.post(
         f"/api/v1/admin/support/tickets/{ticket_id}/messages",
@@ -549,6 +564,7 @@ def test_raising_provider_never_breaks_emission(db_session):
 def test_suspend_and_reactivate_emit_mandatory_account_notices(client, db_session):
     admin = _token(client, "support_acct_admin")
     _grant(db_session, "support_acct_admin", "ADMIN")
+    admin = _login_admin(client, "support_acct_admin")
     player = _token(client, "support_acct_player")
     me = client.get("/api/v1/users/me", headers=_bearer(player)).json()["id"]
 
@@ -588,9 +604,9 @@ def test_suspend_and_reactivate_emit_mandatory_account_notices(client, db_sessio
 
 def test_fresh_database_boots_to_v10_with_support_tables():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    assert SCHEMA_VERSION == 10
-    assert ensure_schema(engine) == 10
-    assert get_schema_version(engine) == 10
+    assert SCHEMA_VERSION == 11
+    assert ensure_schema(engine) == 11
+    assert get_schema_version(engine) == 11
     tables = inspect(engine).get_table_names()
     for table in (
         "support_tickets",
@@ -601,14 +617,14 @@ def test_fresh_database_boots_to_v10_with_support_tables():
     ):
         assert table in tables
         assert table in Base.metadata.tables
-    assert ensure_schema(engine) == 10  # idempotent re-run
+    assert ensure_schema(engine) == 11  # idempotent re-run
 
 
 def test_v9_database_upgrades_to_v10_preserving_users(client, db_session):
     from sqlalchemy.orm import sessionmaker
 
     users_before = db_session.query(User).count()
-    assert ensure_schema(db_session.get_bind()) == 10
+    assert ensure_schema(db_session.get_bind()) == 11
     assert db_session.query(User).count() == users_before
     assert "support_tickets" in inspect(db_session.get_bind()).get_table_names()
 

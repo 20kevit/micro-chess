@@ -22,7 +22,7 @@ from app.core.security import (
 )
 from app.modules.auth.models import AuthSession, GuestSession
 from app.modules.progress.models import Attempt
-from app.modules.users.models import User, UserRole
+from app.modules.users.models import CANONICAL_ROLES, User, UserRole
 
 USERNAME_MIN_LENGTH = 3
 USERNAME_MAX_LENGTH = 30
@@ -31,6 +31,54 @@ _USERNAME_RE = re.compile(r"^[a-z0-9_]+$")
 
 def _utcnow_naive() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+# --- active roles (Phase 12) -------------------------------------------------
+#
+# A user may hold several assigned roles; each session carries exactly one
+# active role, always a member of the assigned set. The active role selects
+# which role-based capability set applies to the session (see
+# app.core.capabilities); object-level checks are unchanged.
+
+
+def assigned_role_codes(user: User) -> list[str]:
+    """Canonical assigned roles for an account, resolved from the DB.
+
+    Unknown codes are ignored (fail closed); accounts with no role row
+    act as PLAYER (same fallback as ``roles_for_user``).
+    """
+    codes = [row.role for row in (user.roles or []) if row.role in CANONICAL_ROLES]
+    ordered = sorted(set(codes), key=CANONICAL_ROLES.index)
+    return ordered or ["PLAYER"]
+
+
+def normalize_role(role: object) -> str:
+    """Validate a client-supplied role code against the canonical set."""
+    if not isinstance(role, str):
+        raise ValueError("invalid_role")
+    code = role.strip().upper()
+    if code not in CANONICAL_ROLES:
+        raise ValueError("invalid_role")
+    return code
+
+
+def validate_session_role(user: User, role: str) -> str:
+    """Confirm a canonical role belongs to this user's assigned set."""
+    if role not in assigned_role_codes(user):
+        raise ValueError("invalid_role")
+    return role
+
+
+def active_role_for(session: AuthSession, user: User) -> str | None:
+    """The session's authoritative active role, or None when the invariant
+    ``active_role in assigned roles`` no longer holds (fail closed: the
+    caller must reject the session, never auto-pick another role)."""
+    code = getattr(session, "active_role", None)
+    if not isinstance(code, str) or code not in CANONICAL_ROLES:
+        return None
+    if code not in assigned_role_codes(user):
+        return None
+    return code
 
 
 def normalize_username(username: str) -> str:
@@ -60,12 +108,18 @@ def _session_expiry() -> datetime:
     return _utcnow_naive() + timedelta(minutes=settings.jwt_expire_minutes)
 
 
-def create_user_session(db: Session, user: User) -> tuple[AuthSession, str]:
-    """Create a fresh server-side session (fixation-safe: always new)."""
+def create_user_session(db: Session, user: User, active_role: str) -> tuple[AuthSession, str]:
+    """Create a fresh server-side session (fixation-safe: always new).
+
+    ``active_role`` must belong to the user's assigned roles; anything
+    else raises ``invalid_role`` (fail closed, never default silently).
+    """
+    validate_session_role(user, normalize_role(active_role))
     session = AuthSession(
         public_id=_new_public_id(),
         user_id=user.id,
         token_hash="",
+        active_role=normalize_role(active_role),
         created_at=_utcnow_naive(),
         expires_at=_session_expiry(),
     )
@@ -97,7 +151,7 @@ def register_user(db: Session, username: str, password: str, display_name: str) 
     db.add(user)
     db.flush()
     db.add(UserRole(user_id=user.id, role="PLAYER"))
-    _, token = create_user_session(db, user)
+    _, token = create_user_session(db, user, "PLAYER")
     db.commit()
     db.refresh(user)
     return user, token
@@ -116,11 +170,39 @@ def authenticate(db: Session, username: str, password: str) -> User | None:
     return user
 
 
-def login_user(db: Session, user: User) -> str:
-    """Open a fresh session for an already-authenticated account."""
-    _, token = create_user_session(db, user)
+def login_user(db: Session, user: User, role: str | None = None) -> tuple[str, list[str]]:
+    """Open a fresh session for an already-authenticated account.
+
+    Returns ``(token, assigned_roles)``. Single-role accounts log in
+    directly (an explicit matching role is accepted; a mismatched one is
+    rejected). Multi-role accounts must select a valid role: ``role``
+    missing raises ``role_selection_required`` (the router reports the
+    assigned set back to the already-authenticated caller); an
+    unassigned or unknown role raises ``invalid_role``.
+    """
+    assigned = assigned_role_codes(user)
+    if role is None:
+        if len(assigned) != 1:
+            raise ValueError("role_selection_required")
+        chosen = assigned[0]
+    else:
+        chosen = validate_session_role(user, normalize_role(role))
+    _, token = create_user_session(db, user, chosen)
     db.commit()
-    return token
+    return token, assigned
+
+
+def switch_session_role(db: Session, session: AuthSession, user: User, role: str) -> str:
+    """Change the active role of the current session only.
+
+    The requested role must belong to the user; nothing else changes:
+    assigned roles, other sessions, relationships, and capabilities are
+    untouched. Returns the new active role.
+    """
+    chosen = validate_session_role(user, normalize_role(role))
+    session.active_role = chosen
+    db.commit()
+    return chosen
 
 
 def create_guest_session(db: Session) -> tuple[GuestSession, str]:

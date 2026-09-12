@@ -1,15 +1,18 @@
 """Auth routes: thin handlers delegating to service."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.audit import audit_event
 from app.core.capabilities import Capability, require_capability
 from app.core.deps import (
     get_current_session_optional,
+    get_current_user_optional,
     get_db,
     require_guest_session,
 )
+from app.core.errors import error_body
 from app.core.rate_limit import enforce_auth_rate_limit
 from app.modules.auth import schemas, service
 from app.modules.auth.models import AuthSession, GuestSession
@@ -47,9 +50,48 @@ def login(
         # the password was wrong, or the account is suspended.
         audit_event(action="auth.login", result="failed")
         raise HTTPException(status_code=401, detail="invalid_credentials")
-    token = service.login_user(db, user)
+    try:
+        token, _ = service.login_user(db, user, role=body.role)
+    except ValueError as exc:
+        code = str(exc)
+        if code == "role_selection_required":
+            # The credentials were valid (already authenticated above),
+            # so reporting this account's own assigned roles is safe:
+            # nothing about any other user is revealed.
+            roles = service.assigned_role_codes(user)
+            audit_event(action="auth.login", actor=user.id, result="role_selection_required")
+            return JSONResponse(
+                status_code=409,
+                content=error_body(
+                    code="ROLE_SELECTION_REQUIRED",
+                    message="This account holds several roles; select one for this session.",
+                    details={"roles": roles},
+                    legacy_detail="role_selection_required",
+                ),
+            )
+        audit_event(action="auth.login", actor=user.id, result="failed")
+        raise HTTPException(status_code=422, detail=code)
     audit_event(action="auth.login", actor=user.id)
     return schemas.TokenOut(access_token=token)
+
+
+@router.post("/auth/active-role", response_model=schemas.ActiveRoleOut)
+def switch_active_role(
+    body: schemas.ActiveRoleIn,
+    db: Session = Depends(get_db),
+    session: AuthSession | None = Depends(get_current_session_optional),
+    user: User | None = Depends(get_current_user_optional),
+):
+    # Switch the active role of the current session only. The requested
+    # role must belong to the authenticated user; nothing else changes.
+    if session is None or user is None:
+        raise HTTPException(status_code=401, detail="auth_required")
+    try:
+        active_role = service.switch_session_role(db, session, user, body.role)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    audit_event(action="auth.active_role_switched", actor=user.id, extra={"role": active_role})
+    return schemas.ActiveRoleOut(active_role=active_role, roles=service.assigned_role_codes(user))
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)

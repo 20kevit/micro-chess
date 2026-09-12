@@ -80,7 +80,10 @@ def test_registration_normalizes_username_and_defaults_display_name(client, db_s
 def test_me_response_shape_exposes_no_secrets(client):
     token = _register(client).json()["access_token"]
     body = client.get("/api/v1/users/me", headers=_bearer(token)).json()
-    assert set(body) == {"id", "username", "display_name", "roles", "created_at"}
+    assert set(body) == {"id", "username", "display_name", "roles", "active_role", "created_at"}
+    # Single-role accounts get their role as the session's active role.
+    assert body["roles"] == ["PLAYER"]
+    assert body["active_role"] == "PLAYER"
 
 
 @pytest.mark.parametrize("bad", ["ab", "a" * 31, "has space", "no-dash", "dot.name", "", "   "])
@@ -406,7 +409,7 @@ def _phase1_database():
 def test_phase1_database_upgrades_without_data_loss():
     engine = _phase1_database()
     assert get_schema_version(engine) is None
-    assert ensure_schema(engine) == SCHEMA_VERSION == 10
+    assert ensure_schema(engine) == SCHEMA_VERSION == 11
 
     session = sessionmaker(bind=engine)()
     try:
@@ -421,7 +424,7 @@ def test_phase1_database_upgrades_without_data_loss():
     finally:
         session.close()
     # Idempotent re-run keeps everything.
-    assert ensure_schema(engine) == 10
+    assert ensure_schema(engine) == 11
     session = sessionmaker(bind=engine)()
     try:
         assert session.query(User).count() == 2

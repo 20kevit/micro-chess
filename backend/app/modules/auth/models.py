@@ -28,6 +28,14 @@ class AuthSession(Base):
     # SHA-256 hex of the issued token: binds the bearer string to this row
     # (a guessed/forged sid never matches) without storing a secret.
     token_hash: Mapped[str] = mapped_column(String(64), index=True)
+    # Active role for this session (Phase 12): exactly one canonical role
+    # code, always a member of the user's assigned ``user_roles``. The
+    # session never inherits another role automatically; when the active
+    # role is no longer assigned, authorization fails closed. Nullable
+    # only so pre-Phase-12 rows can exist before the v11 backfill; new
+    # sessions always set it via the auth service, and a NULL value
+    # authenticates as nothing (fail closed).
+    active_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

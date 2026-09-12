@@ -28,9 +28,16 @@ def _make_admin(db_session, username):
 
 
 def _admin_token(client, db_session, username="the_admin"):
-    token = _register(client, username=username).json()["access_token"]
+    _register(client, username=username)
     _make_admin(db_session, username)
-    return token
+    # The pre-promotion session stays PLAYER-active (sessions fix their
+    # role at creation); open a fresh ADMIN-active session instead.
+    res = client.post(
+        "/api/v1/auth/login",
+        json={"username": username, "password": "secret123", "role": "ADMIN"},
+    )
+    assert res.status_code == 200, res.text
+    return res.json()["access_token"]
 
 
 def _seed_exercise(db_session, slug="pin"):

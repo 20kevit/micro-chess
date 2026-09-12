@@ -10,13 +10,23 @@ Phase 2: roles are persisted in ``user_roles`` and resolved server-side
 from the database on every request. The JWT carries no role information,
 so a stale or forged role claim can never escalate. Accounts without an
 explicit role row act as PLAYER.
+
+Phase 12: each session carries exactly one active role
+(``auth_sessions.active_role``), always a member of the user's assigned
+roles. Authorization resolves the capability set from the session's
+active role, not from the union of assigned roles: a multi-role user in
+a PLAYER session holds exactly the PLAYER capabilities. When the active
+role is no longer assigned (e.g. revoked mid-session), the session
+authorizes as nothing and requests fail closed; the client must
+re-authenticate (a fresh login picks a valid role). Object-level checks
+(relationships, ownership) are unchanged and remain authoritative.
 """
 
 from enum import Enum
 
 from fastapi import Depends, HTTPException, status
 
-from app.core.deps import get_current_user_optional
+from app.core.deps import get_current_session_optional, get_current_user_optional
 
 
 class Role(str, Enum):
@@ -147,31 +157,85 @@ def has_capability(role: Role, capability: Capability) -> bool:
     return capability in ROLE_CAPABILITIES.get(role, frozenset())
 
 
-def ensure_capability(user, capability: Capability):
+def active_role_for_session(session, user) -> Role | None:
+    """The session's authoritative active role, or None when the
+    ``active_role in assigned roles`` invariant no longer holds.
+
+    Never falls back to another role: a revoked/unknown active role
+    authorizes as nothing (fail closed). The JWT carries no role, so
+    this always resolves server-side from the session row + role rows.
+    """
+    if session is None or user is None:
+        return None
+    code = getattr(session, "active_role", None)
+    if not isinstance(code, str) or code not in Role._value2member_map_:
+        return None
+    role = Role(code)
+    if role not in roles_for_user(user):
+        return None
+    return role
+
+
+def capabilities_for_session(session, user) -> frozenset[Capability]:
+    """Capability set active for this session (active role only)."""
+    role = active_role_for_session(session, user)
+    if role is None:
+        return frozenset()
+    return frozenset(ROLE_CAPABILITIES.get(role, frozenset()))
+
+
+def ensure_capability(user, capability: Capability, session=None):
     """Manual check for handlers that need per-field authorization.
 
-    Raises 401 when unauthenticated, 403 when the identity lacks the
+    Raises 401 when unauthenticated (or when the session's active role
+    is no longer assigned), 403 when the active role lacks the
     capability. Prefer require_capability() for single-capability routes.
     """
-    if user is None:
+    if user is None or session is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="auth_required")
-    if capability not in capabilities_for_roles(roles_for_user(user)):
+    if active_role_for_session(session, user) is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="active_role_revoked")
+    if capability not in capabilities_for_session(session, user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
 
 
 def require_capability(capability: Capability, *, allow_anonymous: bool = False):
     """Dependency factory enforcing a capability server-side.
 
-    401 when authentication is required but missing, 403 when the
-    identity lacks the capability. Frontend guards are UX only.
+    401 when authentication is required but missing (including when the
+    session's active role is no longer assigned — fail closed, never
+    fall back to another role), 403 when the active role lacks the
+    capability. Frontend guards are UX only.
     """
 
-    def _check(user=Depends(get_current_user_optional)):
-        if user is None:
-            if allow_anonymous:
+    def _check(
+        user=Depends(get_current_user_optional),
+        session=Depends(get_current_session_optional),
+    ):
+        if session is not None and not hasattr(session, "active_role"):
+            # Direct unit-test invocation (the Depends marker never
+            # resolves outside a request): there is no session. Without a
+            # user this is the anonymous path; with a user, fall back to
+            # the assigned-roles union, as before Phase 12. Real requests
+            # always resolve to an AuthSession row or None, so HTTP
+            # behavior stays strict.
+            if user is None:
+                session = None
+            else:
+                if capability not in capabilities_for_roles(roles_for_user(user)):
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+                return user
+        if user is None or session is None:
+            if allow_anonymous and session is None and user is None:
                 return None
+            # A broken session (revoked role, tampered token) must never
+            # silently downgrade to anonymous: fail closed.
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="auth_required")
-        if capability not in capabilities_for_roles(roles_for_user(user)):
+        if active_role_for_session(session, user) is None:
+            if allow_anonymous:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="auth_required")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="active_role_revoked")
+        if capability not in capabilities_for_session(session, user):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
         return user
 

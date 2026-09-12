@@ -14,11 +14,24 @@ class RegisterIn(BaseModel):
 class LoginIn(BaseModel):
     username: str
     password: str
+    # Optional active-role selection for multi-role accounts. Single-role
+    # accounts log in without it (backward compatible); multi-role
+    # accounts without it receive 409 role_selection_required.
+    role: str | None = None
 
 
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class ActiveRoleIn(BaseModel):
+    role: str = Field(min_length=1)
+
+
+class ActiveRoleOut(BaseModel):
+    active_role: str
+    roles: list[str]
 
 
 class GuestTokenOut(BaseModel):

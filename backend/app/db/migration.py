@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 
 class SchemaVersion(Base):
@@ -323,6 +323,46 @@ def _migrate_v10_support(conn) -> None:
     _ = conn
 
 
+def _migrate_v11_active_roles(conn) -> None:
+    """Phase 12 active roles: per-session active role on auth_sessions.
+
+    Adds the nullable ``active_role`` column idempotently, then backfills
+    every NULL row deterministically to the session owner's first
+    canonical assigned role (PLAYER when the account holds no role row,
+    matching the ``roles_for_user`` fallback). Existing sessions stay
+    valid: single-role users keep exactly their role, and no session
+    gains a role the user does not hold. Only NULL rows are touched, so
+    re-running this step can never overwrite a role chosen after the
+    upgrade.
+    """
+    insp = inspect(conn)
+    tables = set(insp.get_table_names())
+    if "auth_sessions" not in tables:
+        return
+    session_cols = {c["name"] for c in insp.get_columns("auth_sessions")}
+    if "active_role" not in session_cols:
+        conn.execute(text("ALTER TABLE auth_sessions ADD COLUMN active_role VARCHAR(20)"))
+    # Backfill every NULL row to the session owner's first canonical
+    # assigned role; accounts with no role row fall back to PLAYER
+    # (matching the ``roles_for_user`` fallback). Only NULL rows are
+    # touched, so re-running this step can never overwrite a role
+    # chosen after the upgrade.
+    conn.execute(
+        text(
+            "UPDATE auth_sessions SET active_role = ("
+            "SELECT r.role FROM user_roles r "
+            "WHERE r.user_id = auth_sessions.user_id "
+            "AND r.role IN ('PLAYER','COACH','PARENT','ADMIN') "
+            "ORDER BY CASE r.role "
+            "WHEN 'PLAYER' THEN 0 WHEN 'COACH' THEN 1 "
+            "WHEN 'PARENT' THEN 2 WHEN 'ADMIN' THEN 3 ELSE 4 END "
+            "LIMIT 1) "
+            "WHERE active_role IS NULL"
+        )
+    )
+    conn.execute(text("UPDATE auth_sessions SET active_role = 'PLAYER' WHERE active_role IS NULL"))
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
     (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
@@ -333,6 +373,7 @@ MIGRATIONS: list[tuple[int, str, object]] = [
     (8, "phase-09 relationships: coach/parent relationships, assignments", _migrate_v8_relationships),
     (9, "phase-10 adaptive training: recommendation history", _migrate_v9_adaptive),
     (10, "phase-11 support & notifications: tickets, messages, deliveries, preferences", _migrate_v10_support),
+    (11, "phase-12 active roles: per-session active_role on auth_sessions", _migrate_v11_active_roles),
 ]
 
 
