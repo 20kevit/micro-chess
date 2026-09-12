@@ -80,6 +80,53 @@ Existing exercises verified preserved after Phase 03:
 
 ## 5. Evidence
 
+Deployment architecture — prebuilt frontend + Passenger backend (all
+verified by tests + live checks; no product behavior changed):
+
+* Serving (`backend/app/core/frontend.py`, new; thin wiring only in
+  `app/main.py`): the committed Vite bundle deploys to
+  `backend/static/` and FastAPI serves it with SPA fallback —
+  `/api/*` keeps the JSON 404 contract, existing static files serve
+  with deterministic Content-Types (incl. `font/woff2`), `/` and all
+  frontend routes return `index.html`, traversal can never escape the
+  bundle, and mounting is a no-op when the bundle is absent (local dev
+  byte-identical to backend-only). No production paths in code (the
+  directory resolves relative to the package).
+* `frontend/dist/` (~1 MB, content-hashed, absolute `/assets/...`
+  refs) is intentionally COMMITTED (see `.gitignore` note): small,
+  reproducible from the tracked lockfile, and required for
+  `git push`-only deployment with no server-side build.
+  `test_committed_dist_is_production_safe` fails the suite if any
+  future bundle contains dev URLs or misses hashed assets.
+* `.cpanel.yml` rewritten for push deployment: no `npm`/`node`, no
+  `frontend/src`; deploys `backend/app`, `passenger_wsgi.py`,
+  packaging, `requirements.txt`, committed `dist/` → `backend/static/`
+  (whole-dir replace ⇒ no stale assets), docs; removes the legacy
+  Phase-13 frontend source copy; runs the operator-confirmed venv pip
+  (`pip install -r`, idempotent — cheap no-op unless dependencies
+  changed, loud failure on a wrong path); replaces code paths only
+  (the backend dir itself is never wiped, so beside-the-code `.env`/
+  database files survive); touches `restart.txt`. Safety rules extended
+  in `test_cpanel_yml_deploys_adapter_safely`.
+* Live status at implementation time: `/`, `/health`, and
+  `/api/v1/exercises` all return HTTP 500 (fetched 2026-09-12). Since
+  `/health` has no DB/env/auth dependency, the failure is at Passenger
+  boot/entry level, not in any route — ordered suspects + exact log
+  retrieval steps in CPANEL_DEPLOYMENT.md section 13 (host access
+  required; not guessable from the repository).
+* Full regression: backend 1171 passed / 0 failed (incl. 13 new SPA
+  tests + 9 adapter tests, all auth/role/relationship/gamification
+  tests unchanged); frontend 345 passed, `typecheck` clean,
+  `npm ci && VITE_API_BASE_URL= npm run build` successful with zero
+  dev URLs in the artifact.
+* `tests/test_spa_frontend.py` (13 tests): root/refresh fallback,
+  asset serving + font Content-Type, API precedence + JSON 404,
+  traversal isolation, mount guards, committed-artifact safety.
+* Intentional non-goals (unchanged): live cPanel deploy execution +
+  log retrieval (no account access), PostgreSQL, Glicko-2, Docker,
+  CI/CD, GitHub Actions, Node production server, new reverse proxy,
+  exercise/UI/auth/schema changes (all out of scope per the task).
+
 Phase 13 cPanel deployment readiness (all verified by tests + live
 runtime checks; no product behavior changed):
 
@@ -888,15 +935,20 @@ Phase 01 foundation (all verified by tests + live runtime checks):
 
 ```text
 Area: cPanel live deployment
-Current limitation: Phase 13 finalized everything verifiable from the
-repository (Passenger adapter + tests, DEPLOYPATH, App Root/Startup/
-Entry Point, env-var checklist, SQLite-outside-code-dirs strategy,
-local-build `dist/` procedure, restart marker, rollback, smoke test —
-see docs/platform/CPANEL_DEPLOYMENT.md), but a live cPanel Git deploy
-was never executed (no account access); the domain document root and
-static hosting of `dist/` remain operator confirmations.
-Impact: Deployment configuration is complete but unproven end-to-end.
-Required follow-up: operator deploy + checklist before Stable 1.0.0.
+Current limitation: the repository now holds the complete push
+architecture (Passenger adapter + tests, backend-served prebuilt
+frontend + SPA tests, committed dist/, rewritten `.cpanel.yml` with
+venv pip install, restart marker, rollback, smoke test — see
+docs/platform/CPANEL_DEPLOYMENT.md), but a live cPanel deploy was
+never executed from here (no account access) and production currently
+returns HTTP 500 on `/`, `/health`, and `/api/v1/exercises` (fetched
+2026-09-12; boot-level failure per the diagnosis in
+CPANEL_DEPLOYMENT.md section 13). Operator follow-up: read the real
+Passenger log, run the first new-architecture deploy, then the smoke
+test before Stable 1.0.0.
+Impact: Deployment automation is complete but unproven end-to-end, and
+production is currently down (HTTP 500) for reasons only the host log
+can confirm.
 ```
 
 ```text
