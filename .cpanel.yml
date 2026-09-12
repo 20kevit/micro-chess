@@ -1,43 +1,65 @@
-# MicroChess cPanel Git deployment (Phase 12, Beta readiness).
+# MicroChess cPanel Git deployment (Phase 13, deployment readiness).
 #
 # How it runs (cPanel "Git Version Control" model):
 #   GitHub -> cPanel "Update from Remote" -> "Deploy HEAD Commit" ->
 #   the tasks below execute with the cloned repository as working dir ->
 #   production application files under $DEPLOYPATH.
 #
-# OPERATOR: set DEPLOYPATH to this account's deployment root before the
-# first deploy. Everything else below is repository-relative and needs
-# no per-account edits.
+# Production layout for account `kevitir` (VERIFIED FROM REPOSITORY where
+# noted, otherwise an explicit operator prerequisite — see
+# docs/platform/CPANEL_DEPLOYMENT.md):
+#   Git clone (cPanel-managed, DO NOT deploy into it):
+#     /home/kevitir/repositories/micro-chess
+#   Deployment root:
+#     /home/kevitir/microchess
+#   Python Application Root (cPanel "Setup Python App"):
+#     /home/kevitir/microchess/backend
+#   Startup File (relative to the Application Root):
+#     passenger_wsgi.py
+#   Entry Point (WSGI callable):
+#     application
 #
-# Deliberately NOT done here (verified assumptions are documented in
-# docs/platform/IMPLEMENTATION_STATE.md, Phase 12 section):
+# Deliberately NOT done here:
 #   * no `pip install` / `npm install` / `npm run build` on cPanel
-#     (build tooling on the account is unverified; build the frontend
-#     bundle locally with `npm run build` and publish `frontend/dist`
-#     through the account's static hosting instead)
-#   * no Python-App / Passenger wiring (configured in cPanel's UI)
+#     (build tooling on the account is unverified; the frontend bundle
+#     is built locally with `npm run build` and the resulting `dist/`
+#     is published through the account's static hosting instead; Python
+#     packages are installed once via cPanel's Python-App UI from
+#     backend/requirements.txt, then only when dependencies change)
 #   * no secrets: `.env` files, database files, and credentials are
 #     NEVER copied (they are not even in the clone: gitignored) and
 #     must be configured in cPanel's environment / application settings
+#   * no database migrations run here: schema setup is idempotent and
+#     runs once at Passenger process startup (passenger_wsgi.py);
+#     nothing here touches production data
 #
-# What IS deployed: explicit tracked source paths only. Never deployed:
-# `.git`, local databases (`microchess.db`, `puzzles.db`), `.env` files,
-# `node_modules`, `frontend/dist`, backend `tests/`, frontend `qa/`
-# scripts, or colocated frontend `*.test.*` files (pruned explicitly).
+# Safety invariants (all hold by construction below):
+#   * never deploys into the Git repository directory itself
+#   * never deletes production database files (they live OUTSIDE the
+#     cleared code dirs — see backend/.env.example / deployment doc)
+#   * never deletes `.env` (lives outside the cleared code dirs)
+#   * never deletes virtual environments (not under DEPLOYPATH code dirs)
+#   * `cp` copies explicit tracked source paths only — never `.git`,
+#     local databases, `.env` files, `node_modules`, `dist/`,
+#     backend `tests/`, or colocated `*.test.*` (pruned explicitly)
 ---
 deployment:
   tasks:
-    # Deployment root for this cPanel account. ADJUST before deploying.
-    - export DEPLOYPATH=/home/example/microchess
+    # Deployment root for the kevitir cPanel account.
+    - export DEPLOYPATH=/home/kevitir/microchess
     # Deterministic code dirs. The SQLite database and `.env` files must
-    # live OUTSIDE these paths (see .env.example files), so clearing them
-    # can never delete production data or secrets.
+    # live OUTSIDE these paths (see backend/.env.example), so clearing
+    # them can never delete production data or secrets.
     - /bin/rm -rf "$DEPLOYPATH/backend" "$DEPLOYPATH/frontend" "$DEPLOYPATH/docs"
     - /bin/mkdir -p "$DEPLOYPATH/backend" "$DEPLOYPATH/frontend" "$DEPLOYPATH/docs"
-    # Backend source: FastAPI app (`app.main:app`), packaging metadata,
-    # and the env template (reference only, never used as configuration).
+    # Backend source: FastAPI app, Passenger WSGI entry point
+    # (`passenger_wsgi.py`, exposes `application`), packaging metadata,
+    # deterministic requirements mirror, and the env template
+    # (reference only, never used as configuration).
     - /bin/cp -r backend/app "$DEPLOYPATH/backend/app"
+    - /bin/cp backend/passenger_wsgi.py "$DEPLOYPATH/backend/passenger_wsgi.py"
     - /bin/cp backend/pyproject.toml "$DEPLOYPATH/backend/pyproject.toml"
+    - /bin/cp backend/requirements.txt "$DEPLOYPATH/backend/requirements.txt"
     - /bin/cp backend/.env.example "$DEPLOYPATH/backend/.env.example"
     # Frontend source (Vite + React + TypeScript). Built artifacts are
     # produced locally, never on cPanel; see the header comment.
@@ -54,3 +76,9 @@ deployment:
     # Documentation and repo notes.
     - /bin/cp -r docs "$DEPLOYPATH/docs"
     - /bin/cp README.md AGENTS.md "$DEPLOYPATH/"
+    # Reload the Passenger application so the new code takes effect on
+    # the next request. `tmp/restart.txt` is the standard Passenger
+    # restart marker; touching it never restarts per request and cannot
+    # loop (Passenger restarts at most once per touch).
+    - /bin/mkdir -p "$DEPLOYPATH/backend/tmp"
+    - /bin/touch "$DEPLOYPATH/backend/tmp/restart.txt"
