@@ -1,13 +1,13 @@
-# MicroChess cPanel Git deployment (Phase 13, deployment readiness).
+# MicroChess cPanel Git deployment (prebuilt frontend + Passenger backend).
 #
-# How it runs (cPanel "Git Version Control" model):
-#   GitHub -> cPanel "Update from Remote" -> "Deploy HEAD Commit" ->
-#   the tasks below execute with the cloned repository as working dir ->
-#   production application files under $DEPLOYPATH.
+# Push-deployment model (the model cPanel officially prefers over pull):
+#   local: npm ci && npm run build (+ tests) → git commit → git push
+#   → cPanel-managed repository receives via post-receive hook
+#   → the tasks below run with the clone as working directory
+#   → production application under $DEPLOYPATH.
 #
-# Production layout for account `kevitir` (VERIFIED FROM REPOSITORY where
-# noted, otherwise an explicit operator prerequisite — see
-# docs/platform/CPANEL_DEPLOYMENT.md):
+# Production layout for account `kevitir` (operator-confirmed values;
+# see docs/platform/CPANEL_DEPLOYMENT.md):
 #   Git clone (cPanel-managed, DO NOT deploy into it):
 #     /home/kevitir/repositories/micro-chess
 #   Deployment root:
@@ -18,64 +18,63 @@
 #     passenger_wsgi.py
 #   Entry Point (WSGI callable):
 #     application
+#   Python virtualenv (operator-confirmed):
+#     /home/kevitir/virtualenv/microchess/backend/3.12
 #
 # Deliberately NOT done here:
-#   * no `pip install` / `npm install` / `npm run build` on cPanel
-#     (build tooling on the account is unverified; the frontend bundle
-#     is built locally with `npm run build` and the resulting `dist/`
-#     is published through the account's static hosting instead; Python
-#     packages are installed once via cPanel's Python-App UI from
-#     backend/requirements.txt, then only when dependencies change)
+#   * no `npm ci` / `npm install` / `npm run build`, no node server on
+#     cPanel: the frontend arrives prebuilt as committed `frontend/dist/`
+#     (the current host imposes a process/thread limitation that makes
+#     esbuild unreliable — a hosting operational constraint, not a
+#     MicroChess architecture limitation). If a future host allows
+#     server-side builds, only this file and the dist-in-git decision
+#     change — no frontend/backend rewrite is needed.
 #   * no secrets: `.env` files, database files, and credentials are
-#     NEVER copied (they are not even in the clone: gitignored) and
-#     must be configured in cPanel's environment / application settings
+#     NEVER copied (not in the clone: gitignored) and live outside the
+#     replaced code paths (see safety invariants below).
 #   * no database migrations run here: schema setup is idempotent and
 #     runs once at Passenger process startup (passenger_wsgi.py);
-#     nothing here touches production data
+#     nothing here touches production data.
 #
 # Safety invariants (all hold by construction below):
-#   * never deploys into the Git repository directory itself
-#   * never deletes production database files (they live OUTSIDE the
-#     cleared code dirs — see backend/.env.example / deployment doc)
-#   * never deletes `.env` (lives outside the cleared code dirs)
-#   * never deletes virtual environments (not under DEPLOYPATH code dirs)
-#   * `cp` copies explicit tracked source paths only — never `.git`,
-#     local databases, `.env` files, `node_modules`, `dist/`,
-#     backend `tests/`, or colocated `*.test.*` (pruned explicitly)
+#   * only explicit code paths are replaced (`backend/app`,
+#     `backend/static`, `backend/__pycache__`, `docs`) — the backend
+#     directory itself is NEVER `rm -rf`'d, so a `.env`, database file,
+#     or anything else living beside the code can never be deleted.
+#   * the virtualenv lives outside the deployment code dirs and is only
+#     used to run `pip` (never modified structurally by this script).
+#   * never deployed: `.git`, databases, `.env` files, `node_modules`,
+#     `frontend/src`, backend `tests/`, or colocated `*.test.*`.
 ---
 deployment:
   tasks:
-    # Deployment root for the kevitir cPanel account.
+    # Deployment root for the kevitir account.
     - export DEPLOYPATH=/home/kevitir/microchess
-    # Deterministic code dirs. The SQLite database and `.env` files must
-    # live OUTSIDE these paths (see backend/.env.example), so clearing
-    # them can never delete production data or secrets.
-    - /bin/rm -rf "$DEPLOYPATH/backend" "$DEPLOYPATH/frontend" "$DEPLOYPATH/docs"
-    - /bin/mkdir -p "$DEPLOYPATH/backend" "$DEPLOYPATH/frontend" "$DEPLOYPATH/docs"
-    # Backend source: FastAPI app, Passenger WSGI entry point
-    # (`passenger_wsgi.py`, exposes `application`), packaging metadata,
-    # deterministic requirements mirror, and the env template
-    # (reference only, never used as configuration).
+    # Replace code paths only (never the backend dir itself, so `.env`
+    # files or databases beside the code survive every deploy).
+    - /bin/rm -rf "$DEPLOYPATH/backend/app" "$DEPLOYPATH/backend/static" "$DEPLOYPATH/backend/__pycache__" "$DEPLOYPATH/docs"
+    - /bin/mkdir -p "$DEPLOYPATH/backend" "$DEPLOYPATH/docs"
+    # Backend runtime: FastAPI app, Passenger WSGI entry point (exposes
+    # `application`), packaging metadata, deterministic requirements
+    # mirror, and the env template (reference only, never configuration).
     - /bin/cp -r backend/app "$DEPLOYPATH/backend/app"
-    - /bin/cp backend/passenger_wsgi.py "$DEPLOYPATH/backend/passenger_wsgi.py"
-    - /bin/cp backend/pyproject.toml "$DEPLOYPATH/backend/pyproject.toml"
-    - /bin/cp backend/requirements.txt "$DEPLOYPATH/backend/requirements.txt"
-    - /bin/cp backend/.env.example "$DEPLOYPATH/backend/.env.example"
-    # Frontend source (Vite + React + TypeScript). Built artifacts are
-    # produced locally, never on cPanel; see the header comment.
-    - /bin/cp -r frontend/src "$DEPLOYPATH/frontend/src"
-    - /bin/cp -r frontend/public "$DEPLOYPATH/frontend/public"
-    - /bin/cp frontend/index.html "$DEPLOYPATH/frontend/index.html"
-    - /bin/cp frontend/package.json "$DEPLOYPATH/frontend/package.json"
-    - /bin/cp frontend/package-lock.json "$DEPLOYPATH/frontend/package-lock.json"
-    - /bin/cp frontend/vite.config.ts "$DEPLOYPATH/frontend/vite.config.ts"
-    - /bin/cp frontend/tsconfig.json "$DEPLOYPATH/frontend/tsconfig.json"
-    - /bin/cp frontend/.env.example "$DEPLOYPATH/frontend/.env.example"
-    # Prune colocated frontend test files (explicit test-artifact rule).
-    - /usr/bin/find "$DEPLOYPATH/frontend/src" -name '*.test.*' -delete
+    - /bin/cp backend/passenger_wsgi.py backend/pyproject.toml backend/requirements.txt backend/.env.example "$DEPLOYPATH/backend/"
+    # Prebuilt frontend bundle (committed `frontend/dist/`, built locally
+    # with same-origin API). Served by FastAPI with SPA fallback — see
+    # backend/app/core/frontend.py. Replacing the whole dir (hashed
+    # filenames) guarantees no stale assets survive a deploy.
+    - /bin/cp -r frontend/dist "$DEPLOYPATH/backend/static"
     # Documentation and repo notes.
     - /bin/cp -r docs "$DEPLOYPATH/docs"
     - /bin/cp README.md AGENTS.md "$DEPLOYPATH/"
+    # Remove the legacy Phase-13 frontend source copy (unused at runtime
+    # since the prebuilt bundle moved to backend/static).
+    - /bin/rm -rf "$DEPLOYPATH/frontend"
+    # Python dependencies (virtualenv path operator-confirmed):
+    # idempotent — pip skips satisfied requirements, so this is a cheap
+    # no-op unless requirements.txt changed. A wrong path fails the
+    # deploy loudly instead of booting half-installed.
+    - /home/kevitir/virtualenv/microchess/backend/3.12/bin/pip install -r "$DEPLOYPATH/backend/requirements.txt"
     # Reload the Passenger application so the new code takes effect on
     # the next request. `tmp/restart.txt` is the standard Passenger
     # restart marker; touching it never restarts per request and cannot

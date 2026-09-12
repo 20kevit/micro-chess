@@ -129,14 +129,36 @@ def test_cpanel_yml_deploys_adapter_safely():
     assert "passenger_wsgi.py" in script
     assert "requirements.txt" in script
     assert "restart.txt" in script
+    # Prebuilt-frontend architecture: the committed bundle deploys to
+    # backend/static (served by FastAPI); nothing is built on the server.
+    assert "frontend/dist" in script
+    assert "backend/static" in script
+    assert any(
+        "pip" in ln and "install" in ln and "requirements.txt" in ln
+        for ln in script.splitlines()
+        if ln.strip().startswith("- ")
+    ), "venv pip install must run on every deploy (idempotent)"
     # Safety invariants: no deployment *command* touches the repo clone
     # (the path is only mentioned in header comments), secrets, data,
-    # virtualenvs, or package/build tooling.
+    # virtualenvs, node tooling, or server-side builds.
     commands = [ln for ln in script.splitlines() if ln.strip().startswith("- ")]
     assert commands, "expected deployment tasks"
     assert not any("repositories/micro-chess" in ln for ln in commands)
     assert any(".env.example" in ln for ln in commands), "env template must deploy"
     for ln in commands:
         assert not re.search(r"\.env(?!\.example)", ln), ln
-        for forbidden in (".db", "venv", "pip install", "npm install", "npm run build"):
+        # Never wipe the backend dir itself: a `.env`/database beside the
+        # code must survive. Only explicit subpaths may be replaced
+        # (`mkdir -p` of the dir itself is safe and exempt).
+        if "rm " in ln:
+            assert '"$DEPLOYPATH/backend"' not in ln, ln
+        for forbidden in (
+            ".db",
+            "frontend/src",
+            "node_modules",
+            "npm ci",
+            "npm install",
+            "npm run build",
+            "node server",
+        ):
             assert forbidden not in ln, ln
