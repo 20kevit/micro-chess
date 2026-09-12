@@ -40,7 +40,9 @@ completed and verified. Phase 10 (Adaptive Training Foundation)
 completed and verified. Phase 11 (Support & Notifications)
 completed and verified. Phase 12 (Beta Readiness: active roles,
 admin bootstrap, cPanel deployment) completed and verified.
-No later phase started.
+Phase 13 (cPanel Deployment Readiness: Passenger adapter, finalized
+deployment configuration) completed and verified. No later phase
+started.
 
 | Area                         | Status      |
 | ---------------------------- | ----------- |
@@ -56,6 +58,7 @@ No later phase started.
 | Adaptive Training Foundation | VERIFIED    |
 | Support & Notifications      | VERIFIED    |
 | Beta Readiness (Phase 12)    | VERIFIED    |
+| cPanel Deployment (Phase 13) | VERIFIED    |
 
 Foundation primitives that later phases build on (password hashing +
 policy, JWT sessions, capability registry, token transport, audit
@@ -76,6 +79,55 @@ Existing exercises verified preserved after Phase 03:
 ---
 
 ## 5. Evidence
+
+Phase 13 cPanel deployment readiness (all verified by tests + live
+runtime checks; no product behavior changed):
+
+* Passenger adapter (`backend/passenger_wsgi.py`, new): exposes the
+  required WSGI `application` for cPanel Passenger by wrapping the
+  unchanged FastAPI app in `a2wsgi.asgi.ASGIMiddleware` (pure Python,
+  maintained, Python 3.12 compatible, verified installable; no new
+  server stack, no duplicated app init). `a2wsgi>=1.10` is pinned in
+  `backend/pyproject.toml` (canonical source) and mirrored in the new
+  `backend/requirements.txt` for cPanel's pip install (parity enforced
+  by test; header documents the source of truth).
+* Lifespan preserved: the bridge never sends lifespan events
+  (verified in the installed `a2wsgi` source), so the required startup
+  (`configure_logging`, `settings.ensure_ready()`,
+  idempotent `init_db()`) runs once at process import via
+  `run_startup()`, mirroring `app/main.py`'s lifespan. Non-destructive
+  by construction (idempotent `ensure_schema` only); nothing runs per
+  request; uvicorn dev path untouched.
+* `.cpanel.yml` finalized: `DEPLOYPATH=/home/kevitir/microchess`
+  (placeholder removed); deploys `passenger_wsgi.py` +
+  `requirements.txt`; still code-only explicit copies (never `.git`,
+  databases, `.env`, venvs, `node_modules`, `dist/`, tests); still no
+  `pip/npm/build` on the server (enforced by test); touches
+  `backend/tmp/restart.txt` for a once-per-deploy Passenger reload.
+  Full operator reference (paths, env vars, SQLite-outside-code-dirs
+  strategy, local `dist/` upload, rollback, smoke test) in the new
+  `docs/platform/CPANEL_DEPLOYMENT.md`, with repository-verified facts
+  separated from must-verify-on-account items.
+* Same-origin preferred: frontend uses relative `/api/v1/...` when
+  `VITE_API_BASE_URL` is empty (verified in `api/client.ts`), so the
+  production build carries no dev URL; CORS stays env-driven.
+* `tests/test_passenger_wsgi.py` (9 tests): real WSGI round-trips
+  (`/health` 200, catalog 200 non-empty, anon `/users/me` 401,
+  unknown route 404), adapter identity (`ASGIMiddleware` wrapping
+  `app.main:app`), startup idempotency, production fail-safe,
+  requirements parity, `.cpanel.yml` safety invariants.
+* Full regression: backend 1156 passed / 0 failed (incl. all auth,
+  active-role, relationship, gamification tests unchanged); frontend
+  345 passed, `typecheck` clean, production `build` successful;
+  fresh-DB live smoke 34/34 (register → multi-role 409 → switch →
+  admin 403/200 → coach invite/accept/scoped reads → catalog →
+  rated+practice attempts → rating → gamification → support →
+  notifications → logout/revoke, incl. the v2→v11 migration chain).
+* Intentional deferrals (unchanged): live cPanel deploy execution
+  (no account access — operator runs section 8 of
+  CPANEL_DEPLOYMENT.md), document-root/static-hosting confirmation,
+  PostgreSQL (no evidence on the account; SQLite-outside-code-dirs
+  documented), Glicko-2 and all product additions (out of scope).
 
 Phase 12 beta readiness — active roles, admin bootstrap, cPanel
 deployment (all verified by tests + live runtime checks):
@@ -836,12 +888,14 @@ Phase 01 foundation (all verified by tests + live runtime checks):
 
 ```text
 Area: cPanel live deployment
-Current limitation: `.cpanel.yml` is validated (YAML parses, explicit
-paths resolve, no secrets/wildcards/excluded content) but a live
-cPanel Git deploy was never executed (no account access); DEPLOYPATH,
-Python-App wiring, env values, DB location, and static hosting of the
-locally built `frontend/dist/` are operator steps.
-Impact: Deployment configuration is ready but unproven end-to-end.
+Current limitation: Phase 13 finalized everything verifiable from the
+repository (Passenger adapter + tests, DEPLOYPATH, App Root/Startup/
+Entry Point, env-var checklist, SQLite-outside-code-dirs strategy,
+local-build `dist/` procedure, restart marker, rollback, smoke test —
+see docs/platform/CPANEL_DEPLOYMENT.md), but a live cPanel Git deploy
+was never executed (no account access); the domain document root and
+static hosting of `dist/` remain operator confirmations.
+Impact: Deployment configuration is complete but unproven end-to-end.
 Required follow-up: operator deploy + checklist before Stable 1.0.0.
 ```
 
