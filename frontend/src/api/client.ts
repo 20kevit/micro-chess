@@ -1,6 +1,7 @@
 // Thin HTTP client. Backend is authoritative; this only transports data.
 import type {
   AchievementsResponse,
+  ActiveRoleOut,
   AdaptiveNext,
   AdaptiveOverview,
   AdaptiveRecommendation,
@@ -92,6 +93,9 @@ export interface ApiError extends Error {
   status: number;
   detail: string;
   code: string;
+  // Structured `error.details` from the backend envelope (e.g. the
+  // assigned `roles` on 409 role_selection_required). Transport only.
+  details: Record<string, unknown>;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -106,11 +110,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     let detail = "";
     let code = "";
+    let details: Record<string, unknown> = {};
     try {
-      const data = (await res.json()) as { detail?: unknown; error?: { code?: unknown } };
+      const data = (await res.json()) as {
+        detail?: unknown;
+        error?: { code?: unknown; details?: unknown };
+      };
       if (typeof data?.detail === "string") detail = data.detail;
       else if (Array.isArray(data?.detail)) detail = "validation_error";
       if (typeof data?.error?.code === "string") code = data.error.code;
+      if (data?.error?.details !== null && typeof data?.error?.details === "object") {
+        details = data.error.details as Record<string, unknown>;
+      }
     } catch {
       // Non-JSON error body (proxy/gateway HTML): status is all we have.
     }
@@ -118,6 +129,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     err.status = res.status;
     err.detail = detail;
     err.code = code;
+    err.details = details;
     throw err;
   }
   if (res.status === 204) return undefined as T;
@@ -140,6 +152,19 @@ export function apiCode(e: unknown): string {
   return e instanceof Error && typeof (e as ApiError).code === "string"
     ? (e as ApiError).code
     : "";
+}
+
+export function apiDetails(e: unknown): Record<string, unknown> {
+  if (e instanceof Error) {
+    const details = (e as ApiError).details;
+    if (details !== null && typeof details === "object") return details;
+  }
+  return {};
+}
+
+export function apiRoles(e: unknown): string[] {
+  const roles = apiDetails(e).roles;
+  return Array.isArray(roles) ? roles.filter((r): r is string => typeof r === "string") : [];
 }
 
 function analyticsQuery(params?: Record<string, string | undefined>): string {
@@ -881,10 +906,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  login: (body: { username: string; password: string }) =>
+  login: (body: { username: string; password: string; role?: string }) =>
     request<AuthToken>("/api/v1/auth/login", {
       method: "POST",
       body: JSON.stringify(body),
+    }),
+  switchActiveRole: (role: string) =>
+    request<ActiveRoleOut>("/api/v1/auth/active-role", {
+      method: "POST",
+      body: JSON.stringify({ role }),
     }),
   logout: () =>
     request<void>("/api/v1/auth/logout", {

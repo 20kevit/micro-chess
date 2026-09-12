@@ -20,6 +20,7 @@ const USER: AuthUser = {
   username: "kid_01",
   display_name: "kid_01",
   roles: ["PLAYER"],
+  active_role: "PLAYER",
   created_at: "2026-01-01T00:00:00",
 };
 
@@ -104,5 +105,38 @@ describe("AuthProvider", () => {
     await user.click(screen.getByRole("button", { name: "logout-btn" }));
     await waitFor(() => expect(screen.getByTestId("user").textContent).toBe("anonymous"));
     expect(getToken()).toBeNull();
+  });
+
+  it("switchRole delegates to the server and reloads the session user", async () => {
+    const user = userEvent.setup();
+    setToken("tok");
+    const coach: AuthUser = { ...USER, roles: ["PLAYER", "COACH"], active_role: "COACH" };
+    mockedApi.me = vi
+      .fn()
+      .mockResolvedValueOnce(USER)
+      .mockResolvedValue(coach);
+    mockedApi.switchActiveRole = vi
+      .fn()
+      .mockResolvedValue({ active_role: "COACH", roles: ["PLAYER", "COACH"] });
+    function SwitchConsumer() {
+      const { user: current, switchRole } = useAuth();
+      return (
+        <div>
+          <span data-testid="active">{current ? current.active_role : "anonymous"}</span>
+          <button type="button" onClick={() => void switchRole("COACH")}>
+            switch-btn
+          </button>
+        </div>
+      );
+    }
+    render(
+      <AuthProvider>
+        <SwitchConsumer />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("active").textContent).toBe("PLAYER"));
+    await user.click(screen.getByRole("button", { name: "switch-btn" }));
+    await waitFor(() => expect(screen.getByTestId("active").textContent).toBe("COACH"));
+    expect(mockedApi.switchActiveRole).toHaveBeenCalledWith("COACH");
   });
 });

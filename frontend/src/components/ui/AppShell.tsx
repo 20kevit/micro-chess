@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { notificationsApi } from "../../api/client";
 import { t } from "../../i18n";
 import { useAuth } from "../../lib/auth-context";
-import { isAdminRole } from "../../lib/require-admin";
+import { activeRoleOf, hasRole } from "../../lib/require-admin";
 import { faNum } from "../../lib/playerDisplay";
 
 // Mobile-first shell: content + bottom nav on phones, top bar on desktop.
@@ -119,17 +119,17 @@ export function AppShell() {
             <NavLink to="/relationships" className={link}>
               {t("nav.relationships")}
             </NavLink>
-            {user.roles?.includes("COACH") ? (
+            {hasRole(user.roles, "COACH", activeRoleOf(user)) ? (
               <NavLink to="/coach/students" className={link}>
                 {t("nav.coach")}
               </NavLink>
             ) : null}
-            {user.roles?.includes("PARENT") ? (
+            {hasRole(user.roles, "PARENT", activeRoleOf(user)) ? (
               <NavLink to="/parent/children" className={link}>
                 {t("nav.parent")}
               </NavLink>
             ) : null}
-            {isAdminRole(user.roles) ? (
+            {hasRole(user.roles, "ADMIN", activeRoleOf(user)) ? (
               <NavLink to="/admin" className={link}>
                 {t("nav.admin")}
               </NavLink>

@@ -16,6 +16,7 @@ const USER: AuthUser = {
   username: "kid_01",
   display_name: "kid_01",
   roles: ["PLAYER", "COACH"],
+  active_role: "COACH",
   created_at: "2026-01-01T00:00:00",
 };
 
@@ -26,6 +27,7 @@ function base(overrides: object = {}) {
     error: "",
     login: vi.fn().mockResolvedValue(undefined),
     register: vi.fn().mockResolvedValue(undefined),
+    switchRole: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -95,5 +97,47 @@ describe("protected account route", () => {
     await user.click(screen.getByRole("button", { name: "خروج" }));
     await waitFor(() => expect(screen.getByText("home-dummy")).toBeTruthy());
     expect(logout).toHaveBeenCalled();
+  });
+});
+
+describe("account role switcher", () => {
+  function renderAccount() {
+    render(
+      <MemoryRouter initialEntries={["/account"]}>
+        <Routes>
+          <Route path="/account" element={<AccountPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  it("shows the current role and offers only the other assigned roles", () => {
+    mockedUseAuth.mockReturnValue(base({ user: USER }));
+    renderAccount();
+    // Persian labels: current role line + switch section.
+    expect(screen.getByText(/نقش فعلی/)).toBeTruthy();
+    expect(screen.getByText("تغییر نقش")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "بازیکن" })).toBeTruthy();
+    // The active role itself is not offered as a switch target.
+    expect(screen.queryByRole("button", { name: "مربی" })).toBeNull();
+    // Unassigned roles are never shown.
+    expect(screen.queryByRole("button", { name: "مدیر" })).toBeNull();
+  });
+
+  it("switches the session role through the auth context", async () => {
+    const user = userEvent.setup();
+    const switchRole = vi.fn().mockResolvedValue(undefined);
+    mockedUseAuth.mockReturnValue(base({ user: USER, switchRole }));
+    renderAccount();
+    await user.click(screen.getByRole("button", { name: "بازیکن" }));
+    expect(switchRole).toHaveBeenCalledWith("PLAYER");
+  });
+
+  it("hides the switcher for single-role accounts", () => {
+    mockedUseAuth.mockReturnValue(
+      base({ user: { ...USER, roles: ["PLAYER"], active_role: "PLAYER" } }),
+    );
+    renderAccount();
+    expect(screen.queryByText("تغییر نقش")).toBeNull();
   });
 });

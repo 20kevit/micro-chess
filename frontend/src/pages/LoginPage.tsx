@@ -4,12 +4,16 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
+import { apiCode, apiRoles } from "../api/client";
 import { t } from "../i18n";
 import type { FaKey } from "../i18n/fa";
 import { useAuth } from "../lib/auth-context";
 import { authErrorKey } from "../lib/auth-errors";
 
-// Login screen. Persian RTL; username/password inputs stay LTR.
+// Login screen. Persian RTL; username/password inputs stay LTR. When the
+// account holds several roles, the server answers 409 with the assigned
+// set and this page shows a role-selection step (server list only; the
+// client never invents roles).
 export function LoginPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
@@ -19,22 +23,74 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [errorKey, setErrorKey] = useState<FaKey | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [choiceRoles, setChoiceRoles] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (user) navigate(next, { replace: true });
   }, [user, next, navigate]);
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function attempt(role?: string) {
     setSubmitting(true);
     setErrorKey(null);
     try {
-      await login(username.trim(), password);
+      if (role === undefined) await login(username.trim(), password);
+      else await login(username.trim(), password, role);
     } catch (err) {
+      // Multi-role account: move to the selection step instead of an error.
+      if (!role && apiCode(err) === "ROLE_SELECTION_REQUIRED") {
+        const roles = apiRoles(err);
+        if (roles.length > 0) {
+          setChoiceRoles(roles);
+          return;
+        }
+      }
       setErrorKey(authErrorKey(err));
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    await attempt();
+  }
+
+  // Role-selection step: only roles the server just reported are shown.
+  if (choiceRoles) {
+    return (
+      <div>
+        <PageHeader title={t("auth.selectRoleTitle")} subtitle={t("auth.selectRoleSubtitle")} />
+        <Card>
+          <div className="flex flex-col gap-2">
+            {choiceRoles.map((role) => (
+              <Button
+                key={role}
+                variant="secondary"
+                disabled={submitting}
+                onClick={() => void attempt(role)}
+              >
+                {t(`auth.role.${role}` as FaKey)}
+              </Button>
+            ))}
+            {errorKey ? (
+              <p role="alert" className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                {t(errorKey)}
+              </p>
+            ) : null}
+            <Button
+              variant="ghost"
+              disabled={submitting}
+              onClick={() => {
+                setChoiceRoles(null);
+                setErrorKey(null);
+              }}
+            >
+              {t("common.back")}
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
   }
 
   return (

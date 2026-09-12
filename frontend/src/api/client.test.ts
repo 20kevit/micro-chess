@@ -3,6 +3,8 @@ import {
   api,
   apiCode,
   apiDetail,
+  apiDetails,
+  apiRoles,
   apiStatus,
   clearToken,
   getToken,
@@ -80,5 +82,53 @@ describe("error envelope", () => {
   it("resolves 204 responses without a body", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
     await expect(api.logout()).resolves.toBeUndefined();
+  });
+});
+
+describe("active-role transport", () => {
+  it("parses structured error details and role lists", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        fail(409, {
+          error: { code: "ROLE_SELECTION_REQUIRED", details: { roles: ["PLAYER", "COACH"] } },
+          detail: "role_selection_required",
+        }),
+      ),
+    );
+    const err = await api.me().catch((e: unknown) => e);
+    expect(apiStatus(err)).toBe(409);
+    expect(apiCode(err)).toBe("ROLE_SELECTION_REQUIRED");
+    expect(apiDetails(err)).toEqual({ roles: ["PLAYER", "COACH"] });
+    expect(apiRoles(err)).toEqual(["PLAYER", "COACH"]);
+  });
+
+  it("returns an empty role list when details carry none", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => fail(401, { detail: "auth_required" })));
+    const err = await api.me().catch((e: unknown) => e);
+    expect(apiRoles(err)).toEqual([]);
+  });
+
+  it("sends the selected role on login", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ok({ access_token: "t", token_type: "bearer" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.login({ username: "kid_01", password: "secret123", role: "COACH" });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/auth/login");
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toEqual({
+      username: "kid_01",
+      password: "secret123",
+      role: "COACH",
+    });
+  });
+
+  it("switches the session role through the dedicated endpoint", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      ok({ active_role: "PLAYER", roles: ["PLAYER", "COACH"] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const out = await api.switchActiveRole("PLAYER");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/auth/active-role");
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toEqual({ role: "PLAYER" });
+    expect(out).toEqual({ active_role: "PLAYER", roles: ["PLAYER", "COACH"] });
   });
 });

@@ -62,6 +62,7 @@ function base(overrides: object = {}) {
     error: "",
     login: vi.fn().mockResolvedValue(undefined),
     register: vi.fn().mockResolvedValue(undefined),
+    switchRole: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -73,6 +74,7 @@ const ADMIN: AuthUser = {
   username: "boss",
   display_name: "boss",
   roles: ["PLAYER", "ADMIN"],
+  active_role: "ADMIN",
   created_at: "2026-01-01T00:00:00",
 };
 
@@ -81,6 +83,7 @@ const PLAYER: AuthUser = {
   username: "kid",
   display_name: "kid",
   roles: ["PLAYER"],
+  active_role: "PLAYER",
   created_at: "2026-01-01T00:00:00",
 };
 
@@ -320,5 +323,35 @@ describe("admin navigation", () => {
       </MemoryRouter>,
     );
     expect(screen.getByText("مدیریت")).toBeTruthy();
+  });
+
+  it("follows the active role, not the assigned set", () => {
+    // Assigned ADMIN but PLAYER-active: no admin tab, guard blocks.
+    const playerActive = { ...ADMIN, active_role: "PLAYER" };
+    mockedUseAuth.mockReturnValue(base({ user: playerActive }));
+    const { unmount } = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText("مدیریت")).toBeNull();
+    unmount();
+
+    mockedUseAuth.mockReturnValue(base({ user: playerActive }));
+    render(
+      <MemoryRouter initialEntries={["/admin"]}>
+        <Routes>
+          <Route
+            path="/admin"
+            element={
+              <RequireAdmin>
+                <AdminDashboardPage />
+              </RequireAdmin>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("به بخش مدیریت دسترسی نداری.")).toBeTruthy();
   });
 });

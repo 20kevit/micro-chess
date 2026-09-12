@@ -17,6 +17,10 @@ export function authErrorKey(e: unknown): FaKey {
       return "auth.error.shortPassword";
     case "RATE_LIMITED":
       return "auth.error.rateLimited";
+    case "ROLE_SELECTION_REQUIRED":
+      return "auth.error.roleRequired";
+    case "INVALID_ROLE":
+      return "auth.error.invalidRole";
     default:
       return apiStatus(e) === 401 ? "auth.error.invalid" : "common.error";
   }

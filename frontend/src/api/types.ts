@@ -625,17 +625,26 @@ export interface Assignment {
 
 // Authentication state (mirrors backend users/schemas.py UserOut).
 // The server owns roles/capabilities; the client only renders them.
+// `active_role` is this session's authoritative role (always a member
+// of `roles`); route guards and nav prefer it when present.
 export interface AuthUser {
   id: number;
   username: string;
   display_name: string;
   roles: string[];
+  active_role: string;
   created_at: string;
 }
 
 export interface AuthToken {
   access_token: string;
   token_type: string;
+}
+
+// Active-role switch result (mirrors backend auth/schemas.py).
+export interface ActiveRoleOut {
+  active_role: string;
+  roles: string[];
 }
 
 // Adaptive training (Phase 10). Display-only: every signal, reason, and

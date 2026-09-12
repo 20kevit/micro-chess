@@ -18,11 +18,12 @@ const mockedRel = vi.mocked(relationshipsApi, true);
 
 function auth() {
   mockedUseAuth.mockReturnValue({
-    user: { id: 9, username: "kid_01", display_name: "kid_01", roles: ["PLAYER"], created_at: "" },
+    user: { id: 9, username: "kid_01", display_name: "kid_01", roles: ["PLAYER"], active_role: "PLAYER", created_at: "" },
     loading: false,
     error: "",
     login: vi.fn().mockResolvedValue(undefined),
     register: vi.fn().mockResolvedValue(undefined),
+    switchRole: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn().mockResolvedValue(undefined),
   } as ReturnType<typeof useAuth>);

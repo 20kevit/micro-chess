@@ -29,12 +29,13 @@ const mockedApi = vi.mocked(api, true);
 function authState(user: boolean) {
   mockedUseAuth.mockReturnValue({
     user: user
-      ? { id: 1, username: "kid_01", display_name: "kid_01", roles: ["PLAYER"], created_at: "" }
+      ? { id: 1, username: "kid_01", display_name: "kid_01", roles: ["PLAYER"], active_role: "PLAYER", created_at: "" }
       : null,
     loading: false,
     error: "",
     login: vi.fn().mockResolvedValue(undefined),
     register: vi.fn().mockResolvedValue(undefined),
+    switchRole: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn().mockResolvedValue(undefined),
   } as ReturnType<typeof useAuth>);

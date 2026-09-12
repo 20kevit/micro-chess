@@ -10,8 +10,9 @@ export interface AuthState {
   user: AuthUser | null;
   loading: boolean;
   error: string;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, role?: string) => Promise<void>;
   register: (username: string, password: string) => Promise<void>;
+  switchRole: (role: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -59,10 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  const login = useCallback(async (username: string, password: string) => {
+  const login = useCallback(async (username: string, password: string, role?: string) => {
     setLoading(true);
     try {
-      const token = await api.login({ username, password });
+      const token = await api.login(role ? { username, password, role } : { username, password });
       setToken(token.access_token);
       setUser(await api.me());
       setError("");
@@ -73,6 +74,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   }, []);
+
+  // Switch this session's active role (server-authoritative: the
+  // backend validates membership, then we reload the session state).
+  const switchRole = useCallback(
+    async (role: string) => {
+      setLoading(true);
+      try {
+        await api.switchActiveRole(role);
+        setUser(await api.me());
+        setError("");
+      } catch (e) {
+        setError(describeError(e));
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   const register = useCallback(async (username: string, password: string) => {
     setLoading(true);
@@ -103,8 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ user, loading, error, login, register, logout, refresh }),
-    [user, loading, error, login, register, logout, refresh],
+    () => ({ user, loading, error, login, register, switchRole, logout, refresh }),
+    [user, loading, error, login, register, switchRole, logout, refresh],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
