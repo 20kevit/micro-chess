@@ -49,7 +49,7 @@
 deployment:
   tasks:
     # Deployment root for the kevitir account.
-    - export DEPLOYPATH=/home/kevitir/microchess
+    - export DEPLOYPATH=/home/microche/microchess
     # Replace code paths only (never the backend dir itself, so `.env`
     # files or databases beside the code survive every deploy).
     - /bin/rm -rf "$DEPLOYPATH/backend/app" "$DEPLOYPATH/backend/static" "$DEPLOYPATH/backend/__pycache__" "$DEPLOYPATH/docs"
