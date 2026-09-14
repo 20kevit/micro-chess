@@ -41,7 +41,7 @@ INDEX = "index.html"
 def static_dir_for_package() -> Path:
     """Resolve ``backend/static`` relative to this package. No hard-coded
     deployment roots: the same resolution works locally and in production."""
-    return Path(__file__).resolve().parent.parent / "static"
+    return Path(__file__).resolve().parent.parent.parent / "static"
 
 
 def _safe_file(static_dir: Path, request_path: str) -> Path | None:
