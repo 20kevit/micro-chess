@@ -46,6 +46,7 @@ docs/      product + architecture + api + exercises
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
+| `tools/lichess_puzzles` | offline Lichess dump ingestion (download/process/validate CLI, streaming, no DB, never imported by `main.py`; see `docs/LICHESS_PUZZLES.md`) |
 
 Placeholders are single `__init__.py` files with a docstring. No framework code.
 
@@ -208,3 +209,8 @@ Notes:
     pieces with multi-select + confirm; Speed serves exactly-one
     positions with tap-to-submit; scoring is +5 correct / −2 missed /
     −2 wrong per square (Speed wrong tap = −4).
+12. Offline ingestion lives in `app/tools/` (first user:
+    `tools/lichess_puzzles`): operator-run CLIs (`python -m ...`) with
+    env-driven paths, streaming I/O, atomic outputs, and no imports
+    from — or into — the request runtime, so the FastAPI lifespan and
+    cPanel deploys never execute them.

@@ -20,4 +20,5 @@ passlib[bcrypt]>=1.7
 python-chess>=1.9
 python-multipart>=0.0.9
 email-validator>=2.0
+zstandard>=0.22
 a2wsgi>=1.10

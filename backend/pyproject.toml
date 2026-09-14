@@ -15,6 +15,11 @@ dependencies = [
   "python-chess>=1.9",
   "python-multipart>=0.0.9",
   "email-validator>=2.0",
+  # Streaming decompression for the offline Lichess puzzle ingestion
+  # pipeline only (app.tools.lichess_puzzles). Ships manylinux wheels
+  # for Python 3.12, so no compiler toolchain is needed on the host.
+  # Never imported by the FastAPI runtime.
+  "zstandard>=0.22",
   # ASGI-to-WSGI bridge for the cPanel Passenger entry point
   # (backend/passenger_wsgi.py). Pure Python, no native build.
   "a2wsgi>=1.10",
