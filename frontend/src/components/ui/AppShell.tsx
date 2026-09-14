@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { notificationsApi } from "../../api/client";
 import { t } from "../../i18n";
 import { useAuth } from "../../lib/auth-context";
-import { activeRoleOf, hasRole } from "../../lib/require-admin";
+import { activeRoleOf } from "../../lib/require-admin";
 import { faNum } from "../../lib/playerDisplay";
 
 // Mobile-first shell: content + bottom nav on phones, top bar on desktop.
@@ -40,6 +40,16 @@ export function AppShell() {
     await logout();
     navigate("/", { replace: true });
   }
+
+  // Role-separated navigation: each session sees only its own active-role
+  // tabs. Backend capabilities stay authoritative; this is UX only.
+  // PLAYER: play + own progress. COACH: students + exercises. PARENT:
+  // children. ADMIN: management only (no player tabs).
+  const active = user ? (activeRoleOf(user) ?? user.roles[0] ?? null) : null;
+  const isPlayer = active === "PLAYER";
+  const isCoach = active === "COACH";
+  const isParent = active === "PARENT";
+  const isAdmin = active === "ADMIN";
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col bg-[#f6f4ff]">
@@ -105,37 +115,57 @@ export function AppShell() {
         <NavLink to="/" className={link} end>
           {t("nav.home")}
         </NavLink>
-        <NavLink to="/exercises" className={link}>
-          {t("nav.exercises")}
-        </NavLink>
         {user ? (
           <>
-            <NavLink to="/progress" className={link}>
-              {t("nav.progress")}
-            </NavLink>
-            <NavLink to="/profile" className={link}>
-              {t("nav.profile")}
-            </NavLink>
-            <NavLink to="/relationships" className={link}>
-              {t("nav.relationships")}
-            </NavLink>
-            {hasRole(user.roles, "COACH", activeRoleOf(user)) ? (
-              <NavLink to="/coach/students" className={link}>
-                {t("nav.coach")}
+            {isPlayer || isCoach ? (
+              <NavLink to="/exercises" className={link}>
+                {t("nav.exercises")}
               </NavLink>
             ) : null}
-            {hasRole(user.roles, "PARENT", activeRoleOf(user)) ? (
-              <NavLink to="/parent/children" className={link}>
-                {t("nav.parent")}
-              </NavLink>
+            {isPlayer ? (
+              <>
+                <NavLink to="/progress" className={link}>
+                  {t("nav.progress")}
+                </NavLink>
+                <NavLink to="/profile" className={link}>
+                  {t("nav.profile")}
+                </NavLink>
+                <NavLink to="/relationships" className={link}>
+                  {t("nav.relationships")}
+                </NavLink>
+              </>
             ) : null}
-            {hasRole(user.roles, "ADMIN", activeRoleOf(user)) ? (
+            {isCoach ? (
+              <>
+                <NavLink to="/coach/students" className={link}>
+                  {t("nav.coach")}
+                </NavLink>
+                <NavLink to="/relationships" className={link}>
+                  {t("nav.relationships")}
+                </NavLink>
+              </>
+            ) : null}
+            {isParent ? (
+              <>
+                <NavLink to="/parent/children" className={link}>
+                  {t("nav.parent")}
+                </NavLink>
+                <NavLink to="/relationships" className={link}>
+                  {t("nav.relationships")}
+                </NavLink>
+              </>
+            ) : null}
+            {isAdmin ? (
               <NavLink to="/admin" className={link}>
                 {t("nav.admin")}
               </NavLink>
             ) : null}
           </>
-        ) : null}
+        ) : (
+          <NavLink to="/exercises" className={link}>
+            {t("nav.exercises")}
+          </NavLink>
+        )}
       </nav>
     </div>
   );

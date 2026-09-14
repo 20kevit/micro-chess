@@ -8,9 +8,10 @@ import type { FaKey } from "../i18n/fa";
 import { useAuth } from "../lib/auth-context";
 import { authErrorKey } from "../lib/auth-errors";
 
-// Minimal account screen: server-owned identity only. No profile
-// dashboard, ratings, or analytics (later phases). Multi-role accounts
-// also switch this session's active role here (server-authoritative).
+// Minimal account screen: server-owned identity only. Quick links follow
+// the session's active role so admin/coach/parent/player dashboards never
+// mix. Multi-role accounts switch this session's active role here
+// (server-authoritative).
 export function AccountPage() {
   const { user, logout, switchRole } = useAuth();
   const navigate = useNavigate();
@@ -80,16 +81,53 @@ export function AccountPage() {
           </div>
         ) : null}
         <div className="mt-4 flex flex-col gap-2">
-          <Link to="/profile" className="block">
-            <Button variant="secondary" className="w-full">
-              {t("auth.goToProfile")}
-            </Button>
-          </Link>
-          <Link to="/exercises" className="block">
-            <Button variant="secondary" className="w-full">
-              {t("auth.backToExercises")}
-            </Button>
-          </Link>
+          {activeRole === "ADMIN" ? (
+            <Link to="/admin" className="block">
+              <Button variant="secondary" className="w-full">
+                {t("nav.admin")}
+              </Button>
+            </Link>
+          ) : null}
+          {activeRole === "COACH" ? (
+            <>
+              <Link to="/coach/students" className="block">
+                <Button variant="secondary" className="w-full">
+                  {t("nav.coach")}
+                </Button>
+              </Link>
+              <Link to="/exercises" className="block">
+                <Button variant="secondary" className="w-full">
+                  {t("auth.backToExercises")}
+                </Button>
+              </Link>
+            </>
+          ) : null}
+          {activeRole === "PARENT" ? (
+            <Link to="/parent/children" className="block">
+              <Button variant="secondary" className="w-full">
+                {t("nav.parent")}
+              </Button>
+            </Link>
+          ) : null}
+          {activeRole === "PLAYER" ? (
+            <>
+              <Link to="/profile" className="block">
+                <Button variant="secondary" className="w-full">
+                  {t("auth.goToProfile")}
+                </Button>
+              </Link>
+              <Link to="/progress" className="block">
+                <Button variant="secondary" className="w-full">
+                  {t("nav.progress")}
+                </Button>
+              </Link>
+              <Link to="/exercises" className="block">
+                <Button variant="secondary" className="w-full">
+                  {t("auth.backToExercises")}
+                </Button>
+              </Link>
+            </>
+          ) : null}
           <Button variant="ghost" onClick={onLogout}>
             {t("auth.logout")}
           </Button>

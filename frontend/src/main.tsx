@@ -9,6 +9,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { AuthProvider } from "./lib/auth-context";
 import { RequireAuth } from "./lib/require-auth";
+import { RequireRole } from "./lib/require-role";
 import { RequireAdmin } from "./lib/require-admin";
 import { AdminAnalyticsPage } from "./pages/AdminAnalyticsPage";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
@@ -69,25 +70,25 @@ const router = createBrowserRouter([
       {
         path: "/progress",
         element: (
-          <RequireAuth>
+          <RequireRole allowed={["PLAYER", "COACH", "PARENT"]}>
             <ProgressPage />
-          </RequireAuth>
+          </RequireRole>
         ),
       },
       {
         path: "/profile",
         element: (
-          <RequireAuth>
+          <RequireRole allowed={["PLAYER", "COACH", "PARENT"]}>
             <ProfilePage />
-          </RequireAuth>
+          </RequireRole>
         ),
       },
       {
         path: "/relationships",
         element: (
-          <RequireAuth>
+          <RequireRole allowed={["PLAYER", "COACH", "PARENT"]}>
             <RelationshipsPage />
-          </RequireAuth>
+          </RequireRole>
         ),
       },
       {
@@ -117,17 +118,17 @@ const router = createBrowserRouter([
       {
         path: "/coach/students",
         element: (
-          <RequireAuth>
+          <RequireRole allowed={["COACH"]}>
             <CoachStudentsPage />
-          </RequireAuth>
+          </RequireRole>
         ),
       },
       {
         path: "/parent/children",
         element: (
-          <RequireAuth>
+          <RequireRole allowed={["PARENT"]}>
             <ParentChildrenPage />
-          </RequireAuth>
+          </RequireRole>
         ),
       },
       { path: "/exercises/piece-recognition", element: <PieceRecognitionPage /> },
