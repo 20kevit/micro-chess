@@ -1,4 +1,9 @@
-# PRD — MicroChess Foundation
+# PRD — MicroChess Foundation (historical)
+
+> Superseded by `platform/PRODUCT_SCOPE.md` (current product scope)
+> and `platform/MASTER_PLAN.md` (platform target). Kept for history:
+> it describes the foundation stage before the exercise vertical
+> slices and platform phases 01–13 were built.
 
 ## Vision
 

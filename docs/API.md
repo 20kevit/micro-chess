@@ -228,7 +228,39 @@ Same lifecycle and contract as Exercises 1–5 (open → prepare ≥20 → start
 - `GET .../sessions/{id}` → summary; `GET .../report` → authoritative
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
-- Full spec: `docs/exercises/06-pathfinding.md`.
+- Full spec: `docs/exercises/07-pathfinding.md`.
+
+## Pathfinding with Obstacles (Exercise 8)
+
+Same lifecycle and contract as Exercise 7 (open → prepare ≥20 → start
+60s clock → submit loop → finish/report), under
+`/api/v1/pathfinding-obstacles`:
+
+- `POST /api/v1/pathfinding-obstacles/next` `{exclude_ids?: []}` →
+  fresh random solved practice `PuzzleOut` (no `answer_json`; the
+  start/target/piece in `position_json` is public task data, the
+  state-space BFS optimal count is not).
+- `POST /api/v1/pathfinding-obstacles/step`
+  `{puzzle_id, fen, selected_at, from, to}` → legality oracle
+  `{ok, fen, selected_at, reached, captured, message_key}`;
+  rebuilds the live board state from the client FEN with the
+  server-stored kind/target (movement + blocking + destination
+  safety + undefended-only captures); rejects post-completion moves
+  and unknown puzzles (404 `puzzle_not_available`).
+- `POST /api/v1/pathfinding-obstacles/sessions` → `preparing`
+  session (60s default).
+- `POST /api/v1/pathfinding-obstacles/sessions/{id}/puzzles`
+  `{count}` → buffer/refill puzzles (cap 60);
+  `POST .../start` requires ≥20.
+- `POST /api/v1/pathfinding-obstacles/sessions/{id}/submit` →
+  `{attempt, feedback_key, detail, session}` with
+  `answer: {path: [...squares], illegal_attempts: n}`;
+  `optimal×5 − extra×2 − illegal×3` scoring; only session-issued
+  puzzles accepted; client score/optimal fields ignored.
+- `GET .../sessions/{id}` → summary; `GET .../report` →
+  authoritative per-puzzle report rebuilt from stored attempts;
+  `POST .../finish` → final summary. Same error codes as Exercise 1.
+  - Full spec: `docs/exercises/08-pathfinding-obstacles.md`.
 
 ## Balance Scale (Exercise 9)
 
@@ -305,3 +337,122 @@ Same lifecycle and contract as Exercises 1–7, 10, and 11 (open → prepare
   per-puzzle report rebuilt from stored attempts;
   `POST .../finish` → final summary. Same error codes as Exercise 1.
   - Full spec: `docs/exercises/12-memorization-board.md`.
+
+## Pin (Exercise 11)
+
+No dedicated router and no speed sessions. Puzzles are served
+through `GET /api/v1/puzzles?exercise=pin` and answered through
+standard `POST /api/v1/attempts` with
+`answer: {squares: [<pinner>, <pinned>, <behind>]}` (the three
+pieces forming the pin, in order; `selected_squares` accepted as
+an alias). CORRECT only for the exact ordered triplet recomputed
+from the stored FEN (absolute when behind is the King, relative
+only when behind is strictly more valuable); CORRECT or WRONG
+only. Scoring is the shared default (correct=1.0, else 0).
+
+## Is it Checkmate? (Exercise 13)
+
+No dedicated router and no speed sessions. Puzzles are served
+through `GET /api/v1/puzzles?exercise=is-checkmate` and answered
+through standard `POST /api/v1/attempts` with
+`answer: {choice: "checkmate" | "check" | "not_check"}`, matched
+against the state derived from the stored FEN
+(checkmate = in check with no legal moves; stalemate classifies as
+`not_check`). CORRECT or WRONG only; shared default scoring.
+
+## Blindfold Square Vision (Exercise 14)
+
+Same lifecycle and contract as Exercises 1–7 (open → prepare ≥20
+→ start 60s clock → submit loop → finish/report), under
+`/api/v1/blindfold-square-vision`:
+
+- `POST /api/v1/blindfold-square-vision/next`
+  `{exclude_ids?: []}` → fresh random practice `PuzzleOut`
+  (no `answer_json`; `position_json` carries only the square —
+  the public question; square colors are never stored, `a1` is dark).
+- Practice submits `{square}` (tap the asked square);
+  speed submits `{choice: "white" | "black"}` (no board shown).
+  Registered scorer: CORRECT +5 / WRONG −3, negatives kept.
+- `POST .../sessions` → `preparing` (60s default);
+  `POST .../sessions/{id}/puzzles` `{count}` → buffer (cap 60);
+  `POST .../start` requires ≥20; submit → `{attempt,
+  feedback_key, detail, session}`; summary/report/finish as usual.
+  Same error codes as Exercise 1.
+
+## Blindfold Calculation (Exercise 15)
+
+Same lifecycle and contract as Exercises 1–7 (open → prepare ≥20
+→ start 60s clock → submit loop → finish/report), under
+`/api/v1/blindfold-calculation`:
+
+- `POST /api/v1/blindfold-calculation/next`
+  `{exclude_ids?: []}` → fresh random ≤12-piece practice `PuzzleOut`
+  (no `answer_json`; `Puzzle.fen` stays NULL — the position is
+  conveyed only as a server-generated structured Persian
+  description; the stored Lichess solution's first UCI is the
+  single authoritative answer).
+- Submit `answer: {move: "<SAN>"}` (parsed with `board.parse_san`
+  against the stored FEN, normalized to UCI; `+`/`#` suffixes and
+  whitespace tolerated). CORRECT or WRONG only; shared default
+  scoring; practice attempts never set `rating_delta`.
+- Sessions (`POST .../sessions`, `/puzzles`, `/start`, `/submit`,
+  summary/report/finish) mirror the shared lifecycle; same error
+  codes as Exercise 1.
+
+## Mental Opening (Exercise 16)
+
+No dedicated router and no speed sessions. Puzzles are served
+through `GET /api/v1/puzzles?exercise=opening-traps` and answered
+through standard `POST /api/v1/attempts` with
+`answer: {move: "<SAN>"}` (parsed with `board.parse_san`;
+malformed, illegal, and ambiguous input is WRONG). CORRECT when
+the normalized UCI belongs to the puzzle's explicit solution set
+(one tactical move from a genuine opening-trap position;
+checkmate is not required). CORRECT or WRONG only; shared default
+scoring. `Puzzle.fen` stays NULL — FEN + solution UCIs live in
+server-only `answer_json`.
+
+## Reverse Opening (Exercise 17)
+
+Step oracle plus standard attempts; no `/next`, no speed sessions:
+
+- `POST /api/v1/reverse-opening/step` — legality-only move
+  assistance: replays the claimed history from the stored start,
+  applies one legal move, returns the new FEN plus server-generated
+  SAN and an on-track flag; reveals no solution data.
+- Final grading revalidates the whole sequence through standard
+  `POST /api/v1/attempts` with `answer: {moves: [...]}` (UCIs
+  replayed with python-chess from the stored start; CORRECT only
+  when placement + side to move + castling rights + en-passant
+  square equal the stored target, so transpositions are accepted).
+  CORRECT or WRONG only; shared default scoring.
+
+## Trapped Piece (Exercise 18)
+
+Same lifecycle and contract as Exercises 1–7 (open → prepare ≥20
+→ start 60s clock → submit loop → finish/report), under
+`/api/v1/trapped-pieces`:
+
+- `POST /api/v1/trapped-pieces/next` `{exclude_ids?: []}` →
+  fresh random practice `PuzzleOut` (no `answer_json`; practice
+  holds 1–3 trapped pieces, speed buffers hold exactly-one
+  positions for tap-to-submit grading).
+- Submit `answer: {selected_squares: [...]}` (exact set match;
+  malformed squares count as wrong; client FEN/answer/score
+  ignored). A non-pawn piece (King included, either color) is
+  trapped iff it has zero SAFE destinations (post-move Static
+  Exchange Evaluation ≥ 0). Registered per-square scorer:
+  +5 correct / −2 missed / −2 wrong, negatives kept (+5 bonus for
+  correctly answered zero-target legacy rows).
+- Sessions (`POST .../sessions`, `/puzzles`, `/start`, `/submit`,
+  summary/report/finish) mirror the shared lifecycle; same error
+  codes as Exercise 1.
+
+## Castling Rights (Exercise 21)
+
+No dedicated router and no speed sessions. Puzzles are served
+through `GET /api/v1/puzzles?exercise=castling-rights` and answered
+through standard `POST /api/v1/attempts` with
+`answer: {options: [...]}` (each option must appear in that
+color's python-chess legal moves on a turn-flipped board, with
+explicit king/rook presence guards). Shared default scoring.

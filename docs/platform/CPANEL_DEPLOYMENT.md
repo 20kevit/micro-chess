@@ -1,7 +1,7 @@
 # MicroChess — cPanel Deployment (prebuilt frontend)
 
 This document is the single operator reference for deploying MicroChess
-on the `kevitir` cPanel shared-hosting account. Code references are
+on the `microche` cPanel shared-hosting account. Code references are
 VERIFIED FROM REPOSITORY; anything the agent cannot observe from the
 repository is marked MUST BE VERIFIED ON THIS CPANEL ACCOUNT.
 
@@ -27,13 +27,13 @@ Operator-confirmed values (used verbatim in `.cpanel.yml`):
 
 ```text
 Git repository (cPanel-managed clone — NEVER deploy into it):
-  /home/kevitir/repositories/micro-chess
+  /home/microche/repositories/micro-chess
 
 Deployment root (DEPLOYPATH):
-  /home/kevitir/microchess
+  /home/microche/microchess
 
 Backend (Python Application Root):
-  /home/kevitir/microchess/backend
+  /home/microche/microchess/backend
 
 Startup File (relative to the Application Root):
   passenger_wsgi.py
@@ -42,10 +42,10 @@ Entry Point (WSGI callable):
   application
 
 Python virtualenv (operator-confirmed):
-  /home/kevitir/virtualenv/microchess/backend/3.12   (Python 3.12.14)
+  /home/microche/virtualenv/microchess/backend/3.12   (Python 3.12.14)
 
 Domain:
-  https://micro.20kevit.ir
+  https://microchess.ir   (MUST BE VERIFIED ON THIS CPANEL ACCOUNT)
 ```
 
 The prebuilt frontend is served by FastAPI itself (section 8), so no
@@ -83,7 +83,7 @@ fails otherwise.
 `.cpanel.yml` runs this on EVERY deploy:
 
 ```text
-/home/kevitir/virtualenv/microchess/backend/3.12/bin/pip install -r backend/requirements.txt
+/home/microche/virtualenv/microchess/backend/3.12/bin/pip install -r backend/requirements.txt
 ```
 
 `pip install -r` without `--upgrade` is idempotent: satisfied
@@ -102,7 +102,7 @@ nothing is invented here):
 ENVIRONMENT=production
 DATABASE_URL=<production database URL, see section 6>
 JWT_SECRET=<long random secret, REQUIRED — boot refuses the dev default>
-CORS_ORIGINS=["https://micro.20kevit.ir"]
+CORS_ORIGINS=["https://microchess.ir"]
 LOG_LEVEL=INFO
 RATE_LIMIT_ENABLED=true
 AUTH_RATE_LIMIT_PER_MINUTE=30
@@ -257,9 +257,9 @@ rollback is a revert + push (+ pull fallback if auto-deploy is off):
 ## 12. Post-deployment smoke test
 
 ```text
-curl -I https://micro.20kevit.ir/                  → 200, text/html
-curl -I https://micro.20kevit.ir/login             → 200, text/html (SPA fallback)
-curl -I https://micro.20kevit.ir/api/v1/exercises  → 200, application/json
+curl -I https://microchess.ir/                  → 200, text/html
+curl -I https://microchess.ir/login             → 200, text/html (SPA fallback)
+curl -I https://microchess.ir/api/v1/exercises  → 200, application/json
 ```
 
 Content checks: `/` serves the Persian bundle (`میکروچس` in body);

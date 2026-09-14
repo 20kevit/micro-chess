@@ -29,7 +29,7 @@ from collections import deque
 
 ALLOWED_KINDS = ("knight", "bishop", "rook", "queen")
 
-# Generator target distribution (documented in docs/exercises/06-pathfinding.md).
+# Generator target distribution (documented in docs/exercises/07-pathfinding.md).
 PIECE_WEIGHTS: dict[str, float] = {
     "knight": 0.50,
     "bishop": 0.20,

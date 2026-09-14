@@ -36,13 +36,13 @@ docs/      product + architecture + api + exercises
 | `material_comparison` | exercise 10: isolated material calculator (`material.py`: P=1 N=3 B=3 R=5 Q=9 K=0, classifier, 10% gate) + FEN-shape validator (legacy left/right fallback) + simple +5/−2 scorer + eligible-position generator (bounded category-balanced sampling from `puzzles.db`) + speed sessions + router (registers `heavier-side`) |
 | `pin` | exercise 11: value-gated ordered-triplet validator + single-pin seed (registers `pin`) |
 | `chinese_board` | exercise 12 (Memorization Board, صفحه‌ی حفظی): pure piece helpers (`pieces.py`: extraction/count/`count×1000ms` budget) + descriptor validator (`validator.py`: exact-first, same-kind wrong-square pairing without double-counting, CORRECT-only-when-perfect) + per-piece +5/−2 scorer (negatives kept, no floor) + any-valid-FEN generator (bounded sampling from `puzzles.db`, server-side budget) + speed sessions + router (registers `chinese-board`; slug kept for routes/API/DB) |
-| `checkmate` | exercise 13 (ADMIN-BLOCKED): validator + seed (registers `is-checkmate`) |
+| `checkmate` | exercise 13 (CONTENT-BLOCKED: seeded positions playable, no speed mode): validator + seed (registers `is-checkmate`) |
 | `blindfold_square_vision` | exercise 14: validator + seed (registers `blindfold-square-vision`) |
 | `blindfold_calculation` | exercise 15: best-move validator (SAN→UCI vs stored solution, legacy mate branch) + structured Persian descriptor + puzzles.db generator (≤12 pieces, first-move-legal) + speed sessions + router (registers `blindfold-calculation`) |
-| `opening_traps` | exercise 16 (ADMIN-BLOCKED): validator + seed (registers `opening-traps`) |
-| `reverse_opening` | exercise 17 (ADMIN-BLOCKED): validator + step oracle + seed (registers `reverse-opening`) |
+| `opening_traps` | exercise 16 (CONTENT-BLOCKED: seeded positions playable, no speed mode): validator + seed (registers `opening-traps`) |
+| `reverse_opening` | exercise 17 (CONTENT-BLOCKED: seeded positions playable, no speed mode): validator + step oracle + seed (registers `reverse-opening`) |
 | `trapped_pieces` | exercise 18: SEE-based detector (`detector.py`: legal moves + Static Exchange Evaluation, kings included, pawns excluded) + set validator + per-square +5/−2/−2 scorer + shared-position generator (practice 1–3, speed exactly-one) + speed sessions + router (registers `trapped-pieces`) |
-| `castling_rights` | exercise 21 (ADMIN-BLOCKED): validator + seed (registers `castling-rights`) |
+| `castling_rights` | exercise 21 (CONTENT-BLOCKED: seeded positions playable, no speed mode): validator + seed (registers `castling-rights`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
 | `admin` | placeholder |
@@ -123,25 +123,25 @@ Piece Recognition additions (same tables, new columns only):
   Speed Mode (`get_out_of_check/sessions.py` mirrors the same lifecycle;
   synthetic in-check puzzles from `get_out_of_check/generator.py`,
   answers derived from the stored FEN via `escaping_moves`).
-- `pathfinding_speed_sessions` — same shape for Exercise 6 Speed Mode
+- `pathfinding_speed_sessions` — same shape for Exercise 7 Speed Mode
   (`pathfinding/sessions.py` mirrors the same lifecycle; weighted
   single-piece puzzles from `pathfinding/generator.py`, BFS optimals
   stored server-side).
-- `pathfinding_obstacles_speed_sessions` — same shape for Exercise 7
+- `pathfinding_obstacles_speed_sessions` — same shape for Exercise 8
   Speed Mode (`pathfinding_obstacles/sessions.py` mirrors the same
   lifecycle; solved enemy puzzles from
   `pathfinding_obstacles/generator.py`, state-space BFS optimals
   stored server-side).
-- `balance_scale_speed_sessions` — same shape for Exercise 10 Speed Mode
+- `balance_scale_speed_sessions` — same shape for Exercise 9 Speed Mode
   (`balance_scale/sessions.py` mirrors the same lifecycle; random
   left-pan puzzles from `balance_scale/generator.py`, DP optimal counts
   stored server-side).
-- `heavier_side_speed_sessions` — same shape for Exercise 11 Speed Mode
+- `heavier_side_speed_sessions` — same shape for Exercise 10 Speed Mode
   (`material_comparison/sessions.py` mirrors the same lifecycle;
   10%-eligible shared `puzzles.db` positions from
   `material_comparison/generator.py`, verdicts recomputed from the
   stored FEN).
-- `chinese_board_speed_sessions` — same shape for Exercise 13 Speed Mode
+- `chinese_board_speed_sessions` — same shape for Exercise 12 Speed Mode
   (`chinese_board/sessions.py` mirrors the same lifecycle; any-valid
   shared `puzzles.db` positions from `chinese_board/generator.py`,
   piece sets re-derived from the stored FEN, per-puzzle study budgets
@@ -160,9 +160,16 @@ Piece Recognition additions (same tables, new columns only):
 
 Notes:
 
-- Portable types only; `DATABASE_URL` switch + Alembic later for PostgreSQL.
+- Portable types only; `DATABASE_URL` switch for PostgreSQL later.
+- Schema is managed by idempotent `ensure_schema`
+  (`backend/app/db/migration.py`, `SCHEMA_VERSION = 11`). The tables
+  above are the exercise pipeline; the platform added accounts,
+  ratings, gamification, relationships, adaptive, support, and
+  notification tables — see `docs/platform/DATA_MODEL.md` for the
+  full logical model and `docs/platform/ARCHITECTURE.md` for the
+  platform subsystems.
 - Fresh DB allowed; no migration compat needed at this stage.
-- Future tables (ratings, assignments, audio assets): add when the feature lands.
+- Future tables: add when the feature lands.
 
 ## Frontend
 

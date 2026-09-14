@@ -16,7 +16,8 @@ Read this before changing code. Keep it simple and explicit.
 - Exercise-specific/custom rules: that exercise's validator registered in `modules/exercises/registry.py`. NEVER add `if/elif exercise_slug` chains in core flow.
 - Keep separate: Exercise (type) / Puzzle (one question) / Position (FEN/data) / Attempt (one try).
 - Keep separate: validation vs scoring vs rating vs feedback.
-- `rating_engine/` is a stub until Glicko-2 lands. `practice` attempts MUST NOT set `rating_delta`.
+- `rating_engine/` implements the current Elo-style update (Glicko-2
+  deferred). `practice` attempts MUST NOT set `rating_delta`.
 - `audio/ports.py` is the TTS boundary. Do not import vendor SDKs into domain code.
 
 ## 3. Data rules
@@ -25,7 +26,8 @@ Read this before changing code. Keep it simple and explicit.
 - Never hard-delete puzzles with history. Use `archive()` (sets `is_archived`).
 - `attempts` rows store raw `answer_json`; results in correct/partial/wrong/timeout/skipped/abandoned; mode in rated/practice.
 - Only portable SQLAlchemy column types. No SQLite-only DDL (PostgreSQL migration must be config-only + Alembic later).
-- Current tables only: users, exercises, puzzles, attempts. Add new tables only when a feature needs them.
+- Schema source of truth: `backend/app/db/migration.py`
+  (`SCHEMA_VERSION`) + `docs/platform/DATA_MODEL.md`. Add new tables only when a feature needs them.
 
 ## 4. Frontend rules
 

@@ -108,12 +108,16 @@ verified by tests + live checks; no product behavior changed):
   (the backend dir itself is never wiped, so beside-the-code `.env`/
   database files survive); touches `restart.txt`. Safety rules extended
   in `test_cpanel_yml_deploys_adapter_safely`.
-* Live status at implementation time: `/`, `/health`, and
-  `/api/v1/exercises` all return HTTP 500 (fetched 2026-09-12). Since
-  `/health` has no DB/env/auth dependency, the failure is at Passenger
-  boot/entry level, not in any route — ordered suspects + exact log
-  retrieval steps in CPANEL_DEPLOYMENT.md section 13 (host access
-  required; not guessable from the repository).
+* Live status: the HTTP 500s seen 2026-09-12 (`/`, `/health`,
+  `/api/v1/exercises`) were a Passenger boot/entry-level failure, and
+  the follow-up hang (requests at the WSGI layer, LiteSpeed `200 0`,
+  client timeouts) was the LiteSpeed mod_lsapi fork-safety deadlock
+  fixed 2026-09-14 (`1816bdc`: lazy per-PID `ASGIMiddleware`
+  construction + venv `site-packages` on `sys.path`). Verified live
+  after the fix: `/health` → 200, `/` → SPA index over HTTPS.
+  Ordered suspects + exact log retrieval steps stay in
+  CPANEL_DEPLOYMENT.md section 13 (host access required; not
+  guessable from the repository).
 * Full regression: backend 1171 passed / 0 failed (incl. 13 new SPA
   tests + 9 adapter tests, all auth/role/relationship/gamification
   tests unchanged); frontend 345 passed, `typecheck` clean,
@@ -137,7 +141,11 @@ runtime checks; no product behavior changed):
   server stack, no duplicated app init). `a2wsgi>=1.10` is pinned in
   `backend/pyproject.toml` (canonical source) and mirrored in the new
   `backend/requirements.txt` for cPanel's pip install (parity enforced
-  by test; header documents the source of truth).
+  by test; header documents the source of truth). Since 2026-09-14
+  (`1816bdc`) the middleware is constructed lazily per `os.getpid()`:
+  LiteSpeed mod_lsapi pre-forks workers whose fork-inherited loop
+  thread is dead, so an import-time instance hung every first request
+  — each worker now builds its own live instance on first request.
 * Lifespan preserved: the bridge never sends lifespan events
   (verified in the installed `a2wsgi` source), so the required startup
   (`configure_logging`, `settings.ensure_ready()`,
@@ -145,12 +153,14 @@ runtime checks; no product behavior changed):
   `run_startup()`, mirroring `app/main.py`'s lifespan. Non-destructive
   by construction (idempotent `ensure_schema` only); nothing runs per
   request; uvicorn dev path untouched.
-* `.cpanel.yml` finalized: `DEPLOYPATH=/home/kevitir/microchess`
-  (placeholder removed); deploys `passenger_wsgi.py` +
+* `.cpanel.yml` finalized: `DEPLOYPATH=/home/microche/microchess`
+  (account corrected 2026-09-13); deploys `passenger_wsgi.py` +
   `requirements.txt`; still code-only explicit copies (never `.git`,
-  databases, `.env`, venvs, `node_modules`, `dist/`, tests); still no
-  `pip/npm/build` on the server (enforced by test); touches
-  `backend/tmp/restart.txt` for a once-per-deploy Passenger reload.
+  databases, `.env`, venvs, `node_modules`, `frontend/src`, tests);
+  still no Node/npm/build on the server, but the venv `pip install -r
+  requirements.txt` runs idempotently on every deploy (enforced by
+  test); touches `backend/tmp/restart.txt` for a once-per-deploy
+  Passenger reload.
   Full operator reference (paths, env vars, SQLite-outside-code-dirs
   strategy, local `dist/` upload, rollback, smoke test) in the new
   `docs/platform/CPANEL_DEPLOYMENT.md`, with repository-verified facts

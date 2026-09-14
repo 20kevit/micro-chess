@@ -15,22 +15,27 @@ Roadmap (final numbering):
 11. Pin (`pin`, آچمز)
 12. Memorization Board (`chinese-board`, صفحه‌ی حفظی — displayed as
     صفحه‌ی حفظی; the `chinese-board` slug is kept for routes/API/DB only)
-13. Is it Checkmate? (`is-checkmate`, آیا مات است؟) — ADMIN-BLOCKED:
-    needs an Admin workflow for entering/managing positions; do not
-    continue development for now.
+13. Is it Checkmate? (`is-checkmate`, آیا مات است؟) — CONTENT-BLOCKED:
+    playable from seeded positions (validator + seed + frontend page,
+    no speed mode); new positions need an Admin entry workflow, so no
+    content expansion for now.
 14. Blindfold Square Vision (`blindfold-square-vision`, خانه‌یابی ذهنی)
 15. Blindfold Calculation (`blindfold-calculation`, محاسبه‌ی ذهنی)
-16. Mental Opening (`opening-traps`, گشایش ذهنی) — ADMIN-BLOCKED:
-    needs Admin-entered positions; do not continue development for now.
-17. Reverse Opening (`reverse-opening`, گشایش معکوس) — ADMIN-BLOCKED:
-    needs Admin-entered positions; do not continue development for now.
+16. Mental Opening (`opening-traps`, گشایش ذهنی) — CONTENT-BLOCKED:
+    playable from seeded positions; new positions need Admin-entered
+    content, so no content expansion for now.
+17. Reverse Opening (`reverse-opening`, گشایش معکوس) — CONTENT-BLOCKED:
+    playable from seeded positions (validator + step oracle + frontend
+    page); new positions need Admin-entered content, so no content
+    expansion for now.
     The former `opening-move-reconstruction` implementation was
     consolidated under this slug; do not keep two exercises.
 18. Trapped Piece (`trapped-pieces`, مهره‌ی گرفتار)
 19. REMOVED — `avoid-stalemate` (deleted from the project, no placeholder)
 20. REMOVED — `rule-of-the-square` (deleted from the project, no placeholder)
-21. Castling Rights (`castling-rights`, حقوق قلعه‌رفتن) — ADMIN-BLOCKED:
-    needs Admin-entered positions; do not continue development for now.
+21. Castling Rights (`castling-rights`, حقوق قلعه‌رفتن) — CONTENT-BLOCKED:
+    playable from seeded positions; new positions need Admin-entered
+    content, so no content expansion for now.
 
 Removed (no placeholders left): the former Exercises 5 (Hanging
 Pieces, `hanging-pieces`) and 6 (Equal Attackers & Defenders,
@@ -252,7 +257,7 @@ official Persian title `رفع کیش` (never `فرار از کیش`).
 ## Seventh slice (Exercise 7)
 
 **Pathfinding** — IMPLEMENTED (`pathfinding`, simple version). Full spec:
-`docs/exercises/06-pathfinding.md`.
+`docs/exercises/07-pathfinding.md`.
 
 - Route: `/exercises/pathfinding` with `?mode=practice` (untimed) and
   `?mode=speed` (60s session); card renders both entry buttons directly
@@ -295,7 +300,7 @@ official Persian title `رفع کیش` (never `فرار از کیش`).
 
 **Pathfinding with Obstacles** — IMPLEMENTED (`pathfinding-obstacles`,
 obstacle/enemy-piece pathfinding). Full spec:
-`docs/exercises/07-pathfinding-obstacles.md`.
+`docs/exercises/08-pathfinding-obstacles.md`.
 
 - Route: `/exercises/pathfinding-obstacles` with `?mode=practice`
   (untimed) and `?mode=speed` (60s session); card renders both entry
@@ -440,8 +445,9 @@ into real-board material evaluation:
 ## Eleventh slice
 
 **Is it Checkmate?** — IMPLEMENTED (`is-checkmate`, Exercise 13, آیا مات است؟).
-ADMIN-BLOCKED: needs an Admin workflow for entering/managing positions;
-do not continue development for now.
+CONTENT-BLOCKED: playable from seeded positions (no speed mode);
+new positions need an Admin entry workflow, so no content
+expansion for now.
 
 - Route: `/exercises/is-checkmate` (shared `ExercisePlay` options loop with
   read-only board: three fixed choices مات/کیش/بدون کیش, no hints of the
@@ -533,8 +539,9 @@ Exercise 15, محاسبه‌ی ذهنی).
 ## Fifteenth slice
 
 **Mental Opening** — IMPLEMENTED (`opening-traps`, Exercise 16, گشایش ذهنی).
-ADMIN-BLOCKED: needs Admin-entered positions; do not continue
-development for now.
+CONTENT-BLOCKED: playable from seeded positions (no speed mode);
+new positions need Admin-entered content, so no content expansion
+for now.
 
 - MVP is one tactical move from a genuine opening-trap position.
   Checkmate is NOT required; correctness is membership of the parsed move
@@ -568,8 +575,9 @@ development for now.
 ## Sixteenth slice
 
 **Reverse Opening** — IMPLEMENTED (`reverse-opening`, Exercise 17,
-گشایش معکوس). ADMIN-BLOCKED: needs Admin-entered positions; do not
-continue development for now. (Consolidated from the former
+گشایش معکوس). CONTENT-BLOCKED: playable from seeded positions;
+new positions need Admin-entered content, so no content expansion
+for now. (Consolidated from the former
 `opening-move-reconstruction` slug; there is only one exercise.)
 
 - Route: `/exercises/reverse-opening` (dedicated
@@ -653,8 +661,9 @@ candidates; kings use pure legality (never move into check).
 ## Nineteenth slice (end of the roadmap)
 
 **Castling Rights** — IMPLEMENTED (`castling-rights`, Exercise 21).
-ADMIN-BLOCKED: needs Admin-entered positions; do not continue
-development for now.
+CONTENT-BLOCKED: playable from seeded positions (no speed mode);
+new positions need Admin-entered content, so no content expansion
+for now.
 - Route: `/exercises/castling-rights` (shared `ExercisePlay` loop extended
   with a fixed four-option mode; board shows the position as context only).
 - Validator: `backend/app/modules/castling_rights/validator.py` (each option

@@ -337,7 +337,7 @@ def state_from_fen(
 
 # Practical guard: with <= 5 enemies the reachable state space stays far
 # below this; exceeding it means a degenerate position the generator must
-# reject (documented in docs/exercises/07-pathfinding-obstacles.md).
+# reject (documented in docs/exercises/08-pathfinding-obstacles.md).
 MAX_VISITED = 30000
 
 

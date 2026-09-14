@@ -1,132 +1,163 @@
-# MicroChess — Foundation (MVP scaffold)
+# MicroChess
 
 Mobile-first educational chess exercise platform for children.
-Persian-first, RTL by default. See `docs/` for product and architecture.
+Persian-first, RTL by default. The backend is authoritative for
+validation, scoring, and rating — the frontend only renders boards
+and transports answers.
 
-## Structure
+## Status
 
-- `frontend/` — React + Vite + TypeScript + Tailwind + React Router
-- `backend/` — FastAPI + SQLAlchemy + Pydantic + python-chess (SQLite now, PostgreSQL-ready)
-- `docs/` — PRD, architecture, API, exercises
+Active development. Nineteen exercises are registered and playable
+(see `docs/EXERCISES.md` for the official roadmap): fourteen with
+full practice + 60-second speed modes, five as practice/attempt
+play from seeded positions (no speed clock yet). Account, training,
+admin, analytics, and deployment subsystems are implemented and
+covered by tests — see `docs/platform/IMPLEMENTATION_STATE.md`
+for the verified phase-by-phase state.
 
-## Quick start
+## Features (implemented)
 
-Backend:
+- **Exercises** — 19 registered validators: piece recognition,
+  legal destinations, captures, undefended pieces, giving check,
+  get out of check, pathfinding (+ obstacles), balance scale,
+  heavier side, pin, memorization board, blindfold square vision,
+  blindfold calculation, trapped pieces, plus checkmate,
+  mental opening, reverse opening, and castling rights from
+  seeded positions.
+- **Authoritative play loop** — per-exercise practice endpoints
+  plus prepare-then-clock speed sessions; answers never leave
+  the server before submission.
+- **Accounts & roles** — register/login, JWT sessions, guest
+  sessions, active-role switching (player/coach/parent/admin).
+- **Training platform** — attempt history, per-exercise ratings,
+  gamification (XP/streaks/achievements), adaptive training,
+  coach/parent relationships and assignments.
+- **Admin & content** — admin panel API, puzzle lifecycle
+  (publish/archive, answers immutable once published), content
+  generators, analytics, support tickets, in-app notifications.
+- **Deployment** — single-host push deployment: FastAPI serves
+  the prebuilt frontend with SPA fallback; see `docs/DEPLOYMENT.md`.
 
-```bash
-cd backend
-python -m venv .venv
-.venv/Scripts/activate
-pip install -e ".[test]"
-cp .env.example .env
-uvicorn app.main:app --reload
+## Architecture (short)
+
+```text
+frontend/  React + Vite + TS + Tailwind, RTL Persian shell
+backend/   FastAPI + SQLAlchemy + Pydantic, modular by responsibility
+docs/      product + architecture + api + exercises + platform
 ```
 
-Frontend:
+- `frontend/` never decides correctness.
+- Standard chess rules live only in `backend/app/modules/chess_engine/`
+  (python-chess wrapper); exercise-specific rules live in that
+  exercise's validator, registered in
+  `backend/app/modules/exercises/registry.py` — no per-exercise
+  branches in the core attempt flow.
+- Details: `docs/ARCHITECTURE.md` (exercise pipeline) and
+  `docs/platform/ARCHITECTURE.md` (platform subsystems).
+
+## Tech stack
+
+- Backend: Python ≥3.12, FastAPI, SQLAlchemy, Pydantic,
+  python-chess, SQLite (PostgreSQL-ready via `DATABASE_URL`).
+- Frontend: React 18, Vite 6, TypeScript, Tailwind CSS v4,
+  React Router 6, self-hosted Vazirmatn font.
+- Production: cPanel + LiteSpeed + Passenger (`a2wsgi` bridge),
+  prebuilt `frontend/dist/` served by FastAPI.
+
+## Local setup
+
+Prerequisites: Python 3.12+, Node 18+.
 
 ```bash
+# Backend
+cd backend
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e ".[test]"
+cp .env.example .env
+uvicorn app.main:app --reload   # http://localhost:8000, health at /health
+```
+
+```bash
+# Frontend (second terminal)
 cd frontend
 npm install
 cp .env.example .env
-npm run dev
+npm run dev                   # http://localhost:5173, /api proxied to :8000
 ```
 
-Seed Piece Recognition demo puzzles:
+Seed demo puzzles (from `backend/`, one module per exercise, e.g.):
 
 ```bash
-cd backend
 python -m app.modules.piece_recognition.seed
-```
-
-Seed Pin demo puzzles (fresh databases need this for `/exercises/pin` to be playable):
-
-```bash
-cd backend
 python -m app.modules.pin.seed
 ```
 
-Dev database note: schema is managed by `app/db/migration.py`
-(`ensure_schema` runs on startup and records `schema_version`; reruns are
-safe and preserve data). For a clean dev reset, stop the server, delete
-the gitignored `backend/microchess.db`, restart, and re-run the seed above.
+Full guide (environment variables, database, all seed modules,
+clean dev reset): `docs/SETUP.md`.
 
-## Quality gates
+## Tests
 
 ```bash
-cd backend
-pytest
-
-cd ../frontend
-npm run typecheck
-npm run build
+cd backend && pytest
+cd ../frontend && npm run typecheck && npm run build && npm test
 ```
 
-## Decisions (short)
+What each gate covers: `docs/TESTING.md`.
 
-- Backend is authoritative for validation/scoring/rating. Frontend never decides correctness.
-- Exercise validators plug into `exercises/registry.py`; no giant `if/elif`.
-- Standard chess lives in `chess_engine/` (python-chess). Custom rules live in each exercise validator.
-- Shared `puzzles.db` (optional, read-only, FEN only) feeds `positions/repository.py`; per-exercise generators build questions server-side.
-- Exercise 1: practice (untimed, `POST .../next`, client prefetch buffer) +
-  speed (prepare ≥20, then authoritative 60s clock, ~450ms auto-advance,
-  server-rebuilt report); zero-target questions valid; per-square scoring
-  (+5/−1/−2 with +5 zero-target bonus, negatives kept); self-hosted
-  Vazirmatn font; answers never leave the server.
-- Exercise 2 (Legal Destinations): same practice+speed architecture with a
-  dynamic white-only generator (uniform target piece, deliberate blockers,
-  `ignore-enemy-attacks` profile), sky-ring target highlight, identical
-  per-square scoring; full spec in `docs/exercises/02-legal-destinations.md`.
-- Exercise 3 (Captures): same practice+speed architecture with a dynamic
-  hunter-vs-black generator (one white hunter, 3–8 black pieces, deliberate
-  capturable/shielded/decoy patterns, defense explicitly irrelevant via the
-  `ignore-enemy-attacks` profile), hunter highlight, identical per-square
-  scoring; full spec in `docs/exercises/03-captures.md`.
-- Exercise 4 (Undefended Pieces «مهره‌های بی‌دفاع»): same practice+speed
-  architecture with a shared-`puzzles.db` position source (FEN only, like
-  Exercise 1, bounded sampling preferring non-empty answers), no
-  pre-highlight, absolute-pin-aware rule (pinned-to-King pieces never
-  count, pin-to-Queen still counts, Kings never answers), identical
-  per-square scoring; full spec in
-  `docs/exercises/04-undefended-pieces.md`.
-- Exercise 5 (Giving Check «کیش دادن»): same practice+speed architecture
-  with a shared-`puzzles.db` position source (FEN only, bounded sampling
-  that rejects positions with either King already in check), answer as a
-  SET of arrows (every legal non-King checking move as from→to UCI for
-  White AND Black regardless of side to move:
-  direct/capture/discovered/double/promotion/en-passant, Kings and
-  castling never answers), reusable multi-arrow board layer
-  (press-drag-release for mouse + touch, per-arrow remove/promotion,
-  green/amber/red feedback), identical per-move scoring; full spec in
-  `docs/exercises/05-giving-check.md`.
-- Exercise 7 (Pathfinding «مسیریابی», simple version): same
-  practice+speed architecture with a dynamic weighted generator (one
-  white knight/bishop/rook/queen at 50/20/20/10, one star, empty board —
-  no king, no enemies, no captures), pure movement geometry + BFS
-  shortest-path counts stored server-side, drag-primary/click-supported
-  step loop with persistent selection (220ms practice / 110ms speed
-  glide, illegal buzz + red flash), arrival auto-submits
-  `{path, illegal_attempts}` for `optimal×5 − extra×2 − illegal×3`
-  scoring; full spec in `docs/exercises/06-pathfinding.md`.
-  Obstacle/enemy-piece pathfinding is Exercise 8; Get Out of Check is
-  Exercise 6 (رفع کیش).
-- Former Exercises 5 (Hanging Pieces) and 6 (Attacker/Defender Equality)
-  were removed from the project; `memory-board` (superseded by Exercise 12),
-  `opening-move-reconstruction` (renamed to `reverse-opening`), `avoid-stalemate`,
-  and `rule-of-the-square` were removed as well. Official numbering and
-  roadmap: see `docs/EXERCISES.md` (single source of truth). Exercises 13
-  (is-checkmate), 16 (opening-traps), 17 (reverse-opening), and 21
-  (castling-rights) are ADMIN-BLOCKED pending an Admin position-entry workflow.
-- Tables now: `users`, `exercises`, `puzzles`, `attempts`, `piece_speed_sessions`,
-  `legal_speed_sessions`, `capture_speed_sessions`,
-  `undefended_speed_sessions`, `giving_check_speed_sessions`,
-  `pathfinding_speed_sessions`. Rating tables postponed.
-- Puzzle answers immutable once published; archive instead of delete.
-- Attempts distinguish correct/partial/wrong/timeout/skipped/abandoned + rated/practice.
-- Audio is a `AudioPort` boundary only; no TTS vendor yet.
-- Anonymous progress: browser localStorage now; `attempts.user_id` nullable for future transfer.
-- Visual language: MicroChess Design System (`docs/DESIGN_SYSTEM.md`, tokens in `frontend/src/index.css`).
+## Frontend build
 
-## Intentionally NOT implemented
+```bash
+cd frontend
+npm ci
+VITE_API_BASE_URL= npm run build   # empty => same-origin /api/v1/...
+```
 
-All 20+ exercises (Piece Recognition comes as the first vertical slice later),
-Glicko-2 rating, admin panel, TTS provider, analytics system.
+`frontend/dist/` is intentionally committed: it is the production
+artifact for push deployment (no server-side build on the host).
+
+## Deployment (overview)
+
+`git push` → cPanel runs `.cpanel.yml` → code paths are replaced
+under `/home/microche/microchess`, dependencies install into the
+account virtualenv, Passenger reloads via `tmp/restart.txt`. The
+`.env` file and database live beside the code and survive deploys.
+Operator reference: `docs/DEPLOYMENT.md` (overview) and
+`docs/platform/CPANEL_DEPLOYMENT.md` (full runbook).
+
+## Documentation
+
+- Setup / testing / configuration / deployment:
+  `docs/SETUP.md`, `docs/TESTING.md`, `docs/CONFIGURATION.md`, `docs/DEPLOYMENT.md`
+- Product & architecture: `docs/PRD.md` (original),
+  `docs/platform/PRODUCT_SCOPE.md` (current),
+  `docs/ARCHITECTURE.md`, `docs/platform/ARCHITECTURE.md`
+- API: `docs/API.md` (implemented endpoints),
+  `docs/platform/API_CONTRACTS.md` (conventions)
+- Exercises: `docs/EXERCISES.md` (roadmap, single source of truth),
+  `docs/exercises/` (per-exercise specs)
+- Platform state & runbooks: `docs/platform/IMPLEMENTATION_STATE.md`,
+  `docs/platform/CPANEL_DEPLOYMENT.md`, `docs/platform/SECURITY.md`
+- Design: `docs/DESIGN_SYSTEM.md`
+- Changes: `CHANGELOG.md`
+
+## Roadmap
+
+Near term (blocked only on an admin position-entry workflow):
+content expansion for checkmate, mental opening, reverse opening,
+and castling rights. Explicitly deferred: PostgreSQL migration
+(config-only when it happens), Glicko-2 rating, TTS provider.
+Exercise numbering and status: `docs/EXERCISES.md`;
+platform phases: `docs/platform/IMPLEMENTATION_STATE.md`.
+
+## Contributing
+
+See `CONTRIBUTING.md` — setup, quality gates (`pytest`,
+`typecheck`, `build`), and agent/architecture boundaries
+(`AGENTS.md`). UI text is Persian; code, comments, commits,
+and docs are English.
+
+## License
+
+No license file is present yet. Until the maintainer adds one
+(e.g. MIT), the code is not offered for reuse.

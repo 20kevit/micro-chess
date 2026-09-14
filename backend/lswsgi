@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""LiteSpeed mod_lsapi launcher for the MicroChess Passenger app.
+
+cPanel + CloudLinux (LiteSpeed) mounts a Python app by running
+``$PASSENGER_PYTHON <app_root>/lswsgi`` against the Application Root.
+LiteSpeed expects this exact filename at the app root; the launcher
+resolves the real ``lswsgi`` server binary and re-executes it in module
+mode with the WSGI entry point, mirroring CloudLinux's own
+``lswsgi_wrapper`` plus the venv site-packages on PYTHONPATH.
+
+No application logic lives here — this file only transports execution
+from the Passenger worker into FastAPI via ``passenger_wsgi.application``.
+
+Why this needs to be generic: the deployed app root is wiped and replaced
+on every cPanel deploy, so this file cannot hard-code account paths.
+"""
+
+import os
+import sys
+import sysconfig
+
+WSGI_ROOT = os.path.dirname(os.path.abspath(__file__))
+WSGI_STARTUP = os.path.join(WSGI_ROOT, "passenger_wsgi.py")
+
+
+def _venv_path() -> str:
+    first = os.environ.get("VIRTUAL_ENV") or os.environ.get("PYTHONHOME")
+    if first and os.path.isdir(first):
+        return first
+    candidate = os.path.join(os.path.expanduser("~"), "virtualenv", "microchess", "backend", "3.12")
+    return candidate if os.path.isdir(candidate) else first or ""
+
+
+def _lswsgi_bin(venv: str) -> str:
+    for candidate in (
+        os.environ.get("LSWSGI_BIN"),
+        os.path.join(venv, "bin", "lswsgi"),
+        "/opt/alt/python312/bin/lswsgi",
+        "/opt/alt/python311/bin/lswsgi",
+    ):
+        if candidate and os.path.exists(candidate):
+            return candidate
+    return os.environ.get("LSWSGI_BIN") or "/opt/alt/python312/bin/lswsgi"
+
+
+_KEEP_VARS = frozenset({
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL",
+    "VIRTUAL_ENV", "PYTHONHOME", "PYTHONPATH", "LSWSGI_BIN",
+    "LSWSGI_*", "LSAPI_*", "LSNODE_*", "PASSENGER_*",
+})
+
+# Per-variable cap: Linux ``MAX_ARG_STRLEN`` is 131072 and the whole
+# argv+envp must also fit the kernel stack limit. LiteSpeed occasionally
+# passes a single ginormous variable (PATH/HTTP_* style accumulation).
+_MAX_ENV_VALUE = 8192
+
+
+def _bounded_envp() -> dict[str, str]:
+    """Return a child environment that is guaranteed to exec cleanly.
+
+    ``os.execv`` forwards the *whole* inherited env by default; LiteSpeed
+    can accumulate hundreds of KB there (or one > 128 KB variable), which
+    fails with ``os.execv``/``os.execve`` raising E2BIG.  We keep only the
+    variables lswsgi/app runtime plausibly needs, drop anything oversized,
+    and never trust an inherited value that could blow up exec.
+    """
+    envp: dict[str, str] = {}
+    for key, val in os.environ.items():
+        keep = key in _KEEP_VARS
+        if not keep:
+            for pat in _KEEP_VARS:
+                if pat.endswith("*") and key.startswith(pat[:-1]):
+                    keep = True
+                    break
+        if keep and len(val) <= _MAX_ENV_VALUE:
+            envp[key] = val
+
+    # Ensure essential vars are always present, with trusted small values.
+    envp.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
+    envp.setdefault("HOME", os.path.expanduser("~"))
+    if "USER" not in envp:
+        envp["USER"] = os.environ.get("USER", "")
+    return envp
+
+
+def main() -> None:
+    venv = _venv_path()
+    lswsgi_bin = _lswsgi_bin(venv)
+
+    # Resolve site-packages for the venv so app dependencies resolve.
+    site_packages = [
+        path
+        for key in ("purelib", "platlib")
+        if (path := sysconfig.get_paths().get(key))
+    ]
+
+    # Build a bounded child environment.
+    envp = _bounded_envp()
+    if venv:
+        envp["VIRTUAL_ENV"] = venv
+    python_home = lswsgi_bin.rsplit("/bin/", 1)[0]
+    envp["PYTHONHOME"] = python_home
+    current = envp.get("PYTHONPATH", "")
+    envp["PYTHONPATH"] = os.pathsep.join(
+        site_packages + ([current] if current else [])
+    )
+    envp["LSWSGI_BIN"] = lswsgi_bin
+
+    os.chdir(WSGI_ROOT)
+
+    args = sys.argv[1:]
+    if not any(arg in ("-m", "--module") for arg in args):
+        args = ["-m", WSGI_STARTUP, *args]
+
+    os.execve(lswsgi_bin, [lswsgi_bin, *args], envp)
+
+
+if __name__ == "__main__":
+    main()
