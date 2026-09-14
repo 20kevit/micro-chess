@@ -6,20 +6,20 @@
 #   → the tasks below run with the clone as working directory
 #   → production application under $DEPLOYPATH.
 #
-# Production layout for account `kevitir` (operator-confirmed values;
+# Production layout for account `microche` (operator-confirmed values;
 # see docs/platform/CPANEL_DEPLOYMENT.md):
 #   Git clone (cPanel-managed, DO NOT deploy into it):
-#     /home/kevitir/repositories/micro-chess
+#     /home/microche/repositories/micro-chess
 #   Deployment root:
-#     /home/kevitir/microchess
+#     /home/microche/microchess
 #   Python Application Root (cPanel "Setup Python App"):
-#     /home/kevitir/microchess/backend
+#     /home/microche/microchess/backend
 #   Startup File (relative to the Application Root):
 #     passenger_wsgi.py
 #   Entry Point (WSGI callable):
 #     application
 #   Python virtualenv (operator-confirmed):
-#     /home/kevitir/virtualenv/microchess/backend/3.12
+#     /home/microche/virtualenv/microchess/backend/3.12
 #
 # Deliberately NOT done here:
 #   * no `npm ci` / `npm install` / `npm run build`, no node server on
@@ -48,7 +48,7 @@
 ---
 deployment:
   tasks:
-    # Deployment root for the kevitir account.
+    # Deployment root for the microche account.
     - export DEPLOYPATH=/home/microche/microchess
     # Replace code paths only (never the backend dir itself, so `.env`
     # files or databases beside the code survive every deploy).
@@ -74,7 +74,7 @@ deployment:
     # idempotent — pip skips satisfied requirements, so this is a cheap
     # no-op unless requirements.txt changed. A wrong path fails the
     # deploy loudly instead of booting half-installed.
-    - /home/kevitir/virtualenv/microchess/backend/3.12/bin/pip install -r "$DEPLOYPATH/backend/requirements.txt"
+    - /home/microche/virtualenv/microchess/backend/3.12/bin/pip install -r "$DEPLOYPATH/backend/requirements.txt"
     # Reload the Passenger application so the new code takes effect on
     # the next request. `tmp/restart.txt` is the standard Passenger
     # restart marker; touching it never restarts per request and cannot

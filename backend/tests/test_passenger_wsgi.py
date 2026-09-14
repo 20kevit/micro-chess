@@ -52,9 +52,17 @@ def _wsgi_get(path: str):
 
 def test_application_exists_and_is_wsgi_bridge():
     assert callable(passenger_wsgi.application)
-    assert isinstance(passenger_wsgi.application, ASGIMiddleware)
-    # The adapter wraps the existing FastAPI app — no duplicated app.
-    assert passenger_wsgi.application.app is fastapi_app
+    # Per-process lazy construction: `application` is a callable that
+    # resolves the a2wsgi bridge on first request in the current process
+    # (fork-safe under LiteSpeed mod_lsapi). The bridge wraps the
+    # existing FastAPI app — no duplicated app.
+    middleware = passenger_wsgi.get_wsgi()
+    assert isinstance(middleware, ASGIMiddleware)
+    assert middleware.app is fastapi_app
+    # Same-process caching: repeated resolution is a no-op.
+    assert passenger_wsgi.get_wsgi() is middleware
+    # The public callable stays a plain WSGI entry point.
+    assert not isinstance(passenger_wsgi.application, ASGIMiddleware)
 
 
 def test_health_reachable_through_adapter():
@@ -124,7 +132,7 @@ def test_cpanel_yml_deploys_adapter_safely():
     # Plain-text assertions keep this test dependency-free (no YAML lib
     # needed): the file's structure is validated separately by deployment.
     script = (BACKEND_DIR.parent / ".cpanel.yml").read_text()
-    assert "export DEPLOYPATH=/home/kevitir/microchess" in script
+    assert "export DEPLOYPATH=/home/microche/microchess" in script
     assert "/home/example/" not in script
     assert "passenger_wsgi.py" in script
     assert "requirements.txt" in script

@@ -271,7 +271,9 @@ The full 34-check fresh-DB matrix (register → roles → relationships →
 attempt → rating → gamification → support → notifications) is automated
 locally; see IMPLEMENTATION_STATE.md Phase 13 evidence.
 
-## 13. Current 500 diagnosis (evidence + required log)
+## 13. Live failures and their fixes (evidence)
+
+### 500 → `200 0` hang → fork-safety fix
 
 Observed 2026-09-12 (fetched live): `/`, `/health`, and
 `/api/v1/exercises` ALL return HTTP 500.
@@ -290,6 +292,31 @@ route. Ordered suspects (cannot be distinguished without the real log):
    (unwritable/misconfigured `DATABASE_URL`), or a missing venv package
    (e.g. `a2wsgi` never installed after Phase 13 added it).
 3. venv/Python mismatch or file permissions on the host.
+
+RESOLVED 2026-09-14. The boot-level symptoms were real but the final
+hang had a different root cause, diagnosed live via WSGI probes:
+
+* Requests DID reach the WSGI layer (`passenger_wsgi.application` ran;
+  a `PRE-WSGI` probe logged per request), yet no HTTP response was ever
+  written — LiteSpeed logged `200 0` and the client timed out. The
+  worker accepted the connection and then a forked child stalled in
+  `a2wsgi`'s first `next()` on the WSGI generator.
+* Root cause: `a2wsgi.ASGIMiddleware` constructs an asyncio event-loop
+  **thread** in its `__init__`. LiteSpeed mod_lsapi on this host uses
+  pre-forked workers (`LSAPI_CHILDREN`, `LSAPI_KEEP_LISTEN=2`); the
+  master imports the module at startup, then each request is served by
+  a process **forked** from the master. Threads do not exist in the
+  child after `fork()`, so `a2wsgi`'s
+  `run_coroutine_threadsafe(...).result()` deadlocked forever on the
+  first generator `next()`.
+* Fix (committed): `backend/passenger_wsgi.py` builds the middleware
+  lazily, keyed by `os.getpid()`. Each forked worker constructs its own
+  live loop thread on first request. Also added explicit vitualenv
+  `site-packages` (incl. `lib64` for binary wheels) to `sys.path`.
+  After the fix `/health` → `200 {"status":"ok"}`, `/` → the SPA
+  index.html, over HTTPS and HTTP/2.
+* The deployed `.cpanel.yml` pip path was still `/home/kevitir/...`;
+  the operator account is `microche` (fixed in the same commit).
 
 MUST BE VERIFIED ON THIS CPANEL ACCOUNT — retrieve the real error:
 

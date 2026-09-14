@@ -21,6 +21,21 @@ are documented per phase in `docs/platform/IMPLEMENTATION_STATE.md`.
   replacement (beside-the-code `.env`/database files survive),
   `restart.txt` reload, no Node/npm on the server.
 
+### Fixed
+
+* Requests reached the WSGI layer but no response was ever written
+  under LiteSpeed mod_lsapi (client timed out, LiteSpeed logged
+  `200 0`). Root cause: `a2wsgi.ASGIMiddleware` spawns an asyncio
+  event-loop *thread* in its constructor, but LiteSpeed pre-forks
+  workers (`LSAPI_CHILDREN`) that only inherit a fork-time thread
+  — `run_coroutine_threadsafe(...).result()` deadlocked on the first
+  `next()` of the WSGI generator. `backend/passenger_wsgi.py` now
+  builds the middleware lazily, keyed by `os.getpid()`, so every
+  forked worker constructs its own live loop thread on first request.
+* `.cpanel.yml` deployment paths pointed at `/home/kevitir/...`, the
+  operator account is `microche`; the venv `pip` invocation now targets
+  `/home/microche/virtualenv/microchess/backend/3.12/bin/pip`.
+
 ### Notes
 
 * Frontend build happens locally because the current hosting
@@ -29,9 +44,10 @@ are documented per phase in `docs/platform/IMPLEMENTATION_STATE.md`.
   MicroChess architecture limitation; a future host can regain
   server-side builds via `.cpanel.yml` alone.
 * Production returned HTTP 500 on `/`, `/health`, and
-  `/api/v1/exercises` at implementation time (boot-level failure;
-  diagnosis + log retrieval steps in
-  `docs/platform/CPANEL_DEPLOYMENT.md` section 13).
+  `/api/v1/exercises` at implementation time, and later hung
+  (requests at the WSGI layer, no response) until the fork-safety fix
+  above. Diagnosis + log retrieval steps in
+  `docs/platform/CPANEL_DEPLOYMENT.md` section 13.
 
 ## Phase 13 — cPanel deployment readiness
 
