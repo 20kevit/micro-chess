@@ -397,6 +397,76 @@ def retire_puzzle(
     return service.puzzle_admin_view(puzzle)
 
 
+# P1 safety transitions. Quarantine/reject/release reuse the existing
+# PUZZLES_RETIRE capability (ADMIN-held privileged content-removal
+# scope); restore reuses PUZZLES_PUBLISH (it returns content to servable
+# standing). No capability-registry or role-mapping change is required;
+# the distinct audit actions (puzzles.quarantine/release/reject/restore)
+# keep them distinguishable in the audit trail.
+@router.post("/puzzles/{puzzle_id}/quarantine", response_model=schemas.PuzzleAdminOut)
+def quarantine_puzzle(
+    puzzle_id: int,
+    body: schemas.PuzzleLifecycleIn | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.PUZZLES_RETIRE)),
+):
+    try:
+        puzzle, _ = service.quarantine_puzzle(
+            db, actor_id=user.id, puzzle_id=puzzle_id, reason=(body.reason if body else "")
+        )
+    except ValueError as exc:
+        raise _domain_error(exc)
+    return service.puzzle_admin_view(puzzle)
+
+
+@router.post("/puzzles/{puzzle_id}/release", response_model=schemas.PuzzleAdminOut)
+def release_puzzle(
+    puzzle_id: int,
+    body: schemas.PuzzleLifecycleIn | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.PUZZLES_RETIRE)),
+):
+    try:
+        puzzle, _ = service.release_puzzle(
+            db, actor_id=user.id, puzzle_id=puzzle_id, reason=(body.reason if body else "")
+        )
+    except ValueError as exc:
+        raise _domain_error(exc)
+    return service.puzzle_admin_view(puzzle)
+
+
+@router.post("/puzzles/{puzzle_id}/reject", response_model=schemas.PuzzleAdminOut)
+def reject_puzzle(
+    puzzle_id: int,
+    body: schemas.PuzzleLifecycleIn | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.PUZZLES_RETIRE)),
+):
+    try:
+        puzzle, _ = service.reject_puzzle(
+            db, actor_id=user.id, puzzle_id=puzzle_id, reason=(body.reason if body else "")
+        )
+    except ValueError as exc:
+        raise _domain_error(exc)
+    return service.puzzle_admin_view(puzzle)
+
+
+@router.post("/puzzles/{puzzle_id}/restore", response_model=schemas.PuzzleAdminOut)
+def restore_puzzle(
+    puzzle_id: int,
+    body: schemas.PuzzleLifecycleIn | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.PUZZLES_PUBLISH)),
+):
+    try:
+        puzzle, _ = service.restore_puzzle(
+            db, actor_id=user.id, puzzle_id=puzzle_id, reason=(body.reason if body else "")
+        )
+    except ValueError as exc:
+        raise _domain_error(exc)
+    return service.puzzle_admin_view(puzzle)
+
+
 # --- generators ------------------------------------------------------------
 
 

@@ -37,6 +37,13 @@ class Attempt(Base):
     rating_before: Mapped[float | None] = mapped_column(Float, nullable=True)
     rating_delta: Mapped[float | None] = mapped_column(Float, nullable=True)
     rating_after: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # P1 historical context snapshot (server-authoritative, write-once at
+    # creation). Puzzle difficulty and puzzle rating are mutable admin
+    # metadata; the snapshot preserves what the attempt meant at the time
+    # it was submitted. NULL for all pre-P1 rows: historical truth is
+    # never backfilled or inferred.
+    puzzle_rating_snapshot: Mapped[float | None] = mapped_column(Float, nullable=True)
+    difficulty_snapshot: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # XP snapshot for qualifying attempts (server-authoritative; Phase 5).
     # Non-qualifying attempts (guests, terminal states) keep this NULL.
     xp_awarded: Mapped[int | None] = mapped_column(Integer, nullable=True)

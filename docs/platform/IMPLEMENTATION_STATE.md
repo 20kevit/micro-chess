@@ -1087,3 +1087,41 @@ Before implementing any phase, the agent MUST:
 6. update this document with evidence
 
 The agent must never assume that a phase is incomplete merely because its documentation exists, or complete merely because its documentation describes the desired state.
+
+---
+
+## 10. P1 — Attempt Context + Puzzle Lifecycle Alignment
+
+* Attempt snapshot (`progress/models.py`, captured in
+  `progress/service.py::submit_attempt`): `puzzle_rating_snapshot`
+  (copy of `Puzzle.initial_rating`) + `difficulty_snapshot` (copy of
+  declared `Puzzle.difficulty`), write-once at creation; pre-P1 rows
+  keep NULL (no backfill, per policy). Internal-only: not exposed in
+  `AttemptOut`.
+* Lifecycle safety states (`puzzles/models.py`, `admin/service.py`),
+  per `docs/PUZZLE_LIFECYCLE.md` (Phase 0E): `quarantined` (entry from
+  published or pre-publish hold; frozen, not servable) and `rejected`
+  (terminal refusal from pre-published states or quarantine;
+  post-publish refusal goes via retire + reject-note, never direct
+  published → rejected). Release restores pre-quarantine standing
+  (published, else draft for re-validation); restore (retired →
+  previously-published, else draft) is a new audited decision.
+  Explicit `LIFECYCLE_TRANSITIONS` map enforced in `_record_transition`
+  (exactly the implemented transitions — no invented demotions);
+  every safety transition records actor/reason/timestamp in
+  `puzzle_status_history` + audit (`puzzles.quarantine/release/reject/
+  restore`). Serving boundary (`visible_query`, `submit_attempt`,
+  exercise sessions, adaptive eligibility) is flag-based and excludes
+  both states; `submit_attempt` adds an explicit status guard.
+* No rating changes (formula v1 untouched, no new snapshot/version
+  columns on `RatingEvent`); no guest-access change (guest practice
+  attempts remain by design — see `platform/PRODUCT_SCOPE.md` §7.2,
+  `platform/accounts/SESSIONS_AND_GUESTS.md` §5; auth-gated enforcement
+  is Phase 2 per `docs/AUTH_AND_ACCESS_POLICY.md`); no
+  recommendation/mastery/assignment work.
+* Schema v12 (`db/migration.py`): nullable `attempts` snapshot columns,
+  no backfill; fresh boots stamp v12, upgrades preserve data.
+* Tests: `backend/tests/test_p1_attempt_lifecycle.py` (21 tests:
+  snapshots, legacy NULLs, immutability, valid/invalid transitions,
+  serving boundary, history/audit, guest eligibility boundary,
+  restore, migration fresh/idempotent/legacy).

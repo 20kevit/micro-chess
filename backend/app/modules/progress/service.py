@@ -19,7 +19,7 @@ from app.modules.exercises.models import Exercise
 from app.modules.feedback_engine.service import feedback_key_for
 from app.modules.gamification_engine import service as gamification_service
 from app.modules.progress.models import Attempt
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import STATUS_QUARANTINED, STATUS_REJECTED, Puzzle
 from app.modules.rating_engine import service as rating_service
 from app.modules.rule_engine.base import AttemptMode, AttemptResult, ValidationResult
 
@@ -59,6 +59,11 @@ def submit_attempt(
 ) -> tuple[Attempt, str, dict]:
     puzzle: Puzzle | None = db.get(Puzzle, puzzle_id)
     if puzzle is None or not puzzle.is_published or puzzle.is_archived:
+        raise ValueError("puzzle_not_available")
+    # P1 serving boundary (explicit lifecycle guard): quarantined and
+    # rejected content is never submittable, even if visibility flags
+    # ever desync from the canonical status.
+    if puzzle.status in (STATUS_QUARANTINED, STATUS_REJECTED):
         raise ValueError("puzzle_not_available")
     # Disabled exercises cannot start new training work (Phase 6 admin).
     # Missing catalog rows (legacy/generated content without an Exercise
@@ -106,6 +111,11 @@ def submit_attempt(
         answer_json=answer,
         score=score,
         rating_delta=None,
+        # P1 historical snapshot: difficulty/rating context at submit time.
+        # Write-once here; no update path exists for attempts, so later
+        # puzzle-metadata edits can never rewrite this record.
+        puzzle_rating_snapshot=puzzle.initial_rating,
+        difficulty_snapshot=puzzle.difficulty,
         started_at=started_at.replace(tzinfo=None) if started_at and started_at.tzinfo else started_at,
         duration_ms=_duration_ms(started_at, now),
         hints_used=used_hints,

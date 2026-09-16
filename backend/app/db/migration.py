@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 
 class SchemaVersion(Base):
@@ -363,6 +363,27 @@ def _migrate_v11_active_roles(conn) -> None:
     conn.execute(text("UPDATE auth_sessions SET active_role = 'PLAYER' WHERE active_role IS NULL"))
 
 
+def _migrate_v12_p1(conn) -> None:
+    """P1 attempt context: historical difficulty/rating snapshot columns.
+
+    New ``attempts`` columns (``puzzle_rating_snapshot``,
+    ``difficulty_snapshot``) are created by ``ensure_schema`` via
+    ``Base.metadata.create_all`` on fresh databases; this step adds them
+    idempotently to upgraded databases. No backfill is performed: P1
+    policy forbids fabricating historical context, so every pre-P1 row
+    legitimately keeps NULL snapshots. Only portable column types.
+    """
+    insp = inspect(conn)
+    tables = set(insp.get_table_names())
+    if "attempts" not in tables:
+        return
+    attempt_cols = {c["name"] for c in insp.get_columns("attempts")}
+    if "puzzle_rating_snapshot" not in attempt_cols:
+        conn.execute(text("ALTER TABLE attempts ADD COLUMN puzzle_rating_snapshot FLOAT"))
+    if "difficulty_snapshot" not in attempt_cols:
+        conn.execute(text("ALTER TABLE attempts ADD COLUMN difficulty_snapshot INTEGER"))
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
     (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
@@ -374,6 +395,7 @@ MIGRATIONS: list[tuple[int, str, object]] = [
     (9, "phase-10 adaptive training: recommendation history", _migrate_v9_adaptive),
     (10, "phase-11 support & notifications: tickets, messages, deliveries, preferences", _migrate_v10_support),
     (11, "phase-12 active roles: per-session active_role on auth_sessions", _migrate_v11_active_roles),
+    (12, "p1 attempt context: nullable puzzle_rating/difficulty snapshot columns", _migrate_v12_p1),
 ]
 
 

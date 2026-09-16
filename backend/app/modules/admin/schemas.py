@@ -123,6 +123,13 @@ class PuzzleReviewIn(BaseModel):
     notes: str = Field(default="", max_length=2000)
 
 
+class PuzzleLifecycleIn(BaseModel):
+    # Reason/actor/timestamp for quarantine and rejection decisions.
+    # Actor and timestamp are server-derived (authenticated user, UTC
+    # now) and persisted on the status-history row + audit log.
+    reason: str = Field(default="", max_length=500)
+
+
 class PuzzleHistoryOut(BaseModel):
     puzzle_id: int
     status: str

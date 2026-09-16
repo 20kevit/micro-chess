@@ -7,8 +7,27 @@ records a persistent audit row via ``record_audit`` (secret-free).
 Phase 7 content lifecycle (server-enforced, no frontend trust):
 
 ```text
-draft -> validated -> reviewed -> approved -> published -> retired
+draft -> validated -> reviewed -> approved -> published ⇄ quarantined
+  ↓         ↓            ↓           ↓
+rejected  rejected     rejected    rejected
 ```
+
+P1 safety states, per the approved lifecycle policy (spec states;
+this service implements them):
+
+* quarantine: safety hold; entry from published or as a pre-publish
+  hold (validated/reviewed/approved). Never servable while held.
+* release (cleared): restores the pre-quarantine standing — published
+  when quarantined-from-published, draft otherwise (pre-publish holds
+  must re-pass gates; no step is ever skipped).
+* reject: terminal content decision from pre-published states
+  (draft/validated/reviewed/approved) or from quarantine after
+  investigation. Post-publish refusal goes via retire + reject-note,
+  never direct published -> rejected.
+* restore: retired -> published (when previously published) or draft
+  (when retired before ever being served) is a new audited decision
+  (wrongful retirement recovery, never an edit shortcut).
+* retire: stops new delivery, preserves all history.
 
 * validate: exercise-aware content validation must pass.
 * review: explicit human decision (approve / request_changes / reject).
@@ -41,6 +60,8 @@ from app.modules.puzzles.models import (
     STATUS_APPROVED,
     STATUS_DRAFT,
     STATUS_PUBLISHED,
+    STATUS_QUARANTINED,
+    STATUS_REJECTED,
     STATUS_RETIRED,
     STATUS_REVIEWED,
     STATUS_VALIDATED,
@@ -55,7 +76,42 @@ from app.modules.users.models import CANONICAL_ROLES, User, UserRole
 USER_SORT_FIELDS = ("created_at", "username", "id")
 # Admin filter vocabulary. "archived" stays accepted as an alias of the
 # canonical "retired" state (Phase 6 clients).
-PUZZLE_STATUSES = ("draft", "validated", "reviewed", "approved", "published", "retired", "archived")
+PUZZLE_STATUSES = (
+    "draft",
+    "validated",
+    "reviewed",
+    "approved",
+    "published",
+    "quarantined",
+    "rejected",
+    "retired",
+    "archived",
+)
+# Explicit P1 lifecycle transition map (source -> allowed destinations).
+# It mirrors exactly the transitions implemented below: the linear review
+# pipeline, the safety states, and restore. No code path implements
+# reviewed -> draft or approved -> draft demotions, so the map does not
+# invent them; quarantine entry excludes draft (an unservable draft needs
+# no safety hold — refusal from draft goes via rejected); post-publish
+# refusal goes via retire, never direct published -> rejected.
+LIFECYCLE_TRANSITIONS: dict[str, frozenset[str]] = {
+    STATUS_DRAFT: frozenset({STATUS_VALIDATED, STATUS_REJECTED, STATUS_RETIRED}),
+    STATUS_VALIDATED: frozenset(
+        {STATUS_DRAFT, STATUS_REVIEWED, STATUS_QUARANTINED, STATUS_REJECTED, STATUS_RETIRED}
+    ),
+    STATUS_REVIEWED: frozenset(
+        {STATUS_APPROVED, STATUS_QUARANTINED, STATUS_REJECTED, STATUS_RETIRED}
+    ),
+    STATUS_APPROVED: frozenset(
+        {STATUS_PUBLISHED, STATUS_QUARANTINED, STATUS_REJECTED, STATUS_RETIRED}
+    ),
+    STATUS_PUBLISHED: frozenset({STATUS_QUARANTINED, STATUS_RETIRED}),
+    STATUS_QUARANTINED: frozenset(
+        {STATUS_DRAFT, STATUS_PUBLISHED, STATUS_REJECTED, STATUS_RETIRED}
+    ),
+    STATUS_RETIRED: frozenset({STATUS_DRAFT, STATUS_PUBLISHED}),
+    STATUS_REJECTED: frozenset(),
+}
 PUZZLE_SOURCES = ("manual", "imported")
 REVIEW_DECISIONS = ("approve", "request_changes", "reject")
 
@@ -483,9 +539,13 @@ def _record_transition(
     """Apply a lifecycle transition with history + flag sync.
 
     Player-visibility booleans mirror the canonical status so existing
-    player queries keep working unchanged.
+    player queries keep working unchanged. The transition must be
+    allowed by ``LIFECYCLE_TRANSITIONS``: arbitrary state mutation is
+    rejected even when the caller passed every other gate.
     """
     from_status = _puzzle_status(puzzle)
+    if to_status not in LIFECYCLE_TRANSITIONS.get(from_status, frozenset()):
+        raise ValueError("invalid_transition")
     puzzle.status = to_status
     if to_status == STATUS_PUBLISHED:
         puzzle.is_published = True
@@ -495,6 +555,11 @@ def _record_transition(
     elif to_status == STATUS_RETIRED:
         puzzle.is_archived = True
         puzzle.retired_at = _utcnow()
+    elif to_status in (STATUS_QUARANTINED, STATUS_REJECTED):
+        # Safety states are never servable but are not history-archive:
+        # quarantined stays recoverable, rejected stays inspectable.
+        puzzle.is_published = False
+        puzzle.is_archived = False
     else:
         puzzle.is_published = False
         puzzle.is_archived = False
@@ -530,6 +595,8 @@ def list_puzzles_admin(
         query = query.filter(Puzzle.exercise_slug == exercise)
     if status in ("draft", "validated", "reviewed", "approved", "published"):
         query = query.filter(Puzzle.status == status, Puzzle.is_archived == False)  # noqa: E712
+    elif status in ("quarantined", "rejected"):
+        query = query.filter(Puzzle.status == status)
     elif status in ("retired", "archived"):
         query = query.filter(Puzzle.status == STATUS_RETIRED)
     total = query.count()
@@ -644,6 +711,12 @@ def update_puzzle(db: Session, *, actor_id: int, puzzle_id: int, patch: dict) ->
     status = _puzzle_status(puzzle)
     if status == STATUS_RETIRED:
         # Retired content is production history; it is never edited.
+        raise ValueError("puzzle_immutable")
+    if status == STATUS_REJECTED:
+        # Rejected is a terminal content decision; it is never edited.
+        raise ValueError("puzzle_immutable")
+    if status == STATUS_QUARANTINED:
+        # Quarantined content is frozen during investigation.
         raise ValueError("puzzle_immutable")
     if "exercise_slug" in patch and patch["exercise_slug"] != puzzle.exercise_slug:
         # Exercise association is part of the puzzle's stable identity and
@@ -904,6 +977,11 @@ def retire_puzzle(db: Session, *, actor_id: int, puzzle_id: int) -> tuple[Puzzle
         raise ValueError("puzzle_not_found")
     if _puzzle_status(puzzle) == STATUS_RETIRED:
         return puzzle, False
+    if _puzzle_status(puzzle) == STATUS_REJECTED:
+        # Rejected is a terminal content decision; even retirement must
+        # not silently rewrite it (a future audited override policy may
+        # define an explicit path).
+        raise ValueError("invalid_transition")
     from_status = _puzzle_status(puzzle)
     puzzle_service.archive(db, puzzle)
     db.add(
@@ -924,6 +1002,161 @@ def retire_puzzle(db: Session, *, actor_id: int, puzzle_id: int) -> tuple[Puzzle
         target_type="puzzle",
         target_id=puzzle.id,
         metadata={"exercise_slug": puzzle.exercise_slug},
+    )
+    return puzzle, True
+
+
+def quarantine_puzzle(
+    db: Session, *, actor_id: int, puzzle_id: int, reason: str = ""
+) -> tuple[Puzzle, bool]:
+    """Hold a puzzle for safety review. Entry from published or as a
+    pre-publish hold (validated/reviewed/approved); a draft needs no hold
+    (it is already unservable — refusal from draft goes via rejected).
+    The puzzle leaves normal serving immediately but stays recoverable
+    (release restores its pre-quarantine standing) and auditable.
+    Idempotent."""
+    puzzle = db.get(Puzzle, puzzle_id)
+    if puzzle is None:
+        raise ValueError("puzzle_not_found")
+    if _puzzle_status(puzzle) == STATUS_QUARANTINED:
+        return puzzle, False
+    if _puzzle_status(puzzle) not in (
+        STATUS_VALIDATED,
+        STATUS_REVIEWED,
+        STATUS_APPROVED,
+        STATUS_PUBLISHED,
+    ):
+        raise ValueError("invalid_transition")
+    _record_transition(
+        db, actor_id=actor_id, puzzle=puzzle, to_status=STATUS_QUARANTINED, reason=reason
+    )
+    db.commit()
+    db.refresh(puzzle)
+    record_audit(
+        db,
+        actor_id=actor_id,
+        action="puzzles.quarantine",
+        target_type="puzzle",
+        target_id=puzzle.id,
+        metadata={"exercise_slug": puzzle.exercise_slug, "reason": (reason or "")[:500]},
+    )
+    return puzzle, True
+
+
+def release_puzzle(
+    db: Session, *, actor_id: int, puzzle_id: int, reason: str = ""
+) -> tuple[Puzzle, bool]:
+    """Clear a quarantine, restoring the puzzle's pre-quarantine standing
+    from its own history: quarantined-from-published returns to published;
+    pre-publish holds return to draft so they must re-pass gates before
+    they can be served (no step is ever skipped)."""
+    puzzle = db.get(Puzzle, puzzle_id)
+    if puzzle is None:
+        raise ValueError("puzzle_not_found")
+    if _puzzle_status(puzzle) != STATUS_QUARANTINED:
+        raise ValueError("invalid_transition")
+    prior = (
+        db.query(PuzzleStatusHistory)
+        .filter(
+            PuzzleStatusHistory.puzzle_id == puzzle.id,
+            PuzzleStatusHistory.to_status == STATUS_QUARANTINED,
+        )
+        .order_by(PuzzleStatusHistory.id.desc())
+        .first()
+    )
+    destination = (
+        STATUS_PUBLISHED
+        if prior is not None and prior.from_status == STATUS_PUBLISHED
+        else STATUS_DRAFT
+    )
+    _record_transition(
+        db, actor_id=actor_id, puzzle=puzzle, to_status=destination, reason=reason
+    )
+    db.commit()
+    db.refresh(puzzle)
+    record_audit(
+        db,
+        actor_id=actor_id,
+        action="puzzles.release",
+        target_type="puzzle",
+        target_id=puzzle.id,
+        metadata={"exercise_slug": puzzle.exercise_slug, "reason": (reason or "")[:500]},
+    )
+    return puzzle, True
+
+
+def reject_puzzle(
+    db: Session, *, actor_id: int, puzzle_id: int, reason: str = ""
+) -> tuple[Puzzle, bool]:
+    """Terminal content decision from a pre-published state
+    (draft/validated/reviewed/approved) or from quarantine after
+    investigation. Post-publish refusal goes via retire + reject-note,
+    never direct published -> rejected. A rejected puzzle never returns
+    to normal serving and becomes immutable (frozen, inspectable).
+    History stays inspectable. Idempotent."""
+    puzzle = db.get(Puzzle, puzzle_id)
+    if puzzle is None:
+        raise ValueError("puzzle_not_found")
+    if _puzzle_status(puzzle) == STATUS_REJECTED:
+        return puzzle, False
+    _record_transition(
+        db, actor_id=actor_id, puzzle=puzzle, to_status=STATUS_REJECTED, reason=reason
+    )
+    db.commit()
+    db.refresh(puzzle)
+    record_audit(
+        db,
+        actor_id=actor_id,
+        action="puzzles.reject",
+        target_type="puzzle",
+        target_id=puzzle.id,
+        metadata={"exercise_slug": puzzle.exercise_slug, "reason": (reason or "")[:500]},
+    )
+    return puzzle, True
+
+
+def restore_puzzle(
+    db: Session, *, actor_id: int, puzzle_id: int, reason: str = ""
+) -> tuple[Puzzle, bool]:
+    """Restore a retired puzzle as a new audited decision (wrongful-
+    retirement recovery, never an edit shortcut). A puzzle that was
+    previously published returns to published; a row retired before ever
+    being served returns to draft so it must still pass every gate (no
+    step is ever skipped). Only retired rows are restorable; rejected
+    rows stay terminal."""
+    puzzle = db.get(Puzzle, puzzle_id)
+    if puzzle is None:
+        raise ValueError("puzzle_not_found")
+    if _puzzle_status(puzzle) != STATUS_RETIRED:
+        raise ValueError("invalid_transition")
+    ever_published = puzzle.is_published or (
+        db.query(PuzzleStatusHistory)
+        .filter(
+            PuzzleStatusHistory.puzzle_id == puzzle.id,
+            or_(
+                PuzzleStatusHistory.to_status == STATUS_PUBLISHED,
+                PuzzleStatusHistory.from_status == STATUS_PUBLISHED,
+            ),
+        )
+        .first()
+        is not None
+    )
+    # NOTE: ``archive()`` never clears ``is_published``, so the flag still
+    # reflects the pre-retirement standing; the history check additionally
+    # covers rows that passed through quarantine (which clears the flag).
+    destination = STATUS_PUBLISHED if ever_published else STATUS_DRAFT
+    _record_transition(
+        db, actor_id=actor_id, puzzle=puzzle, to_status=destination, reason=reason
+    )
+    db.commit()
+    db.refresh(puzzle)
+    record_audit(
+        db,
+        actor_id=actor_id,
+        action="puzzles.restore",
+        target_type="puzzle",
+        target_id=puzzle.id,
+        metadata={"exercise_slug": puzzle.exercise_slug, "reason": (reason or "")[:500]},
     )
     return puzzle, True
 

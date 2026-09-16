@@ -1,14 +1,20 @@
 """Puzzle model. One concrete question/task within an exercise.
 
-Phase 07 content lifecycle: the canonical lifecycle state lives on
-``Puzzle.status`` (draft -> validated -> reviewed -> approved ->
-published -> retired). The legacy ``is_published``/``is_archived``
-booleans are kept in sync as the player-visibility projection so all
-existing player queries keep working unchanged:
+Phase 07 content lifecycle (+ P1 safety states): the canonical lifecycle
+state lives on ``Puzzle.status`` (draft -> validated -> reviewed ->
+approved -> published -> retired, plus quarantined / rejected). The
+legacy ``is_published``/``is_archived`` booleans are kept in sync as the
+player-visibility projection so all existing player queries keep working
+unchanged:
 
 * player-visible  <=>  status == "published" (is_published True,
   is_archived False)
 * retired         <=>  is_archived True (history preserved)
+* quarantined     <=>  safety hold: not servable, recoverable to its
+  pre-quarantine standing (published, else draft for re-validation)
+  (is_published False, is_archived False)
+* rejected        <=>  terminal content decision: not servable, immutable
+  (is_published False, is_archived False)
 
 Lifecycle history (``PuzzleStatusHistory``), validation records
 (``PuzzleValidation``), and human reviews (``PuzzleReview``) are
@@ -22,13 +28,17 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
-# Canonical Phase 07 lifecycle states (stored on Puzzle.status).
+# Canonical lifecycle states (stored on Puzzle.status).
 STATUS_DRAFT = "draft"
 STATUS_VALIDATED = "validated"
 STATUS_REVIEWED = "reviewed"
 STATUS_APPROVED = "approved"
 STATUS_PUBLISHED = "published"
 STATUS_RETIRED = "retired"
+# P1 safety states: quarantined (reversible hold, not servable) and
+# rejected (terminal content decision, not servable, immutable).
+STATUS_QUARANTINED = "quarantined"
+STATUS_REJECTED = "rejected"
 
 PUZZLE_STATUSES = (
     STATUS_DRAFT,
@@ -36,6 +46,8 @@ PUZZLE_STATUSES = (
     STATUS_REVIEWED,
     STATUS_APPROVED,
     STATUS_PUBLISHED,
+    STATUS_QUARANTINED,
+    STATUS_REJECTED,
     STATUS_RETIRED,
 )
 
