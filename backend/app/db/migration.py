@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 
 class SchemaVersion(Base):
@@ -363,6 +363,26 @@ def _migrate_v11_active_roles(conn) -> None:
     conn.execute(text("UPDATE auth_sessions SET active_role = 'PLAYER' WHERE active_role IS NULL"))
 
 
+def _migrate_v13_p2(conn) -> None:
+    """P2 mistake taxonomy + evidence: validator detail snapshot on attempts.
+
+    The new ``evidence`` table (plus its indexes/constraints) is created
+    by ``ensure_schema`` via ``Base.metadata.create_all`` on fresh and
+    existing databases alike, so this step only adds the nullable
+    ``validation_detail`` JSON column to pre-P2 ``attempts`` tables
+    idempotently. No backfill is performed in either direction: pre-P2
+    attempts keep NULL detail and gain no historical evidence (P2 policy:
+    the original validator observation is not available exactly as it
+    happened, since detail was never persisted). Only portable types.
+    """
+    insp = inspect(conn)
+    tables = set(insp.get_table_names())
+    if "attempts" in tables:
+        attempt_cols = {c["name"] for c in insp.get_columns("attempts")}
+        if "validation_detail" not in attempt_cols:
+            conn.execute(text("ALTER TABLE attempts ADD COLUMN validation_detail JSON"))
+
+
 def _migrate_v12_p1(conn) -> None:
     """P1 attempt context: historical difficulty/rating snapshot columns.
 
@@ -396,6 +416,7 @@ MIGRATIONS: list[tuple[int, str, object]] = [
     (10, "phase-11 support & notifications: tickets, messages, deliveries, preferences", _migrate_v10_support),
     (11, "phase-12 active roles: per-session active_role on auth_sessions", _migrate_v11_active_roles),
     (12, "p1 attempt context: nullable puzzle_rating/difficulty snapshot columns", _migrate_v12_p1),
+    (13, "p2 evidence: evidence table via create_all + nullable validation_detail column", _migrate_v13_p2),
 ]
 
 

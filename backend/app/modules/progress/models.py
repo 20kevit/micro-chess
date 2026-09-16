@@ -53,4 +53,10 @@ class Attempt(Base):
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Hint ids the user consumed, e.g. ["h1"]. Recorded for rating impact later.
     hints_used: Mapped[list] = mapped_column(JSON, default=list)
+    # P2 validator detail snapshot (server-authoritative, write-once at
+    # creation): the structured correct/missed/wrong (+ per-exercise
+    # extras) the validator returned for this submission. Previously
+    # returned to the client but never persisted; evidence generation
+    # classifies from it. NULL for all pre-P2 rows (never backfilled).
+    validation_detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, index=True)

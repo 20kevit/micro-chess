@@ -1125,3 +1125,77 @@ The agent must never assume that a phase is incomplete merely because its docume
   snapshots, legacy NULLs, immutability, valid/invalid transitions,
   serving boundary, history/audit, guest eligibility boundary,
   restore, migration fresh/idempotent/legacy).
+
+---
+
+## 11. P2 — Mistake Taxonomy + Evidence Engine
+
+* Canonical vocabulary (`evidence/taxonomy.py`, from
+  `docs/MISTAKE_TAXONOMY.md` + `docs/SKILL_TAXONOMY.md`): 8 core
+  mistakes, 26 exercise-specific types with core parents, 18 atomic
+  skills in 6 groups, exercise → skill map (primary + secondary with
+  strong/weak link qualifier). Strength/confidence are ordinals only
+  (weak/direct/strong, high/medium/low — no numeric severity, per
+  Phase 0); direction is positive/negative/neutral.
+* Classification (`evidence/classify.py`): per-exercise classifier
+  functions behind `register_classifier` (no `if/elif exercise_slug`
+  chain in core flow); all 19 slugs covered. One shared set-match
+  engine serves 8 square/move/option exercises; genuinely different
+  answer semantics (pin triplet, checkmate confusion pairs, blind
+  SAN tactics, chinese-board overlays, balance totals, path replay,
+  opening sequences, square-vision tap-vs-choice) get dedicated
+  functions that reuse the validators' own pure helpers (no chess
+  logic duplicated). Every classifier is total: unsupported input
+  yields an explicit neutral `unclassified` draft, never a fabricated
+  specific claim, never an exception into the submit path.
+* Honest ceilings (documented, tested): piece-recognition and
+  legal-destinations emit core C1/C2 only (mechanism unobservable);
+  `PARTIAL` decomposes into omission + commission rows; empty
+  submissions and terminal states are `no-response` neutral rows with
+  no skill; malformed input is neutral/weak on the originating skill;
+  invalid-puzzle outcomes (e.g. get-out-of-check with side not in
+  check) are skill-free neutral content rows; `defended-capture`
+  (obstacles) is deferred to transition-cause analysis.
+* Skill mapping: primary skill per exercise; secondary rows inherit
+  the primary row's mistake/direction/strength/confidence with
+  `skill_role=secondary` + documented link qualifier (commission-only
+  for give-check/captures/get-out-of-check enumeration links); P3
+  must not weight them equally (secondary weights Open per Phase 0).
+* Persistence (`evidence/models.py`, `evidence/service.py`):
+  append-only `evidence` table (attempt FK, owner mirror, source,
+  skill_key/role, mistake_core/specific, direction, strength,
+  confidence, frozen context_json, observed_at = attempt time,
+  unique `(attempt_id, evidence_key)`); `Attempt.validation_detail`
+  stores the validator detail write-once (previously returned but
+  never persisted). Generation runs in the submit transaction
+  (attempt + evidence commit atomically); reprocessing returns stored
+  rows (DB constraint backstops races). `repeated-mistake` (negative/
+  strong/high) fires on a bounded lookup (last 20 owner+skill rows)
+  for the same mistake identity; otherwise only the base mistake is
+  stored. Rating untouched (formula v1, eligibility, events); no
+  Skill/Level/Mastery/Recommendation/Assignment/Assessment work; no
+  API or frontend changes (internal-only, like P1 snapshots).
+* Speed arrives as practice attempts (no session FK on Attempt):
+  mode context is preserved honestly; the speed-discount rule stays
+  deferred per `MISTAKE_TAXONOMY.md` §13. No backfill: pre-P2
+  attempts keep NULL detail and gain no evidence (detail was never
+  persisted, so exact reconstruction is unavailable).
+* Schema v13 (`db/migration.py`): new table via `create_all` +
+  nullable `validation_detail` column step; fresh boots stamp v13,
+  upgrades preserve data. Older version-pin assertions across the
+  suite advanced 12 → 13 (same maintenance P1 performed 11 → 12).
+* Tests: `backend/tests/test_p2_evidence.py` (48 tests: positive/
+  negative/neutral semantics, all 8 core keys where live-observable,
+  every exercise-specific family + no-classification proofs, primary/
+  secondary/no-skill mappings, idempotency incl. DB constraint,
+  transaction atomicity both directions, owner-scoped repeats, guest
+  evidence, rated/practice/speed context, adversarial-input
+  totality, migration fresh/idempotent/legacy).
+* Full regression: backend suite passes except the two pre-existing
+  baseline failures (`test_generator_distribution_covers_all_categories`
+  flake, `test_api_routes_reachable_through_adapter` empty-catalog
+  adapter check), both failing before P2.
+* Deferred to P3/P4/P6/P7: skill/level aggregation + estimate store,
+  mastery gates, review queue, speed-discount + per-item timing,
+  assessment/assignment context FKs, evidence read APIs, coach views,
+  `defended-capture` cause analysis, repeat time-window rules.

@@ -1,4 +1,5 @@
-"""Attempt submission: Puzzle -> Validation -> Score -> Rating -> Gamification -> Feedback.
+"""Attempt submission: Puzzle -> Validation -> Score -> Evidence ->
+Rating -> Gamification -> Feedback.
 
 Backend is authoritative. Frontend never decides correctness.
 Practice attempts never affect rating (rating snapshot stays NULL), but
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.exercises import registry
 from app.modules.exercises.models import Exercise
+from app.modules.evidence import service as evidence_service
 from app.modules.feedback_engine.service import feedback_key_for
 from app.modules.gamification_engine import service as gamification_service
 from app.modules.progress.models import Attempt
@@ -119,9 +121,26 @@ def submit_attempt(
         started_at=started_at.replace(tzinfo=None) if started_at and started_at.tzinfo else started_at,
         duration_ms=_duration_ms(started_at, now),
         hints_used=used_hints,
+        # P2 validator detail snapshot (server-authoritative, write-once).
+        validation_detail=dict(detail),
     )
     db.add(attempt)
     db.flush()
+
+    # P2 evidence pipeline (validator -> result -> mistake -> evidence):
+    # classification reads the validator detail + raw answers and
+    # persists append-only evidence rows in this same transaction, so
+    # attempt + evidence commit atomically. Rating is untouched:
+    # mistakes feed evidence only, never rating deltas.
+    evidence_service.generate_for_attempt(
+        db,
+        attempt=attempt,
+        result=result.value,
+        detail=detail,
+        raw_answer=answer if isinstance(answer, dict) else {},
+        puzzle_answer=dict(puzzle.answer_json) if isinstance(puzzle.answer_json, dict) else {},
+        hints_used=used_hints,
+    )
 
     # Server-decided rated/unrated: only an authenticated user's validated
     # correct/partial/wrong attempt in rated mode touches ratings. The
