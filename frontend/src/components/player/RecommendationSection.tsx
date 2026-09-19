@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import type { Recommendation } from "../../api/types";
+import { exerciseEntryTarget } from "../../exercises/catalog";
 import { t } from "../../i18n";
 import { exerciseTitle, recommendationReasonLabel } from "../../lib/playerDisplay";
 import { Badge } from "../ui/Badge";
@@ -80,11 +81,11 @@ export function RecommendationSection() {
           <Badge>{recommendationReasonLabel(item.reason)}</Badge>
         </p>
         <Link
-          to={`/exercises/${item.exercise_slug}`}
+          to={exerciseEntryTarget(item.exercise_slug)}
           aria-label={`${exerciseTitle(item.exercise_slug)} — ${t("recommendation.start")}`}
-          className="mt-3 flex min-h-[44px] flex-1 items-center justify-center rounded-2xl bg-violet-600 px-3 text-sm font-bold text-white"
+          className="mt-3 block"
         >
-          {t("recommendation.start")}
+          <Button className="w-full">{t("recommendation.start")}</Button>
         </Link>
       </div>
     </Card>

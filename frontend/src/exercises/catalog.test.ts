@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EXERCISE_CATALOG, getExerciseMeta } from "./catalog";
+import { EXERCISE_CATALOG, exerciseEntryTarget, getExerciseMeta } from "./catalog";
 
 // The home card buttons ARE the mode selection: each mode links straight
 // into its exercise loop with no intermediate screen.
@@ -24,5 +24,11 @@ describe("exercise catalog entry modes", () => {
       if (meta.slug === "piece-recognition") continue;
       if (meta.status === "active") expect(meta.route).not.toBeNull();
     }
+  });
+
+  it("entry targets preserve practice context for modal exercises only", () => {
+    expect(exerciseEntryTarget("piece-recognition")).toBe("/exercises/piece-recognition?mode=practice");
+    expect(exerciseEntryTarget("pin")).toBe("/exercises/pin");
+    expect(exerciseEntryTarget("no-such-exercise")).toBe("/exercises/no-such-exercise");
   });
 });

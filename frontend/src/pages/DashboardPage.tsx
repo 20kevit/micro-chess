@@ -6,6 +6,7 @@ import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
+import { exerciseEntryTarget } from "../exercises/catalog";
 import { t } from "../i18n";
 import { exerciseTitle, faDate, faNum, faPercent, resultLabel } from "../lib/playerDisplay";
 
@@ -88,14 +89,17 @@ export function DashboardPage() {
             <h2 className="font-black">{t("player.perExercise")}</h2>
             <ul className="mt-2 flex flex-col gap-2">
               {progress.exercises.map((entry) => (
-                <li
-                  key={entry.exercise}
-                  className="flex min-h-[44px] items-center justify-between gap-2 rounded-xl bg-stone-50 px-3 py-2"
-                >
-                  <span className="font-bold">{exerciseTitle(entry.exercise)}</span>
-                  <span className="text-sm text-stone-500">
-                    {faNum(entry.correct)} / {faNum(entry.attempts)} · {faPercent(entry.accuracy)}
-                  </span>
+                <li key={entry.exercise}>
+                  <Link
+                    to={exerciseEntryTarget(entry.exercise)}
+                    aria-label={exerciseTitle(entry.exercise)}
+                    className="flex min-h-[44px] items-center justify-between gap-2 rounded-xl bg-stone-50 px-3 py-2 active:bg-violet-50"
+                  >
+                    <span className="font-bold">{exerciseTitle(entry.exercise)}</span>
+                    <span className="text-sm text-stone-500">
+                      {faNum(entry.correct)} / {faNum(entry.attempts)} · {faPercent(entry.accuracy)}
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>

@@ -5,15 +5,27 @@ import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { EXERCISE_CATALOG, type ExerciseMeta } from "../exercises/catalog";
 import { t } from "../i18n";
+import { useAuth } from "../lib/auth-context";
 
 // Exercise-selection menu. Serves both "/" (main menu) and "/exercises".
 // Renders every exercise from the central registry.
 // Availability is status-driven: active cards link to their route,
 // coming-soon cards show a badge and no link. No per-slug conditionals.
 export function ExercisesPage() {
+  const { user, loading } = useAuth();
   return (
     <div>
       <PageHeader title={t("exercises.title")} subtitle={t("exercises.subtitle")} />
+      {!loading && !user ? (
+        <Card className="mb-3">
+          <p className="text-sm text-stone-600">{t("exercises.loginHint")}</p>
+          <Link to="/login" className="mt-2 block">
+            <Button variant="secondary" className="w-full">
+              {t("nav.login")}
+            </Button>
+          </Link>
+        </Card>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         {EXERCISE_CATALOG.map((ex, index) => (
           <ExerciseCard key={ex.slug} meta={ex} number={index + 1} />

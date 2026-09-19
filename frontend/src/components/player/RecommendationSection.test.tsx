@@ -50,7 +50,7 @@ describe("recommendation section", () => {
     await waitFor(() => expect(screen.getByText("گرفتن مهره‌ها")).toBeTruthy());
     expect(screen.getByText("تقویت نقطه ضعف")).toBeTruthy();
     const link = screen.getByRole("link", { name: /شروع تمرین پیشنهادی/ });
-    expect(link.getAttribute("href")).toBe("/exercises/captures");
+    expect(link.getAttribute("href")).toBe("/exercises/captures?mode=practice");
   });
 
   it("labels a direct coach assignment in Persian", async () => {
@@ -60,7 +60,7 @@ describe("recommendation section", () => {
     renderSection();
     await waitFor(() => expect(screen.getByText("تکلیف مربی")).toBeTruthy());
     expect(screen.getByRole("link", { name: /شروع تمرین پیشنهادی/ }).getAttribute("href")).toBe(
-      "/exercises/piece-recognition",
+      "/exercises/piece-recognition?mode=practice",
     );
   });
 

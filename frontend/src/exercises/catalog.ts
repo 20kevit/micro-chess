@@ -165,3 +165,13 @@ export const EXERCISE_CATALOG: ExerciseMeta[] = [
 export function getExerciseMeta(slug: string): ExerciseMeta | undefined {
   return EXERCISE_CATALOG.find((entry) => entry.slug === slug);
 }
+
+// Entry target for the existing practice flow: exercises with entry
+// modes start in practice mode; single-mode exercises link to their
+// route as-is. Display routing only — no business logic.
+export function exerciseEntryTarget(slug: string): string {
+  const meta = getExerciseMeta(slug);
+  if (meta?.route && meta.modes) return `${meta.route}?mode=practice`;
+  if (meta?.route) return meta.route;
+  return `/exercises/${slug}`;
+}

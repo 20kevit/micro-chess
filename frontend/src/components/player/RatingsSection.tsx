@@ -1,4 +1,5 @@
 import { Badge } from "../ui/Badge";
+import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import type { PlayerRating } from "../../api/types";
 import { t } from "../../i18n";
@@ -11,8 +12,11 @@ interface RatingsSectionProps {
   onRetry: () => void;
 }
 
-// Player-facing per-exercise ratings. Display-only: every value comes
-// from the server (/me/ratings) and nothing here decides rating logic.
+// Player-facing rated-play activity per exercise. Display-only: every
+// value comes from the server (/me/ratings) and nothing here decides
+// rating logic. Internal rating numbers are deliberately never shown:
+// the section reports rated-game activity (counts + provisional state)
+// while accuracy and progress live in the sibling sections.
 export function RatingsSection({ ratings, failed, onRetry }: RatingsSectionProps) {
   if (ratings === null && !failed) {
     return (
@@ -27,13 +31,11 @@ export function RatingsSection({ ratings, failed, onRetry }: RatingsSectionProps
       <Card>
         <h2 className="font-black">{t("rating.title")}</h2>
         <p className="mt-2 text-sm text-stone-500">{t("common.error")}</p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-3 flex min-h-[44px] w-full items-center justify-center rounded-2xl bg-violet-600 px-3 text-sm font-bold text-white"
-        >
-          {t("common.retry")}
-        </button>
+        <div className="mt-3">
+          <Button onClick={onRetry} className="w-full">
+            {t("common.retry")}
+          </Button>
+        </div>
       </Card>
     );
   }
@@ -53,7 +55,6 @@ export function RatingsSection({ ratings, failed, onRetry }: RatingsSectionProps
               <span className="font-bold">{exerciseTitle(row.exercise)}</span>
               <span className="flex items-center gap-2">
                 {row.provisional ? <Badge>{t("rating.provisional")}</Badge> : null}
-                <span className="text-sm font-black text-violet-700">{faNum(row.rating)}</span>
                 <span className="text-xs text-stone-500">
                   {`${faNum(row.attempts_count)} ${t("rating.ratedGames")}`}
                 </span>

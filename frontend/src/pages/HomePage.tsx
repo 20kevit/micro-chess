@@ -1,4 +1,5 @@
 import { useAuth } from "../lib/auth-context";
+import { t } from "../i18n";
 import { activeRoleOf } from "../lib/require-admin";
 import { AdminDashboardPage } from "./AdminDashboardPage";
 import { DashboardPage } from "./DashboardPage";
@@ -10,7 +11,7 @@ import { CoachStudentsPage, ParentChildrenPage } from "./MentorStudentsPage";
 // player/coach/parent/admin views never mix.
 export function HomePage() {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <p className="py-8 text-center text-stone-500">{t("common.loading")}</p>;
   if (!user) return <ExercisesPage />;
   const active = activeRoleOf(user) ?? user.roles[0] ?? "PLAYER";
   if (active === "ADMIN") return <AdminDashboardPage />;

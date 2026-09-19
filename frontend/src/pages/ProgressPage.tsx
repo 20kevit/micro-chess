@@ -36,6 +36,7 @@ export function ProgressPage() {
   const [gamificationFailed, setGamificationFailed] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [moreFailed, setMoreFailed] = useState(false);
   const [exercise, setExercise] = useState("");
   const [mode, setMode] = useState<"" | AttemptMode>("");
   const [correct, setCorrect] = useState<"" | "true" | "false">("");
@@ -119,16 +120,24 @@ export function ProgressPage() {
 
   async function loadMore() {
     const next = page + 1;
-    const rows = await api.trainingAttempts({
-      exercise: exercise || undefined,
-      mode: mode || undefined,
-      correct: correct === "" ? undefined : correct === "true",
-      page: next,
-      page_size: PAGE_SIZE,
-    });
-    setHistory((prev) => [...prev, ...rows]);
-    setPage(next);
-    setHasMore(rows.length === PAGE_SIZE);
+    setMoreFailed(false);
+    try {
+      const rows = await api.trainingAttempts({
+        exercise: exercise || undefined,
+        mode: mode || undefined,
+        correct: correct === "" ? undefined : correct === "true",
+        page: next,
+        page_size: PAGE_SIZE,
+      });
+      setHistory((prev) => [...prev, ...rows]);
+      setPage(next);
+      setHasMore(rows.length === PAGE_SIZE);
+    } catch (e) {
+      if (apiStatus(e) === 401) return;
+      // Pagination failures stay inline: the loaded history remains
+      // visible and the user can retry without losing the page.
+      setMoreFailed(true);
+    }
   }
 
   function retryGamification() {
@@ -286,6 +295,9 @@ export function ProgressPage() {
               ))}
             </ul>
           )}
+          {moreFailed ? (
+            <p className="mt-3 text-center text-sm text-stone-500">{t("common.error")}</p>
+          ) : null}
           {hasMore && history.length > 0 ? (
             <div className="mt-3">
               <Button variant="secondary" onClick={() => void loadMore()} className="w-full">

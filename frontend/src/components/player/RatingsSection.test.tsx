@@ -32,15 +32,15 @@ function renderSection(props: {
 describe("ratings section", () => {
   it("shows a Persian loading state", () => {
     renderSection({ ratings: null, failed: false });
-    expect(screen.getByText("امتیاز میکروچس")).toBeTruthy();
+    expect(screen.getByText("بازی‌های امتیازی")).toBeTruthy();
     expect(screen.getByText("در حال بارگذاری…")).toBeTruthy();
   });
 
   it("shows a Persian empty state when the player has no ratings", () => {
     renderSection({ ratings: [], failed: false });
-    expect(screen.getByText("امتیاز میکروچس")).toBeTruthy();
+    expect(screen.getByText("بازی‌های امتیازی")).toBeTruthy();
     expect(
-      screen.getByText("هنوز بازی امتیازی انجام نداده‌ای؛ بعد از اولین بازی امتیازی، امتیازت را اینجا می‌بینی."),
+      screen.getByText("هنوز بازی امتیازی انجام نداده‌ای؛ بعد از اولین بازی امتیازی، فعالیتت را اینجا می‌بینی."),
     ).toBeTruthy();
   });
 
@@ -53,7 +53,7 @@ describe("ratings section", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("renders per-exercise ratings with a provisional badge", () => {
+  it("renders per-exercise rated activity without numeric ratings", () => {
     renderSection({
       ratings: [rating(), rating({ exercise: "pin", rating: 1300, provisional: false, attempts_count: 12 })],
       failed: false,
@@ -65,6 +65,9 @@ describe("ratings section", () => {
     // Persian-digit rated-game counts, one row per exercise.
     expect(screen.getByText("۳ بازی امتیازی")).toBeTruthy();
     expect(screen.getByText("۱۲ بازی امتیازی")).toBeTruthy();
+    // Internal rating numbers stay hidden from players (P9 product rule).
+    expect(screen.queryByText("۱۲۱۶٫۵")).toBeNull();
+    expect(screen.queryByText("۱۳۰۰")).toBeNull();
   });
 
   it("keeps anonymous behavior out of scope: no login prompt here", () => {

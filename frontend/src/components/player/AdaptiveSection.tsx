@@ -6,13 +6,13 @@ import { t } from "../../i18n";
 import {
   adaptiveReasonLabel,
   exerciseTitle,
-  faNum,
   faPercent,
   observedDifficultyLabel,
 } from "../../lib/playerDisplay";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
+import { exerciseEntryTarget } from "../../exercises/catalog";
 
 // Player-facing adaptive training. Display-only: every signal, reason,
 // and candidate comes from /me/adaptive*; the section only transports
@@ -131,18 +131,18 @@ export function AdaptiveSection() {
             <p className="mt-1 text-sm text-stone-600">{next.puzzle.prompt_fa}</p>
           ) : null}
           <p className="mt-1 text-xs text-stone-500">
-            {`${t("adaptive.ability")}: ${faNum(Math.round(next.ability_rating))} · ${t("adaptive.target")}: ${faNum(Math.round(next.target_rating))} · ${t("adaptive.observed")}: ${observedDifficultyLabel(next.observed_difficulty)}`}
+            {`${t("adaptive.observed")}: ${observedDifficultyLabel(next.observed_difficulty)}`}
           </p>
           <p className="mt-1 text-sm">
             <Badge>{adaptiveReasonLabel(next.reason)}</Badge>
           </p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Link
-              to={`/exercises/${next.puzzle.exercise_slug}`}
+              to={exerciseEntryTarget(next.puzzle.exercise_slug)}
               onClick={() => void recordOutcome("accepted")}
-              className="flex min-h-[44px] flex-1 items-center justify-center rounded-2xl bg-violet-600 px-3 text-sm font-bold text-white"
+              className="block flex-1"
             >
-              {t("adaptive.start")}
+              <Button className="w-full">{t("adaptive.start")}</Button>
             </Link>
             <Button onClick={() => void recordOutcome("skipped")}>{t("adaptive.skip")}</Button>
           </div>

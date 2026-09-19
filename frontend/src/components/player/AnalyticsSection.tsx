@@ -131,12 +131,8 @@ export function AnalyticsSection() {
               <p className="mt-1 text-xs text-stone-500">{t("analytics.xpEarned")}</p>
             </div>
             <div className="rounded-xl bg-stone-50 px-2 py-2 text-center">
-              <p className="text-lg font-black text-stone-800">
-                {data.ratings.length === 0
-                  ? "—"
-                  : faNum(Math.round(data.ratings.reduce((sum, r) => sum + r.delta_in_period, 0) * 100) / 100)}
-              </p>
-              <p className="mt-1 text-xs text-stone-500">{t("analytics.ratingChange")}</p>
+              <p className="text-lg font-black text-stone-800">{faNum(totals.correct)}</p>
+              <p className="mt-1 text-xs text-stone-500">{t("player.correctCount")}</p>
             </div>
           </div>
           {data.daily.length > 0 ? (

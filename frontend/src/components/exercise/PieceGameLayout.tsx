@@ -134,7 +134,7 @@ export function GameShell({
     >
       <header className="flex h-11 shrink-0 items-center gap-2 px-3">
         <Link
-          to="/"
+          to="/exercises"
           aria-label={t("common.back")}
           title={t("common.back")}
           className="grid min-h-[44px] min-w-[44px] place-items-center rounded-2xl text-base font-black text-violet-700 active:bg-violet-100"
