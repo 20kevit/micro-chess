@@ -38,6 +38,7 @@ from app.modules.relationships.router import router as relationships_router
 from app.modules.support.router import router as support_router
 from app.modules.progress.router import router as attempts_router
 from app.modules.puzzles.router import router as puzzles_router
+from app.modules.recommendations.router import router as recommendations_router
 from app.modules.trapped_pieces.router import router as trapped_pieces_router
 from app.modules.undefended_pieces.router import router as undefended_pieces_router
 from app.modules.users.router import router as users_router
@@ -123,6 +124,7 @@ app.include_router(heavier_side_router, prefix=API_V1_PREFIX)
 app.include_router(reconstruction_router, prefix=API_V1_PREFIX)
 app.include_router(puzzles_router, prefix=API_V1_PREFIX)
 app.include_router(attempts_router, prefix=API_V1_PREFIX)
+app.include_router(recommendations_router, prefix=API_V1_PREFIX)
 app.include_router(trapped_pieces_router, prefix=API_V1_PREFIX)
 app.include_router(undefended_pieces_router, prefix=API_V1_PREFIX)
 
