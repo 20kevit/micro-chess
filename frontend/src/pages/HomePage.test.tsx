@@ -59,6 +59,19 @@ describe("player home", () => {
     expect(screen.queryByText(/سلام!/)).toBeNull();
   });
 
+  it("onboards anonymous visitors with a hero and register CTA", () => {
+    authState(false);
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("بازی کن، یاد بگیر!")).toBeTruthy();
+    expect(screen.getByText("تمرین‌های کوتاه و سرگرم‌کننده شطرنج، قدم‌به‌قدم.")).toBeTruthy();
+    const cta = screen.getByRole("link", { name: /شروع تمرین‌ها/ });
+    expect(cta.getAttribute("href")).toBe("/register");
+  });
+
   it("shows the dashboard to authenticated players", async () => {
     authState(true);
     mockedApi.dashboard.mockResolvedValue({

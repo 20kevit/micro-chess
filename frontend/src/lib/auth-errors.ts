@@ -13,8 +13,9 @@ export function authErrorKey(e: unknown): FaKey {
     case "USERNAME_INVALID":
       return "auth.error.invalidUsername";
     case "PASSWORD_TOO_SHORT":
-    case "PASSWORD_TOO_LONG":
       return "auth.error.shortPassword";
+    case "PASSWORD_TOO_LONG":
+      return "auth.error.longPassword";
     case "RATE_LIMITED":
       return "auth.error.rateLimited";
     case "ROLE_SELECTION_REQUIRED":

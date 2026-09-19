@@ -67,6 +67,15 @@ export function RecommendationSection() {
         <h2 className="font-black">{t("recommendation.title")}</h2>
         <p className="mt-1 text-xs text-stone-500">{t("recommendation.subtitle")}</p>
         <p className="mt-2 text-sm text-stone-500">{t("recommendation.empty")}</p>
+        <Link
+          to="/exercises"
+          aria-label={t("player.goToExercises")}
+          className="mt-3 block"
+        >
+          <Button variant="secondary" className="w-full">
+            {t("player.goToExercises")}
+          </Button>
+        </Link>
       </Card>
     );
   }

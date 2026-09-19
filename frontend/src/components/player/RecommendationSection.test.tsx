@@ -81,6 +81,16 @@ describe("recommendation section", () => {
     );
   });
 
+  it("links the empty state to the exercise catalog", async () => {
+    mockedApi.recommendation.mockResolvedValue(null);
+    renderSection();
+    await waitFor(() =>
+      expect(screen.getByText("پیشنهادی برایت نیست؛ یک تمرین را خودت انتخاب کن.")).toBeTruthy(),
+    );
+    const link = screen.getByRole("link", { name: /رفتن به تمرین‌ها/ });
+    expect(link.getAttribute("href")).toBe("/exercises");
+  });
+
   it("shows a Persian error state with retry", async () => {
     const user = userEvent.setup();
     mockedApi.recommendation.mockRejectedValue(new Error("api_error:500"));

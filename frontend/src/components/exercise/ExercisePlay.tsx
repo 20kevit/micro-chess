@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { api } from "../../api/client";
+import { api, apiStatus } from "../../api/client";
 import type { AttemptMode, AttemptResponse, Puzzle } from "../../api/types";
 import type { FaKey } from "../../i18n/fa";
 import { t } from "../../i18n";
@@ -343,8 +343,12 @@ function PlayLoop({
         client_result: clientResult ?? null,
       });
       setResult(res);
-    } catch {
-      setError(mode === "rated" ? t("play.authRequired") : t("common.error"));
+    } catch (e) {
+      // Only 401 means the session ended (login required for rated mode);
+      // network and other failures show the generic retry message instead.
+      setError(
+        apiStatus(e) === 401 && mode === "rated" ? t("play.authRequired") : t("common.error"),
+      );
     } finally {
       setSubmitting(false);
     }

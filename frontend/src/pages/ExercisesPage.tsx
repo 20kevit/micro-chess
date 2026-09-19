@@ -18,12 +18,19 @@ export function ExercisesPage() {
       <PageHeader title={t("exercises.title")} subtitle={t("exercises.subtitle")} />
       {!loading && !user ? (
         <Card className="mb-3">
-          <p className="text-sm text-stone-600">{t("exercises.loginHint")}</p>
-          <Link to="/login" className="mt-2 block">
-            <Button variant="secondary" className="w-full">
-              {t("nav.login")}
-            </Button>
-          </Link>
+          <h2 className="text-lg font-black">{t("home.title")}</h2>
+          <p className="mt-1 text-sm text-stone-600">{t("home.subtitle")}</p>
+          <p className="mt-2 text-sm text-stone-600">{t("exercises.loginHint")}</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Link to="/register" className="block">
+              <Button className="w-full">{t("home.cta")}</Button>
+            </Link>
+            <Link to="/login" className="block">
+              <Button variant="secondary" className="w-full">
+                {t("nav.login")}
+              </Button>
+            </Link>
+          </div>
         </Card>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
