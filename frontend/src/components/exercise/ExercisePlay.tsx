@@ -9,6 +9,7 @@ import { ChessBoard } from "../chess/ChessBoard";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
+import { FeedbackText } from "../ui/PageHeader";
 import { GameShell, useGameFit } from "./PieceGameLayout";
 
 const faNum = (n: number) => n.toLocaleString("fa-IR");
@@ -562,7 +563,11 @@ function PlayLoop({
   const resultCard = result ? (
     <div className="min-h-0 overflow-y-auto px-3 pb-3" data-testid="feedback">
       <Card>
-        <div className="flex gap-4 text-center">
+        <FeedbackText feedbackKey={result.feedback_key} />
+        <p className="mt-1 text-center text-base font-black text-stone-800">
+          {faNum(result.score)} {t("speed.score")}
+        </p>
+        <div className="mt-2 flex gap-4 text-center">
           <div className="flex-1">
             <p className="text-2xl font-black text-green-600">{faNum(result.detail.correct.length)}</p>
             <p className="text-xs text-stone-500">{t("play.correctCount")}</p>
