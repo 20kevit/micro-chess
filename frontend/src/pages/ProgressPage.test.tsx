@@ -19,6 +19,7 @@ vi.mock("../api/client", () => ({
     adaptiveOverview: vi.fn(),
     adaptiveNext: vi.fn(),
     adaptiveOutcome: vi.fn(),
+    recommendation: vi.fn(),
   },
   apiStatus: () => null,
 }));
@@ -48,6 +49,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mockedApi.getRatings.mockResolvedValue({ items: [] });
   mockedApi.adaptiveOverview.mockResolvedValue({ exercises: [], recommended_exercise: null, reason: null });
+  mockedApi.recommendation.mockResolvedValue(null);
   mockedApi.getGamification.mockResolvedValue({
     xp: { total: 0, level: 1, xp_in_level: 0, xp_for_next: 100 },
     streak: { current: 0, longest: 0 },

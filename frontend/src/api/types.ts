@@ -623,6 +623,18 @@ export interface Assignment {
   completed_at: string | null;
 }
 
+// P8 recommendation (mirrors backend recommendations/schemas.py).
+// Read-only derivation: the server owns selection; the client only
+// renders the suggested exercise and links into the existing attempt
+// flow. `reason` is machine-readable for i18n; the internal `trace`
+// never leaves the server.
+export interface Recommendation {
+  exercise_slug: string;
+  puzzle_id: number;
+  reason: string;
+  assignment_id: number | null;
+}
+
 // Authentication state (mirrors backend users/schemas.py UserOut).
 // The server owns roles/capabilities; the client only renders them.
 // `active_role` is this session's authoritative role (always a member

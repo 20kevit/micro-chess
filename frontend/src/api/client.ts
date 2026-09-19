@@ -5,6 +5,7 @@ import type {
   AdaptiveNext,
   AdaptiveOverview,
   AdaptiveRecommendation,
+  Recommendation,
   AdminAuditRecord,
   AdminExercise,
   AdminExerciseAnalytics,
@@ -1004,6 +1005,8 @@ export const api = {
       body: JSON.stringify(body),
     }),
   adaptiveHistory: () => request<AdaptiveRecommendation[]>("/api/v1/me/adaptive/history"),
+  // P8 recommendation (read-only derivation; no writes, no trace).
+  recommendation: () => request<Recommendation | null>("/api/v1/me/recommendations"),
   exerciseDetail: (slug: string) => request<Exercise>(`/api/v1/exercises/${slug}`),
   // Own assignments from an authorized coach (read + mark completed).
   myAssignments: () => request<Assignment[]>("/api/v1/me/assignments"),

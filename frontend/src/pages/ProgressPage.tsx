@@ -11,6 +11,7 @@ import type {
 } from "../api/types";
 import { AnalyticsSection } from "../components/player/AnalyticsSection";
 import { AdaptiveSection } from "../components/player/AdaptiveSection";
+import { RecommendationSection } from "../components/player/RecommendationSection";
 import { GamificationSection } from "../components/player/GamificationSection";
 import { RatingsSection } from "../components/player/RatingsSection";
 import { Badge } from "../components/ui/Badge";
@@ -195,6 +196,7 @@ export function ProgressPage() {
           onRetry={retryGamification}
         />
         <AnalyticsSection />
+        <RecommendationSection />
         <AdaptiveSection />
         <Card>
           <h2 className="font-black">{t("player.perExercise")}</h2>

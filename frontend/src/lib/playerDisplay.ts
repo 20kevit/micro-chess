@@ -68,6 +68,15 @@ export function adaptiveReasonLabel(reason: string): string {
   return text === key ? reason : text;
 }
 
+// P8 recommendation reason text (machine-readable codes from
+// GET /me/recommendations). Unknown codes fall back to the raw code so
+// a future server-side addition never breaks rendering.
+export function recommendationReasonLabel(reason: string): string {
+  const key = `recommendation.reason.${reason}` as FaKey;
+  const text = t(key);
+  return text === key ? reason : text;
+}
+
 // Observed-difficulty text. Derived-platform labels only, never answers.
 export function observedDifficultyLabel(label: string): string {
   const key = `adaptive.observed.${label}` as FaKey;
