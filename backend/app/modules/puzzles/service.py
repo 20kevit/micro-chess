@@ -64,7 +64,14 @@ def archive(db: Session, puzzle: Puzzle) -> Puzzle:
 
 
 def visible_query(db: Session, exercise_slug: str | None = None):
-    q = db.query(Puzzle).filter(Puzzle.is_published == True, Puzzle.is_archived == False)  # noqa: E712
+    # Player-visibility projection plus canonical lifecycle guard, so a
+    # flag/status desync can never leak quarantined/rejected content into
+    # the read path (submit and recommendations already guard status).
+    q = db.query(Puzzle).filter(
+        Puzzle.is_published == True,  # noqa: E712
+        Puzzle.is_archived == False,  # noqa: E712
+        Puzzle.status == STATUS_PUBLISHED,
+    )
     if exercise_slug:
         q = q.filter(Puzzle.exercise_slug == exercise_slug)
     return q

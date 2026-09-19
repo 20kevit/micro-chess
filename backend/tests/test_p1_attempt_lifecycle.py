@@ -445,6 +445,17 @@ def test_serving_boundary_excludes_safety_states():
     db.close()
 
 
+def test_visible_query_excludes_flag_status_desync():
+    # Belt-and-braces: a quarantined row whose boolean flags desynced
+    # (is_published still True) must stay out of the player read path.
+    Session = make_db()
+    db = Session()
+    desynced = make_puzzle(db, status=STATUS_QUARANTINED, is_published=True)
+    visible_ids = {p.id for p in puzzle_service.visible_query(db).all()}
+    assert desynced.id not in visible_ids
+    db.close()
+
+
 def test_admin_list_filters_safety_states():
     Session = make_db()
     db = Session()
