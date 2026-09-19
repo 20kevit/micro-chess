@@ -290,30 +290,46 @@ def test_history_is_strictly_owned_and_guest_attempts_stay_private(client, db_se
     assert foreign.status_code == 404
     assert foreign.json()["error"]["code"] == "ATTEMPT_NOT_FOUND"
 
-    # Guest practice attempts never leak into any account's history.
+    # Guest practice is blocked server-side: no guest attempt is ever
+    # created, so nothing can leak into any account's history.
     guest_token = client.post("/api/v1/guest/session").json()["guest_token"]
     guest_attempt = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {}, "mode": "practice"},
         headers={"Authorization": f"Bearer {guest_token}"},
     )
-    assert guest_attempt.status_code == 200
-    assert client.get("/api/v1/me/training/attempts", headers=_bearer(alice)).json() != []
-    assert all(
-        row["id"] != guest_attempt.json()["id"]
-        for row in client.get("/api/v1/me/training/attempts", headers=_bearer(alice)).json()
+    assert guest_attempt.status_code == 401
+    history = client.get("/api/v1/me/training/attempts", headers=_bearer(alice)).json()
+    assert [row["id"] for row in history] == [attempt_id]
+
+
+def _seed_historical_guest_attempt(db_session, guest_token, puzzle):
+    """Persist one pre-decision guest attempt directly (history is kept)."""
+    from app.modules.auth import service as auth_service
+    from app.modules.progress.models import Attempt
+
+    guest = auth_service.get_guest_session(db_session, guest_token)
+    assert guest is not None
+    attempt = Attempt(
+        user_id=None,
+        guest_session_id=guest.id,
+        puzzle_id=puzzle.id,
+        exercise_slug=puzzle.exercise_slug,
+        mode="practice",
+        result="correct",
+        answer_json=dict(puzzle.answer_json or {}),
+        score=1.0,
     )
+    db_session.add(attempt)
+    db_session.commit()
+    return attempt
 
 
 def test_migrated_guest_history_surfaces_in_player_history(client, db_session):
     token = _token(client)
     puzzle = _seeded_puzzle(db_session)
     guest_token = client.post("/api/v1/guest/session").json()["guest_token"]
-    client.post(
-        "/api/v1/attempts",
-        json={"puzzle_id": puzzle.id, "answer": {}, "mode": "practice"},
-        headers={"Authorization": f"Bearer {guest_token}"},
-    )
+    _seed_historical_guest_attempt(db_session, guest_token, puzzle)
     assert client.get("/api/v1/me/training/attempts", headers=_bearer(token)).json() == []
     migrated = client.post(
         "/api/v1/guest/migrate", json={"guest_token": guest_token}, headers=_bearer(token)

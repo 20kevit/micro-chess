@@ -13,6 +13,7 @@ from app.modules.chinese_board.validator import SLUG, normalize_entry, validate
 from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 FOUR_PIECE_FEN = "3qk3/8/8/8/8/8/8/3QK3 w - - 0 1"
 
@@ -468,6 +469,7 @@ def test_api_submit_perfect_and_scored(client, db_session):
     ok = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"pieces": pieces}, "mode": "practice"},
+        headers=make_auth_headers(db_session),
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -482,6 +484,7 @@ def test_api_submit_partial_reconstruction_scored(client, db_session):
     res = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"pieces": dropped}, "mode": "practice"},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 200
     assert res.json()["result"] == "wrong"
@@ -497,6 +500,7 @@ def test_api_submit_ignores_forged_score(client, db_session):
             "answer": {"pieces": [], "score": 999, "correct_count": 99},
             "mode": "practice",
         },
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 200
     assert res.json()["score"] != 999
@@ -528,6 +532,7 @@ def test_speed_lifecycle(client, db_session):
     sub = client.post(
         f"/api/v1/chinese-board/sessions/{session_id}/submit",
         json={"puzzle_id": first["id"], "answer": {"pieces": pieces}},
+        headers=make_auth_headers(db_session),
     )
     assert sub.status_code == 200
     assert sub.json()["attempt"]["result"] == "correct"
@@ -547,6 +552,7 @@ def test_speed_submit_rejects_forged_answer(client, db_session):
     sub = client.post(
         f"/api/v1/chinese-board/sessions/{session_id}/submit",
         json={"puzzle_id": first["id"], "answer": {"pieces": [], "score": 500}},
+        headers=make_auth_headers(db_session),
     )
     assert sub.status_code == 200
     assert sub.json()["attempt"]["result"] == "wrong"

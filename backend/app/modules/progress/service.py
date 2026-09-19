@@ -103,6 +103,11 @@ def submit_attempt(
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     if user_id is not None and guest_session_id is not None:
         raise ValueError("attempt_owner_conflict")
+    # Guest practice is disabled (product decision): only authenticated
+    # users may create attempts (and therefore evidence). Historical guest
+    # rows stay untouched; migration moves them without this function.
+    if user_id is None:
+        raise ValueError("auth_required")
     attempt = Attempt(
         user_id=user_id,
         guest_session_id=guest_session_id,

@@ -485,8 +485,10 @@ def test_linear_pipeline_transitions_unchanged():
 # --- Access boundary --------------------------------------------------------
 
 
-def test_guest_rated_attempt_never_rates():
-    # Server eligibility: guests never rate, even in rated mode.
+def test_guest_attempt_is_rejected_without_persistence():
+    # Product decision: guests cannot practice. The service refuses
+    # ownerless submissions, so no attempt (and no evidence) is stored.
+    # Rating eligibility still excludes guests as before.
     assert (
         rating_service.is_rating_eligible(
             mode=AttemptMode.RATED, user_id=None, result="correct"
@@ -496,21 +498,28 @@ def test_guest_rated_attempt_never_rates():
     Session = make_db()
     db = Session()
     puzzle = make_puzzle(db)
+    try:
+        attempt_service.submit_attempt(
+            db,
+            user_id=None,
+            guest_session_id=5,
+            puzzle_id=puzzle.id,
+            answer={"squares": ["e4"]},
+            mode=AttemptMode.RATED,
+        )
+    except ValueError as exc:
+        assert str(exc) == "auth_required"
+    else:  # pragma: no cover
+        raise AssertionError("expected auth_required")
+    assert db.query(Attempt).count() == 0
+    # Snapshots stay write-once for authenticated attempts (P1 intact).
     attempt, _, _ = attempt_service.submit_attempt(
         db,
-        user_id=None,
-        guest_session_id=5,
+        user_id=3,
         puzzle_id=puzzle.id,
         answer={"squares": ["e4"]},
-        mode=AttemptMode.RATED,
+        mode=AttemptMode.PRACTICE,
     )
-    # Attempt persists (guest practice-equivalent history) with context,
-    # but carries no rating snapshot and no XP.
-    assert attempt.guest_session_id == 5
-    assert attempt.rating_before is None
-    assert attempt.rating_delta is None
-    assert attempt.rating_after is None
-    assert attempt.xp_awarded is None
     assert attempt.puzzle_rating_snapshot == 1450.0
     assert attempt.difficulty_snapshot == 3
     db.close()

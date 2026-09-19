@@ -1,5 +1,8 @@
-// Local progress stub for anonymous users.
-// Stored in browser now; transferred to account after signup (backend user_id nullable supports this).
+// Local progress log for authenticated practice (client-side convenience).
+// Guest practice is disabled product-wide: exercise routes require login
+// and the server rejects guest/anonymous submits, so this log is only ever
+// written after an authenticated attempt. Stored in browser now; the server
+// remains the source of truth for accounts.
 const KEY = "microchess.localProgress.v1";
 
 export interface LocalProgress {

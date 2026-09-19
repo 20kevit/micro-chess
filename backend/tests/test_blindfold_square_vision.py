@@ -14,6 +14,7 @@ from app.modules.blindfold_square_vision.validator import (
 from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 
 def answer_for(square: str) -> dict:
@@ -161,10 +162,12 @@ def test_api_next_hides_color(client, db_session):
 
 def test_api_practice_submit_scores_plus5_minus3(client, db_session):
     puzzle = _seeded(db_session)
+    headers = make_auth_headers(db_session)
     target = puzzle.answer_json["square"]
     ok = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"square": target}, "mode": "practice"},
+        headers=headers,
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -174,6 +177,7 @@ def test_api_practice_submit_scores_plus5_minus3(client, db_session):
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"square": wrong_square}, "mode": "practice"},
+        headers=headers,
     )
     assert bad.json()["result"] == "wrong"
     assert bad.json()["score"] == -3.0
@@ -197,6 +201,7 @@ def test_speed_lifecycle(client, db_session):
     sub = client.post(
         f"/api/v1/blindfold-square-vision/sessions/{session_id}/submit",
         json={"puzzle_id": first["id"], "answer": {"choice": expected}},
+        headers=make_auth_headers(db_session),
     )
     assert sub.status_code == 200
     assert sub.json()["attempt"]["result"] == "correct"

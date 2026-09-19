@@ -28,6 +28,7 @@ from app.modules.pathfinding.scoring import score_path
 from app.modules.pathfinding.validator import SLUG, apply_step, replay_path, validate
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 KIND_LETTER = {"knight": "N", "bishop": "B", "rook": "R", "queen": "Q"}
 
@@ -414,6 +415,7 @@ def test_independent_optimal_recomputed_on_submit(client, db_session):
             "answer": {"path": [ans["from"], ans["from"]], "optimal_moves": 0, "score": 999},
             "mode": "practice",
         },
+        headers=make_auth_headers(db_session),
     )
     assert bad.json()["result"] == "wrong"
 
@@ -565,11 +567,13 @@ def _bfs_path(kind: str, start: str, target: str) -> list[str]:
 
 def test_api_submit_full_path_scores_authoritatively(client, db_session):
     puzzle = _seed_puzzle(db_session)
+    headers = make_auth_headers(db_session)
     ans = puzzle.answer_json
     path = _bfs_path(ans["piece"], ans["from"], ans["target"])
     ok = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"path": path, "illegal_attempts": 0}, "mode": "practice"},
+        headers=headers,
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -579,6 +583,7 @@ def test_api_submit_full_path_scores_authoritatively(client, db_session):
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"path": [ans["from"], "h8"]}, "mode": "practice"},
+        headers=headers,
     )
     assert bad.json()["result"] == "wrong"
 
@@ -601,6 +606,7 @@ def test_api_submit_extra_and_illegal_penalized(client, db_session):
     res = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"path": extra_path, "illegal_attempts": 1}, "mode": "practice"},
+        headers=make_auth_headers(db_session),
     )
     actual = len(extra_path) - 1
     assert actual == optimal + 2
@@ -638,6 +644,7 @@ def _submit_path(client, session_id: int | str, puzzle_id: int, answer: dict):
 
 
 def test_api_next_and_submit(client, db_session):
+    headers = make_auth_headers(db_session)
     body = _practice_puzzle(client)
     puzzle = db_session.get(Puzzle, body["id"])
     assert puzzle is not None
@@ -646,12 +653,14 @@ def test_api_next_and_submit(client, db_session):
     ok = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": body["id"], "answer": {"path": path, "illegal_attempts": 0}, "mode": "practice"},
+        headers=headers,
     )
     assert ok.json()["result"] == "correct"
     assert ok.json()["score"] == float(ans["optimal_moves"] * 5)
 
 
-def test_speed_lifecycle(client):
+def test_speed_lifecycle(client, db_session):
+    headers = make_auth_headers(db_session)
     opened = client.post("/api/v1/pathfinding/sessions", json={})
     assert opened.status_code == 200
     sid = opened.json()["session_id"]
@@ -659,6 +668,7 @@ def test_speed_lifecycle(client):
     early = client.post(
         f"/api/v1/pathfinding/sessions/{sid}/submit",
         json={"puzzle_id": 1, "answer": {"path": ["a1", "a8"]}},
+        headers=headers,
     )
     assert early.status_code == 409
 
@@ -679,6 +689,7 @@ def test_speed_lifecycle(client):
     sub = client.post(
         f"/api/v1/pathfinding/sessions/{sid}/submit",
         json={"puzzle_id": first_id, "answer": {"path": path, "illegal_attempts": 1}},
+        headers=headers,
     )
     assert sub.status_code == 200
     assert sub.json()["attempt"]["result"] == "correct"
@@ -706,7 +717,7 @@ def test_speed_unknown_session_404(client):
     assert client.get("/api/v1/pathfinding/sessions/nope").status_code == 404
 
 
-def test_speed_submit_ignores_client_score(client):
+def test_speed_submit_ignores_client_score(client, db_session):
     opened = client.post("/api/v1/pathfinding/sessions", json={}).json()
     sid = opened["session_id"]
     prepared = client.post(f"/api/v1/pathfinding/sessions/{sid}/puzzles", json={"count": 20}).json()
@@ -717,16 +728,18 @@ def test_speed_submit_ignores_client_score(client):
     sub = client.post(
         f"/api/v1/pathfinding/sessions/{sid}/submit",
         json={"puzzle_id": first_id, "answer": {"path": path, "score": 9999, "optimal_moves": 99}},
+        headers=make_auth_headers(db_session),
     )
     assert sub.status_code == 200
     assert sub.json()["attempt"]["score"] != 9999.0
 
 
-def test_practice_submit_ignores_client_fen(client):
+def test_practice_submit_ignores_client_fen(client, db_session):
     body = _practice_puzzle(client)
     res = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": body["id"], "answer": {"path": [], "fen": "8/8/8/8/8/8/8/R7 w - - 0 1"}, "mode": "practice"},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 200
     assert res.json()["result"] == "wrong"

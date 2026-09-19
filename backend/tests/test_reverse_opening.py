@@ -17,6 +17,7 @@ from app.modules.reverse_opening.validator import (
 )
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 ITALIAN = ["e2e4", "e7e5", "g1f3", "b8c6", "f1c4", "f8c5"]
 
@@ -293,10 +294,12 @@ def test_api_list_hides_solution(client, db_session):
 
 def test_api_correct_incomplete_wrong_submit(client, db_session):
     puzzle = _seeded(db_session)
+    headers = make_auth_headers(db_session)
     moves = puzzle.answer_json["solutions"][0]
     ok = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"moves": moves}, "mode": "practice"},
+        headers=headers,
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -306,12 +309,14 @@ def test_api_correct_incomplete_wrong_submit(client, db_session):
     short = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"moves": moves[:2]}, "mode": "practice"},
+        headers=headers,
     )
     assert short.json()["result"] == "wrong"
 
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"moves": ["g1h3", "g8h6"]}, "mode": "practice"},
+        headers=headers,
     )
     assert bad.json()["result"] == "wrong"
 

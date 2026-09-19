@@ -8,6 +8,7 @@ exposed: ``next`` endpoints return ``PuzzleOut`` (no ``answer_json``).
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.capabilities import Capability, require_capability
 from app.core.deps import get_current_user_optional, get_db
 from app.modules.blindfold_calculation import schemas, sessions
 from app.modules.blindfold_calculation.sessions import (
@@ -127,13 +128,14 @@ def submit_speed_answer(
     session_id: str,
     body: schemas.SessionSubmitIn,
     db: Session = Depends(get_db),
-    user=Depends(get_current_user_optional),
+    # Speed submit creates an attempt (+evidence): authenticated only.
+    user=Depends(require_capability(Capability.ATTEMPTS_SUBMIT)),
 ):
     try:
         attempt, feedback_key, detail, session = sessions.submit(
             db,
             session_id,
-            user_id=user.id if user else None,
+            user_id=user.id,
             puzzle_id=body.puzzle_id,
             answer=body.answer,
             hints_used=body.hints_used,

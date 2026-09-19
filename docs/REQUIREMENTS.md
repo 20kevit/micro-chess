@@ -12,7 +12,7 @@
 |---|---|---|---|---|---|
 | REQ-PROD-001 | Platform identity: skill assessment + training, self-use + academy complement, never coach replacement | P0 | Implemented (docs+arch) | 0 | DEC-001 |
 | REQ-PROD-002 | Advantage via specific exercises, not puzzle counts; 6-question new-exercise gate | P0 | Planned (gate undecided as process) | 0–1 | DEC-013 |
-| REQ-PROD-003 | Public Home (marketing, no real guest exercises) vs Student Dashboard split | P0 | Partial (guest play exists; DashboardPage unmounted) | 2 | DEC-012, DEC-O03 |
+| REQ-PROD-003 | Public Home (marketing, no real guest exercises) vs Student Dashboard split | P0 | Partial (guest submits blocked + login gate 2026-09-19 per DEC-016; DashboardPage unmounted) | 2 | DEC-012, DEC-016 |
 | REQ-PROD-004 | Persian-first RTL UX; backend-authoritative correctness | P0 | Implemented | — | DEC-004 |
 
 ## Student
@@ -101,7 +101,7 @@
 |---|---|---|---|---|---|
 | REQ-AUTH-001 | Register/login/logout, server-revoked sessions, prod secret guard, rate limits | P0 | Implemented | — | — |
 | REQ-AUTH-002 | Roles PLAYER/COACH/PARENT/ADMIN + active-role switching; Academy + Parent(future) model | P0 | Partial (4 roles live; Academy missing) | 6 | — |
-| REQ-AUTH-003 | Guest sessions + migration to users | P1 | Implemented | — | DEC-O03 |
+| REQ-AUTH-003 | Guest sessions + migration to users | P1 | Implemented (sessions + migration kept; new guest training disabled per DEC-016) | — | DEC-016 |
 
 ## Analytics
 

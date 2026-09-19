@@ -367,8 +367,10 @@ Active, Flagged, or Rejected states; no rejected/blacklist fingerprint.
 
 - **Public Home (no login):** what MicroChess is, what problem it solves, who
   it is for (students, parents, coaches, academies), features, sample exercises,
-  benefits, pricing, FAQ, about, login/register. **Guest must not be able to do
-  real exercises.** (Gap — see §22: guests can play today.)
+   benefits, pricing, FAQ, about, login/register. **Guest must not be able to do
+   real exercises.** (Enforced 2026-09-19 per DEC-016: anonymous/guest submits
+   are 401 server-side, exercise routes require login; historical guest rows
+   preserved and migratable.)
 - **Logged-in Home = Student Dashboard:** training, progress, skill profile,
   recommendations, assignments, history, personalized training (future).
 
@@ -440,9 +442,10 @@ MicroChess
 
 ## 23. Known doc↔code conflicts (must be resolved by approved plan, not ad hoc)
 
-1. **Guest play vs "guest must not do real exercises" (§18).** Code + README +
-   `localProgress.ts` allow anonymous play; blueprint forbids it. Needs a
-   product decision (teaser scope vs hard gate) before Phase 2.
+1. **Guest play vs "guest must not do real exercises" (§18).** Resolved
+   2026-09-19 (DEC-016, hard login gate): anonymous/guest submits are 401
+   server-side, exercise routes require login; historical guest rows are
+   preserved and migratable.
 2. **`DashboardPage` unmounted** while blueprint assumes a student dashboard home.
 3. **Coach assignment shape** (single `exercise_slug`) vs multi-puzzle ordered
    pack with mode/instructions/groups (§13).

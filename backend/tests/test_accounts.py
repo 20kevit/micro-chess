@@ -265,7 +265,10 @@ def test_guest_session_lifecycle(client):
     assert client.get("/api/v1/guest/session", headers=_bearer("bogus")).status_code == 401
 
 
-def test_guest_practice_attempt_owned_by_guest(client, db_session):
+def test_guest_practice_attempt_is_blocked(client, db_session):
+    # Product decision: guests cannot practice. Only authenticated users
+    # may create attempts (and therefore evidence). Historical guest rows
+    # are preserved, but no new guest attempt is possible.
     puzzle_id, answer = _seeded_puzzle_id(db_session)
     token = _guest(client)
     res = client.post(
@@ -273,33 +276,61 @@ def test_guest_practice_attempt_owned_by_guest(client, db_session):
         headers=_bearer(token),
         json={"puzzle_id": puzzle_id, "answer": {"selected_squares": answer["squares"]}, "mode": "practice"},
     )
-    assert res.status_code == 200
-    attempt = db_session.query(Attempt).filter(Attempt.id == res.json()["id"]).one()
-    assert attempt.user_id is None
-    assert attempt.guest_session_id is not None
-    # Guests cannot play rated mode.
+    assert res.status_code == 401
+    assert db_session.query(Attempt).count() == 0
+    # Guests cannot play rated mode either.
     rated = client.post(
         "/api/v1/attempts",
         headers=_bearer(token),
         json={"puzzle_id": puzzle_id, "answer": {"selected_squares": []}, "mode": "rated"},
     )
     assert rated.status_code == 401
+    assert db_session.query(Attempt).count() == 0
+    # Fully anonymous practice is blocked the same way.
+    anon = client.post(
+        "/api/v1/attempts",
+        json={"puzzle_id": puzzle_id, "answer": {"selected_squares": answer["squares"]}, "mode": "practice"},
+    )
+    assert anon.status_code == 401
+    assert db_session.query(Attempt).count() == 0
+    # Authenticated practice still works.
+    user_token = _register(client, username="owner_practice").json()["access_token"]
+    ok = client.post(
+        "/api/v1/attempts",
+        headers=_bearer(user_token),
+        json={"puzzle_id": puzzle_id, "answer": {"selected_squares": answer["squares"]}, "mode": "practice"},
+    )
+    assert ok.status_code == 200
+    assert db_session.query(Attempt).count() == 1
+
+
+def _seed_historical_guest_attempt(db_session, guest_token, puzzle_id, answer):
+    """Persist one pre-decision guest attempt directly (history is kept)."""
+    from app.modules.auth import service as auth_service
+    from app.modules.piece_recognition.validator import SLUG
+
+    guest = auth_service.get_guest_session(db_session, guest_token)
+    assert guest is not None
+    attempt = Attempt(
+        user_id=None,
+        guest_session_id=guest.id,
+        puzzle_id=puzzle_id,
+        exercise_slug=SLUG,
+        mode="practice",
+        result="correct",
+        answer_json={"selected_squares": answer["squares"]},
+        score=1.0,
+    )
+    db_session.add(attempt)
+    db_session.commit()
+    return attempt
 
 
 def test_guest_migration_moves_attempts_atomically(client, db_session):
     puzzle_id, answer = _seeded_puzzle_id(db_session)
     guest_token = _guest(client)
     for _ in range(2):
-        res = client.post(
-            "/api/v1/attempts",
-            headers=_bearer(guest_token),
-            json={
-                "puzzle_id": puzzle_id,
-                "answer": {"selected_squares": answer["squares"]},
-                "mode": "practice",
-            },
-        )
-        assert res.status_code == 200
+        _seed_historical_guest_attempt(db_session, guest_token, puzzle_id, answer)
 
     user_token = _register(client, username="new_owner").json()["access_token"]
     migrate = client.post(
@@ -355,11 +386,8 @@ def test_guest_isolation_between_sessions(client, db_session):
     token_b = _guest(client)
     assert token_a != token_b
     puzzle_id, answer = _seeded_puzzle_id(db_session)
-    client.post(
-        "/api/v1/attempts",
-        headers=_bearer(token_a),
-        json={"puzzle_id": puzzle_id, "answer": {"selected_squares": []}, "mode": "practice"},
-    )
+    # Historical attempt owned by guest A only.
+    _seed_historical_guest_attempt(db_session, token_a, puzzle_id, answer)
     owner_token = _register(client, username="iso_owner").json()["access_token"]
     migrate = client.post(
         "/api/v1/guest/migrate", headers=_bearer(owner_token), json={"guest_token": token_b}

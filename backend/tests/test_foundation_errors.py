@@ -38,14 +38,23 @@ def test_rated_without_auth_maps_detail_to_code(client, db_session):
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {}, "mode": "rated"},
     )
+    # Guest/anonymous practice is disabled: unauthenticated submits of any
+    # mode are rejected before reaching validation.
     assert res.status_code == 401
     body = res.json()
-    assert body["error"]["code"] == "AUTH_REQUIRED_FOR_RATED"
-    assert body["detail"] == "auth_required_for_rated"
+    assert body["error"]["code"] == "AUTH_REQUIRED"
+    assert body["detail"] == "auth_required"
 
 
-def test_validation_error_has_envelope_without_internals(client):
-    res = client.post("/api/v1/attempts", json={"puzzle_id": "not-an-int", "answer": {}})
+def test_validation_error_has_envelope_without_internals(client, db_session):
+    from tests.conftest import make_auth_headers
+
+    res = client.post(
+        "/api/v1/attempts",
+        json={"puzzle_id": "not-an-int", "answer": {}},
+        headers=make_auth_headers(db_session),
+    )
+    assert res.status_code == 422
     assert res.status_code == 422
     body = res.json()
     assert body["error"]["code"] == "VALIDATION_ERROR"

@@ -14,6 +14,7 @@ from app.modules.legal_destinations.validator import (
 )
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 
 def dests(fen: str, origin: str, profile: str = STANDARD) -> set[str]:
@@ -168,6 +169,7 @@ def _seeded(db_session) -> Puzzle:
 
 def test_api_list_and_submit(client, db_session):
     puzzle = _seeded(db_session)
+    headers = make_auth_headers(db_session)
     res = client.get(f"/api/v1/puzzles?exercise={SLUG}")
     assert res.status_code == 200
     body = res.json()
@@ -182,6 +184,7 @@ def test_api_list_and_submit(client, db_session):
             "answer": {"selected_squares": puzzle.answer_json["squares"]},
             "mode": "practice",
         },
+        headers=headers,
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -191,6 +194,7 @@ def test_api_list_and_submit(client, db_session):
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"selected_squares": []}, "mode": "practice"},
+        headers=headers,
     )
     assert bad.json()["result"] == "wrong"
 

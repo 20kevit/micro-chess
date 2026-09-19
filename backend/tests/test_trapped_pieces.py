@@ -6,6 +6,7 @@ import pytest
 from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult, ValidationResult
+from tests.conftest import make_auth_headers
 from app.modules.trapped_pieces import generator as gen_mod
 from app.modules.trapped_pieces import seed as seed_mod
 from app.modules.trapped_pieces.detector import (
@@ -349,6 +350,7 @@ def _seeded(db_session) -> Puzzle:
 
 def test_api_list_and_submit(client, db_session):
     puzzle = _seeded(db_session)
+    headers = make_auth_headers(db_session)
     res = client.get(f"/api/v1/puzzles?exercise={SLUG}")
     assert res.status_code == 200
     body = res.json()
@@ -363,6 +365,7 @@ def test_api_list_and_submit(client, db_session):
             "answer": {"selected_squares": puzzle.answer_json["squares"]},
             "mode": "practice",
         },
+        headers=headers,
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -371,6 +374,7 @@ def test_api_list_and_submit(client, db_session):
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"selected_squares": ["h1"]}, "mode": "practice"},
+        headers=headers,
     )
     assert bad.json()["result"] in ("wrong", "partial")
     assert bad.json()["score"] < 0
@@ -410,6 +414,7 @@ def test_api_next_practice_and_speed_flow(client, db_session):
     sub = client.post(
         f"/api/v1/trapped-pieces/sessions/{sid}/submit",
         json={"puzzle_id": first_id, "answer": {"selected_squares": first.answer_json["squares"]}},
+        headers=make_auth_headers(db_session),
     )
     assert sub.status_code == 200
     assert sub.json()["attempt"]["result"] == "correct"

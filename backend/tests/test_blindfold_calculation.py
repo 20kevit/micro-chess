@@ -19,6 +19,7 @@ from app.modules.blindfold_calculation.validator import (
 from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 # Real puzzles.db row (first seed entry): Kd6.
 FEN = "3k4/p7/2K5/3P2p1/1P3p2/P7/6P1/8 w - - 0 39"
@@ -361,6 +362,7 @@ def test_api_next_hides_solution(client, db_session):
 
 def test_api_correct_and_wrong_submit(client, db_session):
     puzzle = _seeded(db_session)
+    headers = make_auth_headers(db_session)
     ok = client.post(
         "/api/v1/attempts",
         json={
@@ -368,6 +370,7 @@ def test_api_correct_and_wrong_submit(client, db_session):
             "answer": {"move": _correct_san(puzzle)},
             "mode": "practice",
         },
+        headers=headers,
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -379,6 +382,7 @@ def test_api_correct_and_wrong_submit(client, db_session):
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"move": "zzz"}, "mode": "practice"},
+        headers=headers,
     )
     assert bad.json()["result"] == "wrong"
     assert bad.json()["score"] == 0.0
@@ -391,6 +395,7 @@ def test_api_correct_and_wrong_submit(client, db_session):
 
 
 def test_speed_lifecycle(client, db_session):
+    headers = make_auth_headers(db_session)
     started = client.post("/api/v1/blindfold-calculation/sessions", json={})
     assert started.status_code == 200
     session_id = started.json()["session_id"]
@@ -411,6 +416,7 @@ def test_speed_lifecycle(client, db_session):
     sub = client.post(
         f"/api/v1/blindfold-calculation/sessions/{session_id}/submit",
         json={"puzzle_id": first["id"], "answer": {"move": correct}},
+        headers=headers,
     )
     assert sub.status_code == 200
     assert sub.json()["attempt"]["result"] == "correct"
@@ -427,6 +433,7 @@ def test_speed_lifecycle(client, db_session):
         bad = client.post(
             f"/api/v1/blindfold-calculation/sessions/{session_id}/submit",
             json={"puzzle_id": second["id"], "answer": {"move": other_san}},
+            headers=headers,
         )
         # Either correct (same solution) or wrong — never a crash.
         assert bad.json()["attempt"]["result"] in ("correct", "wrong")
@@ -447,6 +454,7 @@ def test_speed_submit_before_start_rejected(client, db_session):
     sub = client.post(
         f"/api/v1/blindfold-calculation/sessions/{session_id}/submit",
         json={"puzzle_id": first["id"], "answer": {"move": "Kd6"}},
+        headers=make_auth_headers(db_session),
     )
     assert sub.status_code == 409  # session_not_started
 
@@ -473,5 +481,6 @@ def test_speed_timeout_rejected(client, db_session):
     late = client.post(
         f"/api/v1/blindfold-calculation/sessions/{session_id}/submit",
         json={"puzzle_id": first["id"], "answer": {"move": "Kd6"}},
+        headers=make_auth_headers(db_session),
     )
     assert late.status_code == 410

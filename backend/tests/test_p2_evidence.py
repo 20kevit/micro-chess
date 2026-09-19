@@ -1001,24 +1001,19 @@ def test_rated_attempt_rates_and_evidences_without_coupling():
     db.close()
 
 
-def test_guest_attempts_produce_evidence_without_identity_leak():
+def test_guest_attempt_is_rejected_without_evidence():
+    # Product decision: guests cannot practice. The service refuses
+    # ownerless submissions, so neither an attempt nor evidence persists.
+    # Historical guest rows stay readable; only new submissions are gated.
     Session = make_db()
     db = Session()
     puzzle = make_puzzle(db, "captures", {"squares": ["d5"], "from": "e4"})
-    attempt, _, _ = submit(
-        db, puzzle, {"selected_squares": ["e4"]}, user_id=None, guest_session_id=9
-    )
-    assert attempt.rating_delta is None
-    rows = evidence_for(db, attempt)
-    assert rows
-    assert all(r.user_id is None and r.guest_session_id == 9 for r in rows)
-    # Guest repeats resolve against the guest session, not a user.
-    attempt2, _, _ = submit(
-        db, puzzle, {"selected_squares": ["e4"]}, user_id=None, guest_session_id=9
-    )
-    assert any(
-        r.mistake_core == "repeated-mistake" for r in evidence_for(db, attempt2)
-    )
+    with pytest.raises(ValueError, match="auth_required"):
+        submit(
+            db, puzzle, {"selected_squares": ["e4"]}, user_id=None, guest_session_id=9
+        )
+    assert db.query(Attempt).count() == 0
+    assert db.query(Evidence).count() == 0
     db.close()
 
 
@@ -1027,7 +1022,7 @@ def test_speed_session_submit_is_practice_evidence():
 
     Session = make_db()
     db = Session()
-    session = sessions.start_session(db, user_id=None)
+    session = sessions.start_session(db, user_id=11)
     sessions.prepare_puzzles(db, session.id, count=sessions.MIN_START_BUFFER)
     session = sessions.begin_session(db, session.id)
     puzzle_id = (session.puzzle_ids or [])[0]
@@ -1035,7 +1030,7 @@ def test_speed_session_submit_is_practice_evidence():
     assert puzzle is not None
     answer = {"selected_squares": list((puzzle.answer_json or {}).get("squares", []))}
     attempt, _, _, _ = sessions.submit(
-        db, session.id, user_id=None, puzzle_id=puzzle_id, answer=answer
+        db, session.id, user_id=11, puzzle_id=puzzle_id, answer=answer
     )
     # Speed attempts persist as practice attempts (no session FK on Attempt
     # yet): the speed-vs-practice discount rule stays deferred, but the

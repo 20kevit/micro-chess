@@ -31,6 +31,7 @@ from app.modules.legal_destinations.validator import (
 from app.modules.progress.models import Attempt
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 
 def dests(fen: str, origin: str, profile: str = IGNORE_ENEMY_ATTACKS) -> set[str]:
@@ -359,6 +360,7 @@ def test_speed_submit_and_report(client, db_session):
     res = client.post(
         f"/api/v1/legal-destinations/sessions/{sid}/submit",
         json={"puzzle_id": puzzles[0]["id"], "answer": {"selected_squares": []}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 200
     payload = res.json()
@@ -377,6 +379,7 @@ def test_speed_submit_ignores_client_solution(client, db_session):
     res = client.post(
         f"/api/v1/legal-destinations/sessions/{sid}/submit",
         json={"puzzle_id": puzzles[0]["id"], "answer": {"selected_squares": [], "squares": ["a1"]}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 200
 
@@ -400,6 +403,7 @@ def test_speed_rejects_foreign_puzzle(client, db_session):
     res = client.post(
         f"/api/v1/legal-destinations/sessions/{sid}/submit",
         json={"puzzle_id": foreign.id, "answer": {"selected_squares": []}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 404
 
@@ -414,6 +418,7 @@ def test_speed_expiry_authoritative(client, db_session):
     res = client.post(
         f"/api/v1/legal-destinations/sessions/{sid}/submit",
         json={"puzzle_id": puzzles[0]["id"], "answer": {"selected_squares": []}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 410
 

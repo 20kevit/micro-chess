@@ -81,3 +81,35 @@ def client(db_session):
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+_auth_user_counter = 0
+
+
+def make_auth_headers(db_session, username=None):
+    """Bearer headers for an authenticated PLAYER session (test-only).
+
+    Guest/anonymous practice is disabled product-wide: attempt-creating
+    endpoints require authentication, so API tests submit with these
+    headers. Direct row inserts avoid the password-hashing env issue;
+    the token stays bound to a real server-side session. Usernames
+    auto-increment so several calls fit in one test DB.
+    """
+    global _auth_user_counter
+    _auth_user_counter += 1
+    username = username or f"player_{_auth_user_counter}"
+    from app.modules.auth import service as auth_service
+    from app.modules.users.models import User
+
+    user = User(
+        username=username,
+        email=f"{username}@example.com",
+        password_hash="not-verified",
+        display_name=username,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    _, token = auth_service.create_user_session(db_session, user, "PLAYER")
+    db_session.commit()
+    return {"Authorization": f"Bearer {token}"}

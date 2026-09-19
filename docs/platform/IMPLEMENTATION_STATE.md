@@ -885,9 +885,14 @@ Phase 02 accounts (all verified by tests + live runtime checks):
 * Guests: `guest_sessions` (ACTIVE/MIGRATED/REVOKED + expiry) via
   `POST /api/v1/guest/session`, `GET /api/v1/guest/session`,
   `POST /api/v1/guest/migrate` (`accounts.migrate_guest`
-  capability). Guest practice attempts carry `guest_session_id`;
-  rated mode still requires an account. Migration is atomic,
-  idempotent, replay-safe, ownership-checked (409 on foreign replay).
+  capability). Guest practice is disabled since 2026-09-19 (DEC-016,
+  hard login gate): `POST /api/v1/attempts` and every speed
+  `.../sessions/{id}/submit` require `attempts.submit` (guest/anonymous
+  → 401, no attempt and no evidence created); historical
+  `guest_session_id` rows are preserved and stay migratable; exercise
+  UI routes require login (redirect with return target). Migration is
+  atomic, idempotent, replay-safe, ownership-checked (409 on foreign
+  replay).
 * Schema v2: `ensure_schema` upgrades Phase 01 DBs (username backfill
   from email, email nullability relaxation incl. SQLite rebuild,
   PLAYER backfill, attempts column); fresh boot + idempotency +

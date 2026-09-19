@@ -62,6 +62,7 @@ def test_practice_submit_correct_records_attempt(client, db_session):
     puzzle = _seeded_puzzle(db_session)
     res = client.post(
         "/api/v1/attempts",
+        headers=_auth_header(db_session),
         json={
             "puzzle_id": puzzle.id,
             "answer": {"selected_squares": puzzle.answer_json["squares"]},
@@ -88,6 +89,7 @@ def test_partial_per_square_scoring(client, db_session):
     assert len(squares) >= 2
     res = client.post(
         "/api/v1/attempts",
+        headers=_auth_header(db_session),
         json={"puzzle_id": puzzle.id, "answer": {"selected_squares": squares[:1]}, "mode": "practice"},
     )
     assert res.json()["result"] == "partial"
@@ -158,6 +160,7 @@ def test_hints_and_timing_recorded(client, db_session):
     started = (datetime.now(timezone.utc) - timedelta(seconds=42)).isoformat()
     res = client.post(
         "/api/v1/attempts",
+        headers=_auth_header(db_session),
         json={
             "puzzle_id": puzzle.id,
             "answer": {"selected_squares": []},

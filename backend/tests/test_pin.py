@@ -7,6 +7,7 @@ from app.modules.pin import seed as seed_mod
 from app.modules.pin.validator import SLUG, find_pins, validate
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 
 def answer_for(fen: str, pin: list) -> dict:
@@ -301,6 +302,7 @@ def _seeded(db_session) -> Puzzle:
 
 def test_api_list_and_submit(client, db_session):
     puzzle = _seeded(db_session)
+    headers = make_auth_headers(db_session)
     res = client.get(f"/api/v1/puzzles?exercise={SLUG}")
     assert res.status_code == 200
     body = res.json()
@@ -311,6 +313,7 @@ def test_api_list_and_submit(client, db_session):
     ok = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"squares": pin}, "mode": "practice"},
+        headers=headers,
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -320,6 +323,7 @@ def test_api_list_and_submit(client, db_session):
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"squares": [pin[2], pin[1], pin[0]]}, "mode": "practice"},
+        headers=headers,
     )
     assert bad.json()["result"] == "wrong"
 
@@ -341,5 +345,6 @@ def test_missing_puzzle_returns_404(client, db_session):
     res = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": 999999, "answer": {"squares": ["e1", "e6", "e8"]}, "mode": "practice"},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 404

@@ -8,6 +8,7 @@ from app.modules.checkmate.validator import CHOICES, SLUG, classify, normalize_c
 from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 
 def answer_for(fen: str) -> dict:
@@ -206,6 +207,7 @@ def _seeded(db_session) -> Puzzle:
 
 def test_api_list_and_submit(client, db_session):
     puzzle = _seeded(db_session)
+    headers = make_auth_headers(db_session)
     res = client.get(f"/api/v1/puzzles?exercise={SLUG}")
     assert res.status_code == 200
     body = res.json()
@@ -215,6 +217,7 @@ def test_api_list_and_submit(client, db_session):
     ok = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"choice": state_of(puzzle.fen)}, "mode": "practice"},
+        headers=headers,
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -225,6 +228,7 @@ def test_api_list_and_submit(client, db_session):
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"choice": sorted(other)[0]}, "mode": "practice"},
+        headers=headers,
     )
     assert bad.json()["result"] == "wrong"
 

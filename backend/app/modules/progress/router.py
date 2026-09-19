@@ -4,10 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.capabilities import Capability, require_capability
-from app.core.deps import get_db, get_guest_session_optional
-from app.modules.auth.models import GuestSession
+from app.core.deps import get_db
 from app.modules.progress import schemas, service
-from app.modules.rule_engine.base import AttemptMode
 
 router = APIRouter(prefix="/attempts", tags=["attempts"])
 
@@ -16,16 +14,15 @@ router = APIRouter(prefix="/attempts", tags=["attempts"])
 def create_attempt(
     body: schemas.AttemptIn,
     db: Session = Depends(get_db),
-    user=Depends(require_capability(Capability.ATTEMPTS_SUBMIT, allow_anonymous=True)),
-    guest: GuestSession | None = Depends(get_guest_session_optional),
+    # Guest/anonymous practice is disabled: only authenticated accounts
+    # hold ATTEMPTS_SUBMIT, so guests get 401 here and never reach the
+    # service (no attempt, no evidence). Historical guest rows are kept.
+    user=Depends(require_capability(Capability.ATTEMPTS_SUBMIT)),
 ):
-    if body.mode == AttemptMode.RATED and user is None:
-        raise HTTPException(status_code=401, detail="auth_required_for_rated")
     try:
         attempt, feedback_key, detail = service.submit_attempt(
             db,
-            user_id=user.id if user else None,
-            guest_session_id=guest.id if (user is None and guest is not None) else None,
+            user_id=user.id,
             puzzle_id=body.puzzle_id,
             answer=body.answer,
             mode=body.mode,
@@ -34,6 +31,8 @@ def create_attempt(
             started_at=body.started_at,
         )
     except ValueError as exc:
+        if str(exc) == "auth_required":
+            raise HTTPException(status_code=401, detail="auth_required")
         if str(exc) == "attempt_owner_conflict":
             raise HTTPException(status_code=400, detail="attempt_owner_conflict")
         if str(exc) == "exercise_not_available":

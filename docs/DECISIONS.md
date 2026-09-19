@@ -111,6 +111,16 @@
 - Reason: Prevents over-design and premature coupling.
 - Status: Accepted | Date: 2026-09-14 | Impact: All phases.
 
+### DEC-016 — Guest hard login gate
+- Decision: Guests cannot run practice. Only authenticated users may create
+  attempts (practice/rated, direct/speed) and therefore evidence. Historical
+  guest rows are preserved and migratable; no new guest training state is
+  created. Exercise UI routes require login (redirect with return target).
+- Reason: Protects assessment integrity; resolves the DEC-012 conflict
+  (decides DEC-O03 as hard gate, no teaser scope).
+- Status: Accepted | Date: 2026-09-19 | Impact: Attempts API, speed submits,
+  exercise routes, guest/auth/attempt/evidence tests.
+
 ---
 
 ## Proposed (needs approval before Phase 1)
@@ -141,7 +151,7 @@
 
 - DEC-O01: Final skill-rating formula (Glicko-2? Elo? custom? per-skill vs per-exercise?).
 - DEC-O02: Final skill cluster names + granularity + cross-exercise weights.
-- DEC-O03: Guest policy resolution (teaser scope vs hard login gate).
+- DEC-O03: Guest policy resolution — decided: hard login gate (see DEC-016).
 - DEC-O04: Suitability formula weights + personalization inputs priority.
 - DEC-O05: Monetization model (Free+Premium / individual / parent / coach /
   academy per-student / fixed / hybrid — none chosen).

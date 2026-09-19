@@ -272,6 +272,10 @@ def test_terminal_rated_submission_is_recorded_but_not_rated(client, db_session)
 
 
 def test_guest_practice_creates_no_rating(client, db_session):
+    # Guests are blocked before any attempt exists, so no rating state
+    # can ever be created for them.
+    from app.modules.progress.models import Attempt
+
     puzzle = _seeded_piece_puzzle(db_session)
     guest_token = client.post("/api/v1/guest/session").json()["guest_token"]
     res = client.post(
@@ -279,7 +283,8 @@ def test_guest_practice_creates_no_rating(client, db_session):
         json={"puzzle_id": puzzle.id, "answer": {}, "mode": "practice"},
         headers={"Authorization": f"Bearer {guest_token}"},
     )
-    assert res.status_code == 200
+    assert res.status_code == 401
+    assert db_session.query(Attempt).count() == 0
     assert db_session.query(PlayerRating).count() == 0
     assert db_session.query(RatingEvent).count() == 0
 

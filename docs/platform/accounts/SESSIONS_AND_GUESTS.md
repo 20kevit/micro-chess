@@ -78,7 +78,10 @@ Expired or revoked sessions cannot authorize further guest operations.
 
 Guest access is intentionally narrower than registered-user access.
 
-A guest may use supported training functionality without registration.
+Guests cannot run practice: attempt submission (practice and rated,
+direct or via speed sessions) requires an authenticated account, so
+guests create no attempts, no evidence, and no rating/XP state.
+Historical guest rows are preserved and remain migratable.
 
 Guest access must not provide:
 
@@ -87,6 +90,7 @@ Guest access must not provide:
 * unrestricted profile access
 * Coach/Parent capabilities
 * access to another user's or guest's data
+* practice execution or derived training state
 
 The exact capability mapping is owned by `ROLES_AND_PERMISSIONS.md` and `SECURITY.md`.
 
@@ -94,14 +98,10 @@ The exact capability mapping is owned by `ROLES_AND_PERMISSIONS.md` and `SECURIT
 
 ## 5. Guest Training State
 
-Guest activity may temporarily include:
-
-* training sessions
-* attempts
-* progress
-* scores
-* exercise-specific rating state
-* gamification state
+New guest training is disabled (hard login gate): guests cannot submit
+attempts and therefore create no attempts, no evidence, and no
+rating/XP state. Pre-decision guest rows are preserved as history and
+stay migratable.
 
 Guest state must remain isolated from other guests.
 

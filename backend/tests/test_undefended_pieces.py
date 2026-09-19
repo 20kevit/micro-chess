@@ -17,6 +17,7 @@ from app.modules.exercises import registry
 from app.modules.progress.models import Attempt
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 from app.modules.undefended_pieces import generator as gen
 from app.modules.undefended_pieces import seed as seed_mod
 from app.modules.undefended_pieces import sessions as session_service
@@ -289,6 +290,7 @@ def _seeded(db_session) -> Puzzle:
 
 def test_api_list_and_submit(client, db_session):
     puzzle = _seeded(db_session)
+    headers = make_auth_headers(db_session)
     res = client.get(f"/api/v1/puzzles?exercise={SLUG}")
     assert res.status_code == 200
     body = res.json()
@@ -302,6 +304,7 @@ def test_api_list_and_submit(client, db_session):
             "answer": {"selected_squares": puzzle.answer_json["squares"]},
             "mode": "practice",
         },
+        headers=headers,
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -310,6 +313,7 @@ def test_api_list_and_submit(client, db_session):
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"selected_squares": ["h1"]}, "mode": "practice"},
+        headers=headers,
     )
     assert bad.json()["result"] in ("wrong", "partial")
 
@@ -383,6 +387,7 @@ def test_speed_submit_and_report(client, db_session):
     res = client.post(
         f"/api/v1/undefended-pieces/sessions/{sid}/submit",
         json={"puzzle_id": puzzles[0]["id"], "answer": {"selected_squares": []}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 200
     payload = res.json()
@@ -402,6 +407,7 @@ def test_speed_submit_ignores_client_solution(client, db_session):
     res = client.post(
         f"/api/v1/undefended-pieces/sessions/{sid}/submit",
         json={"puzzle_id": puzzles[0]["id"], "answer": {"selected_squares": [], "squares": ["a1"], "fen": "8/8/8/8/8/8/8/8 w - - 0 1"}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 200
 
@@ -425,6 +431,7 @@ def test_speed_rejects_foreign_puzzle(client, db_session):
     res = client.post(
         f"/api/v1/undefended-pieces/sessions/{sid}/submit",
         json={"puzzle_id": foreign.id, "answer": {"selected_squares": []}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 404
 
@@ -439,6 +446,7 @@ def test_speed_expiry_authoritative(client, db_session):
     res = client.post(
         f"/api/v1/undefended-pieces/sessions/{sid}/submit",
         json={"puzzle_id": puzzles[0]["id"], "answer": {"selected_squares": []}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 410
 
@@ -449,6 +457,7 @@ def test_speed_rejects_submit_before_start(client, db_session):
     res = client.post(
         f"/api/v1/undefended-pieces/sessions/{sid}/submit",
         json={"puzzle_id": batch[0]["id"], "answer": {"selected_squares": []}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 409
 
@@ -457,9 +466,11 @@ def test_speed_double_submit_counts_each_time(client, db_session):
     # No puzzle_already_answered guard in this exercise family: each submit
     # is a separate attempt row (matches captures behavior).
     sid, puzzles, _ = _ready_session(client)
+    headers = make_auth_headers(db_session)
     for _ in range(2):
         res = client.post(
             f"/api/v1/undefended-pieces/sessions/{sid}/submit",
             json={"puzzle_id": puzzles[0]["id"], "answer": {"selected_squares": []}},
+            headers=headers,
         )
         assert res.status_code == 200

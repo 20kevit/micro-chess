@@ -9,6 +9,7 @@ from app.modules.opening_traps.description import THEME_FA, describe_position, d
 from app.modules.opening_traps.validator import SLUG, solution_sans, validate
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 FEN_LEGAL = "rn1qkbnr/ppp2p1p/3p2p1/4p3/2B1P1b1/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 0 5"
 FEN_NOAH = "r1bqkbnr/5ppp/p2p4/1pp5/3QP3/1B6/PPP2PPP/RNB1K2R w KQkq - 0 9"
@@ -279,10 +280,12 @@ def test_api_detail_hides_answer(client, db_session):
 
 def test_api_correct_wrong_malformed_submit(client, db_session):
     puzzle = _seeded(db_session)
+    headers = make_auth_headers(db_session)
     sans = solution_sans(puzzle.answer_json["fen"], puzzle.answer_json["solutions"])
     ok = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"move": sans[0]}, "mode": "practice"},
+        headers=headers,
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -293,18 +296,21 @@ def test_api_correct_wrong_malformed_submit(client, db_session):
         alt = client.post(
             "/api/v1/attempts",
             json={"puzzle_id": puzzle.id, "answer": {"move": sans[1]}, "mode": "practice"},
+            headers=headers,
         )
         assert alt.json()["result"] == "correct"
 
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"move": "Ra1"}, "mode": "practice"},
+        headers=headers,
     )
     assert bad.json()["result"] == "wrong"
 
     malformed = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"move": "zzz"}, "mode": "practice"},
+        headers=headers,
     )
     assert malformed.json()["result"] == "wrong"
 

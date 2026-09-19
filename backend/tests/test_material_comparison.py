@@ -20,6 +20,7 @@ from app.modules.material_comparison.validator import (
 )
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 
 def answer_for_fen(fen: str) -> dict:
@@ -337,10 +338,12 @@ def test_api_next_puzzle_satisfies_gate(client, db_session):
 
 def test_api_submit_correct_and_wrong(client, db_session):
     puzzle = _seeded(db_session)
+    headers = make_auth_headers(db_session)
     expected = mat.classify_fen(puzzle.fen)
     ok = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"choice": expected}, "mode": "practice"},
+        headers=headers,
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -350,6 +353,7 @@ def test_api_submit_correct_and_wrong(client, db_session):
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"choice": wrong_choice}, "mode": "practice"},
+        headers=headers,
     )
     assert bad.json()["result"] == "wrong"
     assert bad.json()["score"] == -2.0
@@ -383,6 +387,7 @@ def test_speed_lifecycle(client, db_session):
     sub = client.post(
         f"/api/v1/heavier-side/sessions/{session_id}/submit",
         json={"puzzle_id": first["id"], "answer": {"choice": expected}},
+        headers=make_auth_headers(db_session),
     )
     assert sub.status_code == 200
     assert sub.json()["attempt"]["result"] == "correct"

@@ -13,6 +13,7 @@ from app.modules.piece_recognition import sessions as session_service
 from app.modules.piece_recognition.models import PieceSpeedSession
 from app.modules.positions import repository as positions_repo
 from app.modules.progress.models import Attempt
+from tests.conftest import make_auth_headers
 
 
 @pytest.fixture(autouse=True)
@@ -87,6 +88,7 @@ def test_next_practice_exclude_ids_avoids_repeat(client, db_session):
 
 
 def test_next_puzzles_vary_and_submit_end_to_end(client, db_session):
+    headers = make_auth_headers(db_session)
     fens = set()
     for _ in range(5):
         body = client.post("/api/v1/piece-recognition/next", json={}).json()
@@ -94,6 +96,7 @@ def test_next_puzzles_vary_and_submit_end_to_end(client, db_session):
         res = client.post(
             "/api/v1/attempts",
             json={"puzzle_id": body["id"], "answer": {"selected_squares": []}, "mode": "practice"},
+            headers=headers,
         )
         assert res.status_code == 200
         assert res.json()["rating_delta"] is None
@@ -115,6 +118,7 @@ def test_client_cannot_override_fen_or_target(client, db_session):
             },
             "mode": "practice",
         },
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 200
     detail = res.json()["detail"]
@@ -152,6 +156,7 @@ def test_speed_submit_before_start_refused(client, db_session):
     res = client.post(
         f"/api/v1/piece-recognition/sessions/{sid}/submit",
         json={"puzzle_id": puzzles[0]["id"], "answer": {"selected_squares": []}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 409
 
@@ -170,10 +175,12 @@ def test_speed_prepare_hides_answers_and_refills(client, db_session):
 
 
 def test_speed_submit_scores_per_square_and_accumulates(client, db_session):
+    headers = make_auth_headers(db_session)
     sid, puzzles, _ = _ready_session(client)
     res = client.post(
         f"/api/v1/piece-recognition/sessions/{sid}/submit",
         json={"puzzle_id": puzzles[0]["id"], "answer": {"selected_squares": []}},
+        headers=headers,
     )
     assert res.status_code == 200
     payload = res.json()
@@ -194,16 +201,19 @@ def test_speed_submit_scores_per_square_and_accumulates(client, db_session):
     res2 = client.post(
         f"/api/v1/piece-recognition/sessions/{sid}/submit",
         json={"puzzle_id": second.json()["id"], "answer": {"selected_squares": ["e4", "d5"]}},
+        headers=headers,
     )
     assert res2.json()["session"]["attempted"] == 2
 
 
 def test_speed_report_rebuilt_from_stored_attempts(client, db_session):
+    headers = make_auth_headers(db_session)
     sid, puzzles, _ = _ready_session(client)
     for p in puzzles[:3]:
         res = client.post(
             f"/api/v1/piece-recognition/sessions/{sid}/submit",
             json={"puzzle_id": p["id"], "answer": {"selected_squares": ["e4"]}},
+            headers=headers,
         )
         assert res.status_code == 200
     report = client.get(f"/api/v1/piece-recognition/sessions/{sid}/report").json()
@@ -235,6 +245,7 @@ def test_speed_session_submit_ignores_client_solution(client, db_session):
             "puzzle_id": puzzles[0]["id"],
             "answer": {"selected_squares": [], "squares": [], "target": "x", "fen": "8/8/8/8/8/8/8/8 w - - 0 1"},
         },
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 200  # graded against stored answer, no crash
 
@@ -261,6 +272,7 @@ def test_speed_session_rejects_foreign_puzzle(client, db_session):
     res = client.post(
         f"/api/v1/piece-recognition/sessions/{sid}/submit",
         json={"puzzle_id": foreign.id, "answer": {"selected_squares": []}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 404
 
@@ -275,6 +287,7 @@ def test_speed_session_expiry_is_authoritative(client, db_session):
     res = client.post(
         f"/api/v1/piece-recognition/sessions/{sid}/submit",
         json={"puzzle_id": puzzles[0]["id"], "answer": {"selected_squares": []}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 410
     assert res.json()["detail"] == "session_expired"
@@ -285,11 +298,13 @@ def test_speed_session_expiry_is_authoritative(client, db_session):
 
 
 def test_speed_session_finish_summary_accumulates(client, db_session):
+    headers = make_auth_headers(db_session)
     sid, puzzles, _ = _ready_session(client)
     for p in puzzles[:3]:
         res = client.post(
             f"/api/v1/piece-recognition/sessions/{sid}/submit",
             json={"puzzle_id": p["id"], "answer": {"selected_squares": ["e4"]}},
+            headers=headers,
         )
         assert res.status_code == 200
     summary = client.post(f"/api/v1/piece-recognition/sessions/{sid}/finish").json()
@@ -305,6 +320,7 @@ def test_speed_session_hints_recorded(client, db_session):
     res = client.post(
         f"/api/v1/piece-recognition/sessions/{sid}/submit",
         json={"puzzle_id": puzzles[0]["id"], "answer": {"selected_squares": []}, "hints_used": ["h1"]},
+        headers=make_auth_headers(db_session),
     )
     assert res.json()["attempt"]["hints_used"] == ["h1"]
 

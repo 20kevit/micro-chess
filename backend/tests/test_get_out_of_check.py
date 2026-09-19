@@ -34,6 +34,7 @@ from app.modules.get_out_of_check.validator import (
 )
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 
 def answer_for(fen: str) -> dict:
@@ -559,6 +560,7 @@ def _practice_puzzle(client) -> dict:
 
 
 def test_api_next_and_submit(client, db_session):
+    headers = make_auth_headers(db_session)
     body = _practice_puzzle(client)
     expected = escaping_moves(body["fen"])
     assert len(expected) >= 1
@@ -566,6 +568,7 @@ def test_api_next_and_submit(client, db_session):
     ok = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": body["id"], "answer": {"moves": full}, "mode": "practice"},
+        headers=headers,
     )
     assert ok.status_code == 200
     payload = ok.json()
@@ -576,6 +579,7 @@ def test_api_next_and_submit(client, db_session):
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": body["id"], "answer": {"moves": [{"from": "a2", "to": "a4"}]}, "mode": "practice"},
+        headers=headers,
     )
     assert bad.json()["result"] in ("wrong", "partial")
     assert bad.json()["rating_delta"] is None
@@ -591,7 +595,7 @@ def test_api_next_never_leaks_answer_count(client):
     assert len(seen_prompts) >= 1
 
 
-def test_api_practice_submit_ignores_client_fen(client):
+def test_api_practice_submit_ignores_client_fen(client, db_session):
     body = _practice_puzzle(client)
     res = client.post(
         "/api/v1/attempts",
@@ -600,6 +604,7 @@ def test_api_practice_submit_ignores_client_fen(client):
             "answer": {"moves": [], "fen": "4k3/8/8/8/8/8/8/R3K3 w - - 0 1"},
             "mode": "practice",
         },
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 200
     # Graded against the stored puzzle (in check, answers missed) -> wrong.
@@ -613,7 +618,8 @@ def test_api_puzzle_detail_hides_answer(client):
     assert "answer_json" not in res.json()
 
 
-def test_speed_lifecycle(client):
+def test_speed_lifecycle(client, db_session):
+    headers = make_auth_headers(db_session)
     opened = client.post("/api/v1/get-out-of-check/sessions", json={})
     assert opened.status_code == 200
     sid = opened.json()["session_id"]
@@ -621,6 +627,7 @@ def test_speed_lifecycle(client):
     early = client.post(
         f"/api/v1/get-out-of-check/sessions/{sid}/submit",
         json={"puzzle_id": 1, "answer": {"moves": []}},
+        headers=headers,
     )
     assert early.status_code == 409
 
@@ -640,6 +647,7 @@ def test_speed_lifecycle(client):
     sub = client.post(
         f"/api/v1/get-out-of-check/sessions/{sid}/submit",
         json={"puzzle_id": first_id, "answer": {"moves": full}},
+        headers=headers,
     )
     assert sub.status_code == 200
     assert sub.json()["attempt"]["result"] == "correct"
@@ -673,6 +681,7 @@ def test_speed_submit_rejects_foreign_puzzle(client, db_session):
     res = client.post(
         f"/api/v1/get-out-of-check/sessions/{sid}/submit",
         json={"puzzle_id": foreign.id, "answer": {"moves": []}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 404
 

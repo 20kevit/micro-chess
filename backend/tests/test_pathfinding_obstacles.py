@@ -34,6 +34,7 @@ from app.modules.pathfinding_obstacles.validator import (
 )
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
+from tests.conftest import make_auth_headers
 
 
 def S(kind, white, enemies, target):
@@ -521,7 +522,7 @@ def test_step_unknown_puzzle_404(client):
     assert res.status_code == 404
 
 
-def test_attempt_api_authoritative_score_and_no_leak(client):
+def test_attempt_api_authoritative_score_and_no_leak(client, db_session):
     nxt = client.post("/api/v1/pathfinding-obstacles/next", json={}).json()
     pos = nxt["position_json"]
     state = tr.parse_state(
@@ -534,7 +535,7 @@ def test_attempt_api_authoritative_score_and_no_leak(client):
         "answer": {"path": solved["path"], "illegal_attempts": 1,
                    "score": 9999, "optimal_moves": 1},
         "mode": "practice",
-    })
+    }, headers=make_auth_headers(db_session))
     assert res.status_code == 200
     body = res.json()
     assert body["result"] == "correct"
@@ -546,19 +547,20 @@ def test_attempt_api_authoritative_score_and_no_leak(client):
     assert "answer_json" not in detail
 
 
-def test_attempt_wrong_path_rejected(client):
+def test_attempt_wrong_path_rejected(client, db_session):
     nxt = client.post("/api/v1/pathfinding-obstacles/next", json={}).json()
     pos = nxt["position_json"]
     res = client.post("/api/v1/attempts", json={
         "puzzle_id": nxt["id"],
         "answer": {"path": [pos["from"]], "illegal_attempts": 0},
         "mode": "practice",
-    })
+    }, headers=make_auth_headers(db_session))
     assert res.status_code == 200
     assert res.json()["result"] == "wrong"
 
 
-def test_speed_lifecycle_buffer_clock_submit_report(client):
+def test_speed_lifecycle_buffer_clock_submit_report(client, db_session):
+    headers = make_auth_headers(db_session)
     session = client.post("/api/v1/pathfinding-obstacles/sessions", json={}).json()
     sid = session["session_id"]
     assert session["status"] == "preparing"
@@ -582,7 +584,7 @@ def test_speed_lifecycle_buffer_clock_submit_report(client):
     sub = client.post(f"/api/v1/pathfinding-obstacles/sessions/{sid}/submit", json={
         "puzzle_id": first["id"],
         "answer": {"path": solved["path"], "illegal_attempts": 0},
-    }).json()
+    }, headers=headers).json()
     assert sub["attempt"]["result"] == "correct"
     assert sub["session"]["attempted"] == 1
     report = client.get(f"/api/v1/pathfinding-obstacles/sessions/{sid}/report").json()
@@ -590,7 +592,7 @@ def test_speed_lifecycle_buffer_clock_submit_report(client):
     assert report["entries"][0]["result"] == "correct"
     # Unknown puzzle is not submittable in the session.
     res = client.post(f"/api/v1/pathfinding-obstacles/sessions/{sid}/submit", json={
-        "puzzle_id": 999999, "answer": {"path": ["a1"], "illegal_attempts": 0}})
+        "puzzle_id": 999999, "answer": {"path": ["a1"], "illegal_attempts": 0}}, headers=headers)
     assert res.status_code == 404
     # Unknown session id.
     assert client.get("/api/v1/pathfinding-obstacles/sessions/does-not-exist").status_code == 404

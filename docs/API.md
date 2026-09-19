@@ -44,7 +44,11 @@ Example:
 ## Attempts
 
 - `POST /api/v1/attempts`
-  - Auth: optional for `practice`; required for `rated` (`auth_required_for_rated` 401).
+  - Auth: required for all modes (`auth_required` 401 for guest/anonymous).
+    Guest practice is disabled: only authenticated accounts hold
+    `attempts.submit`, so guests create no attempts and no evidence.
+    Historical guest rows are preserved and migratable. Speed
+    `.../sessions/{id}/submit` endpoints require the same capability.
   - Body: `{puzzle_id, answer: {selected_squares: []}, mode, client_result?, hints_used?: [], started_at?}`
   - `client_result` short-circuits validation for terminal states; otherwise the exercise validator runs.
   - Response: `{id, puzzle_id, exercise_slug, mode, result, score, feedback_key, rating_delta, detail, hints_used, started_at, duration_ms, created_at}`

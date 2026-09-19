@@ -20,6 +20,7 @@ from app.modules.balance_scale.validator import (
 from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult, ValidationResult
+from tests.conftest import make_auth_headers
 
 
 def answer_for(left: list) -> dict:
@@ -350,6 +351,7 @@ def test_api_submit_correct_scores_by_count(client, db_session):
     ok = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"pieces": combo}, "mode": "practice"},
+        headers=make_auth_headers(db_session),
     )
     assert ok.status_code == 200
     assert ok.json()["result"] == "correct"
@@ -358,6 +360,7 @@ def test_api_submit_correct_scores_by_count(client, db_session):
     bad = client.post(
         "/api/v1/attempts",
         json={"puzzle_id": puzzle.id, "answer": {"pieces": ["p"]}, "mode": "practice"},
+        headers=make_auth_headers(db_session),
     )
     assert bad.json()["result"] == "wrong"
     assert bad.json()["score"] == 0.0
@@ -398,6 +401,7 @@ def test_speed_session_lifecycle(client, db_session):
         client.post(
             f"/api/v1/balance-scale/sessions/{sid}/submit",
             json={"puzzle_id": 1, "answer": {"pieces": ["p"]}},
+            headers=make_auth_headers(db_session),
         ).status_code
         == 409
     )
@@ -424,6 +428,7 @@ def test_speed_session_lifecycle(client, db_session):
             "puzzle_id": puzzle_id,
             "answer": {"pieces": combo, "score": 99, "optimal_count": 1, "target_value": 1},
         },
+        headers=make_auth_headers(db_session),
     )
     assert sub.status_code == 200
     assert sub.json()["attempt"]["result"] == "correct"
@@ -451,6 +456,7 @@ def test_speed_session_rejects_foreign_puzzle(client, db_session):
     res = client.post(
         f"/api/v1/balance-scale/sessions/{sid}/submit",
         json={"puzzle_id": 999999, "answer": {"pieces": ["p"]}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 404
 
@@ -472,5 +478,6 @@ def test_speed_session_expiry(client, db_session):
     res = client.post(
         f"/api/v1/balance-scale/sessions/{sid}/submit",
         json={"puzzle_id": prepared.json()[0]["id"], "answer": {"pieces": ["p"]}},
+        headers=make_auth_headers(db_session),
     )
     assert res.status_code == 410

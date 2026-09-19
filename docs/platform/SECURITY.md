@@ -656,6 +656,8 @@ Guests must not access:
 * privileged analytics
 * privileged administration data
 * another guest's training history
+* practice execution: attempt submission (practice/rated, direct/speed)
+  and derived evidence (guests create no attempts, no evidence)
 
 Guest access must expire.
 
