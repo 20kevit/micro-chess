@@ -60,7 +60,7 @@ Example:
     else correct=1.0/partial=0.5/0); never
     trusted from the client; may be negative.
   - `result` in correct/partial/wrong/timeout/skipped/abandoned.
-  - `rating_delta` is `null` until Glicko-2 lands; practice attempts never set it.
+  - `rating_delta` is set for rated attempts (interim Elo-style update); practice attempts never set it (`null`). Numeric ratings stay hidden from players; only rated-game counts are shown.
   - Errors: `puzzle_not_available` (404 for missing/unpublished/archived).
 
 ## Piece Recognition (Exercise 1)

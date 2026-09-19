@@ -19,7 +19,7 @@ docs/      product + architecture + api + exercises
 | `positions` | shared read-only `puzzles.db` access (FEN-only helpers + full-row fetch for tactical answers) + fallback FENs; no exercise logic |
 | `chess_engine` | python-chess wrapper ONLY (standard rules) |
 | `rule_engine` | `AttemptResult`/`AttemptMode`/`ValidationResult` contract |
-| `rating_engine` | stub; Glicko-2 later |
+| `rating_engine` | interim Elo-style update (K=32/16, clamp [100,3000]); Glicko-2 deferred |
 | `scoring_engine` | pure result → score |
 | `feedback_engine` | pure result → i18n key |
 | `learning` | placeholder (educational content later) |
@@ -192,14 +192,14 @@ Notes:
    (`register_scorer(slug, fn)`); Piece Recognition scores per square
    (+5 correct / −1 missed / −2 wrong, negatives allowed, never clamped).
    Practice still scores; only rating is gated.
-4. `rating_delta` nullable now; `preview_rating_delta` returns None until Glicko-2.
+4. `rating_delta` is set for rated attempts (interim Elo-style) and stays NULL for practice; numeric ratings are never shown to players. Glicko-2 is deferred.
 5. Tailwind v4 (`@import "tailwindcss"`) to avoid config boilerplate.
 6. No Alembic yet — `init_db()` + `create_all` is enough for the foundation stage.
 7. Piece Recognition: exact set-match validator (empty==empty is CORRECT;
    malformed squares count as wrong); targets are data (`color` + `kinds`),
    canonical 12 color×kind for generation plus legacy `queen-any`/minor targets.
 8. No target-piece highlighting on the board — avoids leaking the answer.
-9. Hints recorded per attempt (`hints_used` + `rating_cost` in data); rating math still stubbed.
+9. Hints recorded per attempt (`hints_used` in data); interim Elo-style rating math lives in `rating_engine`.
 10. `puzzles.db` is a shared read-only position source (FEN only, indexed
     rowid sampling, pinned paths authoritative); exercise
     question/answer/score generation happens server-side per exercise;

@@ -66,7 +66,7 @@ Verdict scale: **Implemented** / **Partial** (exists but incomplete) /
 |---|---|---|
 | Backend structure (42 modules under `backend/app/modules/`) | Implemented | `exercises/registry.py` plug-in model; `progress/service.submit_attempt()` single-commit flow; `rating_engine` Elo-style; `gamification_engine`; `puzzles` lifecycle; `auth/users/player/admin/relationships/adaptive/support/notifications` |
 | Frontend structure (React 18 + Vite 6 + TS, RTL Persian) | Implemented | 19 exercise routes + admin/support/relationships pages; `main.tsx` router (real), `App.tsx` placeholder; SVG pieces; `i18n/fa.ts` ~572 keys; `DashboardPage.tsx` exists but **not mounted** |
-| DB models (`SCHEMA_VERSION=11`, portable types) | Implemented | users/roles, sessions+guests, player profiles + external identities, exercises, puzzles+history/validations/reviews, attempts, per-exercise ratings + rating events, gamification, generator_runs, relationships+assignments, adaptive_recommendations, support, notifications, audit_logs, 14 speed-session tables |
+| DB models (`SCHEMA_VERSION=14`, portable types) | Implemented | users/roles, sessions+guests, player profiles + external identities, exercises, puzzles+history/validations/reviews, attempts, per-exercise ratings + rating events, gamification, generator_runs, relationships+assignments, adaptive_recommendations, support, notifications, audit_logs, 14 speed-session tables |
 | APIs (per-exercise practice + 60s speed prepare/clock) | Implemented / Partial | 14 exercises have `POST /<slug>/next` + speed sessions; 5 seeded-only (`pin`, `is-checkmate`, `opening-traps`, `reverse-opening`, `castling-rights`) use generic `GET /puzzles` + `POST /attempts`, no speed clock |
 | Exercise registry | Implemented | 19 slugs registered via per-module `__init__.py`; `validate_answer` / `score_for_answer`; unknown slug → wrong (no crash) |
 | Validators | Implemented | All 19 have validators; custom scorers on 13, default 1.0/0.5/0.0 on 6 |
@@ -80,8 +80,8 @@ Verdict scale: **Implemented** / **Partial** (exists but incomplete) /
 | Tests | Implemented | 51 backend `test_*.py`; frontend `typecheck` + `build` + vitest gates |
 | Docs | Implemented | `EXERCISES.md`, `platform/` (scope, architecture, data model, phases 01–11, decisions), `ARCHITECTURE.md`, `API.md`, setup/testing/config/deployment |
 | README | Implemented | Accurate: claims 19 registered / 14 full + 5 seeded — matches code |
-| Migrations | Implemented | `migration.py` idempotent ensure_schema, v2–v11, downgrade protection; Alembic deferred to Postgres move |
-| Public home vs student dashboard | Partial | Public `/` + exercises playable **without login** (guest/anonymous allowed — conflicts with §16 decision below, see §22); logged-in account/progress/profile exist; `DashboardPage` unmounted; no personalized training pack |
+| Migrations | Implemented | `migration.py` idempotent ensure_schema, v2–v14, downgrade protection; Alembic deferred to Postgres move |
+| Public home vs student dashboard | Implemented | Anonymous `/` shows the exercise catalog with an onboarding hero + register/login CTA (no guest practice per DEC-016: submits are 401 server-side, exercise routes require login); logged-in players land on `DashboardPage` (cold-start CTA when zero attempts), coaches/parents/admins on their own dashboards |
 
 ---
 
