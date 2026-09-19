@@ -156,6 +156,23 @@ def test_unpublished_and_retired_content_never_selected(client, db_session):
         assert res.json()["puzzle"]["id"] == visible.id
 
 
+def test_flag_status_desync_never_selected(client, db_session):
+    """Quarantined/rejected rows stay unservable even when the
+    is_published/is_archived flags desync (lifecycle is authoritative)."""
+    token = _token(client, "desync_player")
+    visible = _puzzle(db_session, rating=1200.0)
+    for bad_status in ("quarantined", "rejected"):
+        bad = _puzzle(db_session, rating=1200.0)
+        bad.status = bad_status
+        bad.is_published = True
+        bad.is_archived = False
+        db_session.commit()
+    for _ in range(3):
+        res = client.get(f"/api/v1/me/adaptive/next?exercise={SLUG}", headers=_bearer(token))
+        assert res.status_code == 200, res.text
+        assert res.json()["puzzle"]["id"] == visible.id
+
+
 def test_disabled_exercise_yields_nothing(client, db_session):
     token = _token(client, "disabled_player")
     _puzzle(db_session, rating=1200.0)

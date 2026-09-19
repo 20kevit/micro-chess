@@ -71,7 +71,7 @@ from app.modules.exercises import registry
 from app.modules.exercises.models import Exercise
 from app.modules.player.service import is_known_exercise
 from app.modules.progress.models import Attempt
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import STATUS_PUBLISHED, Puzzle
 from app.modules.rating_engine.models import PlayerRating, RatingEvent
 from app.modules.rating_engine.service import INITIAL_RATING, RATING_MAX, RATING_MIN
 
@@ -322,10 +322,12 @@ def _eligible_puzzles(db: Session, exercise_slug: str) -> list[Puzzle]:
     """Player-visible puzzles for one exercise (database-side filter).
 
     Mirrors the Phase 07 visibility projection (published + not
-    archived). Disabled exercises yield nothing (Phase 06
-    availability); exercises without a catalog row stay selectable so
-    pre-admin content keeps working (same precedent as attempt
-    submission).
+    archived) plus the lifecycle status gate (only ``published`` rows
+    are servable, so a flag/status desync on quarantined/rejected
+    content can never leak into selection). Disabled exercises yield
+    nothing (Phase 06 availability); exercises without a catalog row
+    stay selectable so pre-admin content keeps working (same precedent
+    as attempt submission).
     """
     exercise = db.get(Exercise, exercise_slug)
     if exercise is not None and not exercise.is_active:
@@ -334,6 +336,7 @@ def _eligible_puzzles(db: Session, exercise_slug: str) -> list[Puzzle]:
         db.query(Puzzle)
         .filter(
             Puzzle.exercise_slug == exercise_slug,
+            Puzzle.status == STATUS_PUBLISHED,
             Puzzle.is_published == True,  # noqa: E712
             Puzzle.is_archived == False,  # noqa: E712
         )
