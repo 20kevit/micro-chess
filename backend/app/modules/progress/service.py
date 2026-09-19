@@ -8,7 +8,9 @@ snapshot stays NULL only for guests and terminal states).
 Rated attempts update the player's per-exercise rating through the
 rating engine; qualifying attempts update gamification through the
 gamification engine; attempt, rating, XP, streak, and achievement state
-commit atomically.
+commit atomically. An optional P6 assignment/assessment context
+(server-validated, write-once) records which direct work or evaluation
+session the attempt belongs to without changing any of the above.
 """
 
 from datetime import datetime, timezone
@@ -58,6 +60,8 @@ def submit_attempt(
     client_result: str | None = None,
     hints_used: list[str] | None = None,
     started_at: datetime | None = None,
+    assignment_id: int | None = None,
+    assessment_id: int | None = None,
 ) -> tuple[Attempt, str, dict]:
     puzzle: Puzzle | None = db.get(Puzzle, puzzle_id)
     if puzzle is None or not puzzle.is_published or puzzle.is_archived:
@@ -108,6 +112,23 @@ def submit_attempt(
     # rows stay untouched; migration moves them without this function.
     if user_id is None:
         raise ValueError("auth_required")
+    # P6 assignment/assessment context (server-validated, write-once).
+    # Unknown, foreign, or terminally-closed rows are rejected; practice
+    # attempts simply omit both. The link changes nothing about
+    # validation, scoring, rating, XP, or evidence -- it only records
+    # which direct work / evaluation session the attempt belongs to.
+    if assignment_id is not None:
+        from app.modules.relationships import service as relationship_service
+
+        relationship_service.get_assignable_for_attempt(
+            db, user_id=user_id, assignment_id=assignment_id
+        )
+    if assessment_id is not None:
+        from app.modules.assessments import service as assessment_service
+
+        assessment_service.resolve_for_attempt(
+            db, user_id=user_id, assessment_id=assessment_id
+        )
     attempt = Attempt(
         user_id=user_id,
         guest_session_id=guest_session_id,
@@ -118,6 +139,8 @@ def submit_attempt(
         answer_json=answer,
         score=score,
         rating_delta=None,
+        assignment_id=assignment_id,
+        assessment_id=assessment_id,
         # P1 historical snapshot: difficulty/rating context at submit time.
         # Write-once here; no update path exists for attempts, so later
         # puzzle-metadata edits can never rewrite this record.

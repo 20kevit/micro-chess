@@ -366,6 +366,7 @@ def create_coach_assignment(
             exercise_slug=body.exercise_slug,
             note=body.note,
             due_at=body.due_at,
+            goal=body.goal,
         )
     except ValueError as exc:
         raise _creation_error(exc)

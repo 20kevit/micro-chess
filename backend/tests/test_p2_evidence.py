@@ -1068,9 +1068,9 @@ def test_evidence_vocab_uses_only_canonical_keys():
 def test_fresh_boot_stamps_v13():
     engine = create_engine("sqlite:///:memory:")
     version = ensure_schema(engine)
-    assert version == SCHEMA_VERSION == 13
-    assert get_schema_version(engine) == 13
-    assert ensure_schema(engine) == 13
+    assert version == SCHEMA_VERSION == 14
+    assert get_schema_version(engine) == 14
+    assert ensure_schema(engine) == 14
 
 
 def test_v13_migration_preserves_legacy_rows_without_backfill():

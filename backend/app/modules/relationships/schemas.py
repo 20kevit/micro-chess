@@ -68,6 +68,8 @@ class AssignmentCreateIn(BaseModel):
     student_id: int
     exercise_slug: str = Field(min_length=1, max_length=100)
     note: str = Field(default="", max_length=500)
+    # Optional training goal (free text; no thresholds or rules attached).
+    goal: str | None = Field(default=None, max_length=500)
     # Optional ISO-8601 deadline; validated server-side when present.
     due_at: str | None = None
 
@@ -85,6 +87,11 @@ class AssignmentOut(BaseModel):
     relationship_id: int
     exercise_slug: str
     note: str
+    # Optional training goal (None when the coach set none).
+    goal: str | None = None
+    # Origin discriminator: always "coach_direct" (server-set; direct
+    # work is never mixed with system recommendations).
+    source: str
     due_at: datetime | None = None
     status: str
     created_at: datetime

@@ -29,6 +29,8 @@ def create_attempt(
             client_result=body.client_result,
             hints_used=body.hints_used,
             started_at=body.started_at,
+            assignment_id=body.assignment_id,
+            assessment_id=body.assessment_id,
         )
     except ValueError as exc:
         if str(exc) == "auth_required":
@@ -37,6 +39,8 @@ def create_attempt(
             raise HTTPException(status_code=400, detail="attempt_owner_conflict")
         if str(exc) == "exercise_not_available":
             raise HTTPException(status_code=404, detail="exercise_not_available")
+        if str(exc) in ("assignment_not_available", "assessment_not_available"):
+            raise HTTPException(status_code=404, detail=str(exc))
         raise HTTPException(status_code=404, detail="puzzle_not_available")
     out = schemas.AttemptOut.model_validate(attempt)
     out.feedback_key = feedback_key

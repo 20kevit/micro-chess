@@ -425,7 +425,7 @@ def test_schema_v6_creates_gamification_and_audit_tables_and_upgrades_cleanly():
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
-    assert ensure_schema(engine) == SCHEMA_VERSION == 13
+    assert ensure_schema(engine) == SCHEMA_VERSION == 14
     tables = inspect(engine).get_table_names()
     assert "player_profiles" in tables
     assert "player_external_identities" in tables
@@ -439,4 +439,4 @@ def test_schema_v6_creates_gamification_and_audit_tables_and_upgrades_cleanly():
     attempt_cols = {c["name"] for c in inspect(engine).get_columns("attempts")}
     assert {"rating_before", "rating_delta", "rating_after", "xp_awarded"} <= attempt_cols
     # Idempotent re-run.
-    assert ensure_schema(engine) == 13
+    assert ensure_schema(engine) == 14

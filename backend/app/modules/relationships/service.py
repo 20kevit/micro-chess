@@ -34,6 +34,7 @@ from app.modules.relationships.models import (
     KIND_COACH,
     KIND_PARENT,
     KINDS,
+    SOURCE_COACH_DIRECT,
     STATUSES,
     STATUS_ACTIVE,
     STATUS_PENDING,
@@ -339,11 +340,17 @@ def create_assignment(
     exercise_slug: str,
     note: str = "",
     due_at: str | None = None,
+    goal: str | None = None,
 ) -> Assignment:
     """Assign an exercise to an actively-related student.
 
     Requires an ACTIVE coach relationship covering this exact pair.
     Revoked relationships immediately block new assignments.
+
+    Every row created here is direct coach work: ``source`` is always
+    ``coach_direct`` (server-set, never client input), keeping direct
+    assignments structurally separate from system recommendations
+    (which live in ``adaptive_recommendations``).
     """
     from app.modules.player import service as player_service
 
@@ -358,12 +365,15 @@ def create_assignment(
     link = active_link(db, kind=KIND_COACH, mentor_id=coach.id, student_id=student_id)
     assert link is not None
     clean_note = str(note or "").strip()[:500]
+    clean_goal = str(goal or "").strip()[:500] or None
     row = Assignment(
         coach_user_id=coach.id,
         student_user_id=student_id,
         relationship_id=link.id,
         exercise_slug=slug,
         note=clean_note,
+        goal=clean_goal,
+        source=SOURCE_COACH_DIRECT,
         due_at=_parse_due_at(due_at),
         status="assigned",
     )
@@ -388,6 +398,21 @@ def get_assignment(db: Session, user: User, assignment_id: int) -> Assignment | 
         return None
     if user.id not in (row.coach_user_id, row.student_user_id):
         return None
+    return row
+
+
+def get_assignable_for_attempt(db: Session, *, user_id: int, assignment_id: int) -> Assignment:
+    """Return the open assignment an attempt may attach to.
+
+    Raises ``assignment_not_available`` when the assignment is missing,
+    belongs to another student, or is no longer ``assigned`` (terminal
+    states never reopen, so completed/cancelled work accepts no new
+    attempts). Attempt history is append-only: closing an assignment
+    never detaches its attempts.
+    """
+    row = db.get(Assignment, int(assignment_id))
+    if row is None or row.student_user_id != int(user_id) or row.status != "assigned":
+        raise ValueError("assignment_not_available")
     return row
 
 
@@ -491,6 +516,7 @@ __all__ = [
     "create_relationship",
     "display_name_for",
     "find_user_by_username",
+    "get_assignable_for_attempt",
     "get_assignment",
     "get_relationship",
     "has_role",

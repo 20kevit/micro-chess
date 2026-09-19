@@ -59,4 +59,17 @@ class Attempt(Base):
     # returned to the client but never persisted; evidence generation
     # classifies from it. NULL for all pre-P2 rows (never backfilled).
     validation_detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # P6 assignment/assessment context (server-authoritative, write-once
+    # at creation). A direct coach assignment (``assignments.id``) and/or
+    # an evaluation session (``assessments.id``) the attempt belongs to.
+    # Both stay NULL for ordinary practice and for all pre-P6 rows:
+    # historical truth is never backfilled or inferred. Practice and
+    # assessment are separated by this link alone -- rating, scoring,
+    # and validation behavior are identical with or without it.
+    assignment_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("assignments.id"), nullable=True, index=True
+    )
+    assessment_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("assessments.id"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, index=True)

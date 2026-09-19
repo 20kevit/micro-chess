@@ -18,6 +18,10 @@ class AttemptIn(BaseModel):
     hints_used: list[str] = []
     # Client-reported start time; server derives duration_ms from it.
     started_at: datetime | None = None
+    # P6 context links (optional). The server validates ownership and
+    # openness; unknown/foreign/closed rows are rejected with 404.
+    assignment_id: int | None = None
+    assessment_id: int | None = None
 
 
 class AttemptOut(BaseModel):
@@ -28,6 +32,9 @@ class AttemptOut(BaseModel):
     result: str
     score: float
     feedback_key: str = ""
+    # P6 context links (NULL for ordinary practice and pre-P6 rows).
+    assignment_id: int | None = None
+    assessment_id: int | None = None
     # Server-authoritative rating snapshot (Phase 4). All three are set
     # together for rated attempts; all three stay NULL for practice.
     rating_before: float | None = None

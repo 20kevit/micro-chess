@@ -612,8 +612,8 @@ def test_phase4_database_upgrades_to_v6_preserving_data():
             {"u": user_id, "p": puzzle_id},
         )
 
-    assert ensure_schema(engine) == SCHEMA_VERSION == 13
-    assert ensure_schema(engine) == 13  # idempotent re-run
+    assert ensure_schema(engine) == SCHEMA_VERSION == 14
+    assert ensure_schema(engine) == 14  # idempotent re-run
 
     names = inspect(engine).get_table_names()
     assert "player_gamification_state" in names

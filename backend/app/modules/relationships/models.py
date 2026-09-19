@@ -45,6 +45,14 @@ ASSIGNMENT_COMPLETED = "completed"
 ASSIGNMENT_CANCELLED = "cancelled"
 ASSIGNMENT_STATUSES = (ASSIGNMENT_ASSIGNED, ASSIGNMENT_COMPLETED, ASSIGNMENT_CANCELLED)
 
+# Assignment origin. P6 issues direct coach assignments only; the column
+# exists so direct work stays queryably separate from system
+# suggestions (which live in ``adaptive_recommendations`` and are not
+# implemented). A future recommender defers to rows carrying the direct
+# source -- that override hook is the reason the column exists today.
+SOURCE_COACH_DIRECT = "coach_direct"
+ASSIGNMENT_SOURCES = (SOURCE_COACH_DIRECT,)
+
 
 class Relationship(Base):
     """One directed mentor -> student authorization edge.
@@ -86,6 +94,18 @@ class Assignment(Base):
     Scoped to one student via the authorizing relationship
     (``relationship_id``). Completing/cancelling never touches attempts,
     ratings, XP, or any other historical record.
+
+    P6 additions (no lifecycle change):
+
+    * ``source`` is always ``coach_direct``: every row here is direct
+      coach work, never a system suggestion. The server sets it; no
+      client input can forge another origin.
+    * ``goal`` is the optional training goal the assignment serves
+      (``docs/platform/relationships/COACH_STUDENT.md`` section 7
+      lists exercise / exercise set / training goal / deadline / note;
+      the multi-puzzle ordered pack stays proposed per DEC-P03 and is
+      NOT modeled here). ``note`` keeps carrying the coach's free-form
+      instructions.
     """
 
     __tablename__ = "assignments"
@@ -109,6 +129,10 @@ class Assignment(Base):
     # Stable exercise identity (slug); never a mutable row reference.
     exercise_slug: Mapped[str] = mapped_column(String(100), index=True)
     note: Mapped[str] = mapped_column(String(500), default="")
+    # Optional training goal (free text, no thresholds or rules attached).
+    goal: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Origin discriminator (P6 separation hook; only direct rows exist).
+    source: Mapped[str] = mapped_column(String(30), default=SOURCE_COACH_DIRECT)
     due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), default=ASSIGNMENT_ASSIGNED, index=True

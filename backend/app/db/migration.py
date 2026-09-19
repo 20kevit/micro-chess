@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 
 class SchemaVersion(Base):
@@ -404,6 +404,38 @@ def _migrate_v12_p1(conn) -> None:
         conn.execute(text("ALTER TABLE attempts ADD COLUMN difficulty_snapshot INTEGER"))
 
 
+def _migrate_v14_p6(conn) -> None:
+    """P6 assignment & assessment: context links on attempts, origin/goal on assignments.
+
+    The new ``assessments`` table (plus its indexes/constraints) is
+    created by ``ensure_schema`` via ``Base.metadata.create_all`` on
+    fresh and existing databases alike, so this step only adds the
+    nullable columns idempotently. No backfill is performed except the
+    ``source`` default: every pre-P6 assignment row was written by the
+    coach-only ``create_assignment`` path, so ``coach_direct`` states a
+    fact rather than inferring one. Goals and attempt links never
+    existed before P6 and stay NULL on old rows (P6 policy: historical
+    truth is never fabricated). Only portable types.
+    """
+    insp = inspect(conn)
+    tables = set(insp.get_table_names())
+    if "assignments" in tables:
+        assignment_cols = {c["name"] for c in insp.get_columns("assignments")}
+        if "source" not in assignment_cols:
+            conn.execute(text("ALTER TABLE assignments ADD COLUMN source VARCHAR(30)"))
+        if "goal" not in assignment_cols:
+            conn.execute(text("ALTER TABLE assignments ADD COLUMN goal VARCHAR(500)"))
+        conn.execute(
+            text("UPDATE assignments SET source = 'coach_direct' WHERE source IS NULL")
+        )
+    if "attempts" in tables:
+        attempt_cols = {c["name"] for c in insp.get_columns("attempts")}
+        if "assignment_id" not in attempt_cols:
+            conn.execute(text("ALTER TABLE attempts ADD COLUMN assignment_id INTEGER"))
+        if "assessment_id" not in attempt_cols:
+            conn.execute(text("ALTER TABLE attempts ADD COLUMN assessment_id INTEGER"))
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
     (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
@@ -417,6 +449,7 @@ MIGRATIONS: list[tuple[int, str, object]] = [
     (11, "phase-12 active roles: per-session active_role on auth_sessions", _migrate_v11_active_roles),
     (12, "p1 attempt context: nullable puzzle_rating/difficulty snapshot columns", _migrate_v12_p1),
     (13, "p2 evidence: evidence table via create_all + nullable validation_detail column", _migrate_v13_p2),
+    (14, "p6 assignment & assessment: assessments table via create_all + nullable assignment/assessment links and source/goal columns", _migrate_v14_p6),
 ]
 
 
