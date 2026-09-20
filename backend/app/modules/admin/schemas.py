@@ -293,6 +293,13 @@ class SystemHealthOut(BaseModel):
     puzzles: dict = {}
 
 
+class UserProfileFullOut(BaseModel):
+    overview: dict = {}
+    learning: dict = {}
+    commercial: dict = {}
+    timeline: list[dict] = []
+
+
 class DashboardExtendedOut(BaseModel):
     users_total: int = 0
     registrations: dict = {}

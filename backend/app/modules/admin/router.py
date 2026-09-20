@@ -126,6 +126,21 @@ def get_user(
     return service.user_detail(db, target)
 
 
+@router.get("/users/{user_id}/profile", response_model=schemas.UserProfileFullOut)
+def get_user_profile(
+    user_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.USERS_READ_PRIVATE)),
+):
+    _ = user
+    from app.modules.admin import ops as ops_service
+
+    profile = ops_service.user_profile_full(db, user_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="user_not_found")
+    return profile
+
+
 @router.post("/users/{user_id}/suspend", response_model=schemas.AdminUserOut)
 def suspend_user(
     user_id: int,

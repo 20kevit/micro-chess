@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { adminApi, apiCode } from "../api/client";
 import type { AdminUser, AdminUserDetail } from "../api/types";
 import { Badge } from "../components/ui/Badge";
@@ -190,6 +191,9 @@ export function AdminUsersPage() {
                   </span>
                   <Badge>{u.is_active ? t("admin.statusActive") : t("admin.statusSuspended")}</Badge>
                 </button>
+                <Link to={`/admin/users/${u.id}`} className="mt-1 inline-block text-sm font-bold text-violet-700">
+                  {t("admin.details")}
+                </Link>
               </Card>
             </li>
           ))}

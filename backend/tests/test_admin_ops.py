@@ -95,6 +95,46 @@ def test_ops_admin_ok_and_real_shapes(client, db_session):
     assert "by_status" in res.json()
 
 
+def test_user_profile_full_empty_and_guards(client, db_session):
+    admin_headers = _admin_headers(client, db_session, "ops_profile_admin")
+    player_headers = _bearer(_player_token(client, username="ops_profile_player"))
+    assert client.get("/api/v1/admin/users/999999/profile").status_code == 401
+    assert client.get("/api/v1/admin/users/999999/profile", headers=player_headers).status_code == 403
+    assert client.get("/api/v1/admin/users/999999/profile", headers=admin_headers).status_code == 404
+    me = db_session.query(User).filter(User.username == "ops_profile_admin").one()
+    res = client.get(f"/api/v1/admin/users/{me.id}/profile", headers=admin_headers)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["overview"]["username"] == "ops_profile_admin"
+    assert body["overview"]["attempts_total"] == 0
+    assert body["overview"]["last_active_at"] is None
+    assert body["learning"]["skills"] == []
+    assert body["learning"]["xp"] is None
+    assert body["learning"]["streak"] is None
+    assert body["commercial"]["attribution"] is None
+    # Login lazily granted the free-beta subscription, so its durable
+    # grant event precedes registration in reverse-chronological order.
+    assert [item["kind"] for item in body["timeline"]] == ["subscription", "registered"]
+    # Read-only: viewing the profile twice creates no subscription, XP,
+    # or streak rows (counts stable across reads).
+    from app.modules.billing.models import BillingSubscription
+    from app.modules.gamification_engine.models import PlayerGamificationState, PlayerStreak
+
+    def _counts():
+        return (
+            db_session.query(BillingSubscription).filter(
+                BillingSubscription.user_id == me.id).count(),
+            db_session.query(PlayerGamificationState).filter(
+                PlayerGamificationState.user_id == me.id).count(),
+            db_session.query(PlayerStreak).filter(
+                PlayerStreak.user_id == me.id).count(),
+        )
+
+    before = _counts()
+    assert client.get(f"/api/v1/admin/users/{me.id}/profile", headers=admin_headers).status_code == 200
+    assert _counts() == before
+
+
 def test_exercise_overview_fields_and_filters(client, db_session):
     from app.modules.exercises.models import Exercise
 

@@ -10,6 +10,7 @@ import { AdminAuditPage } from "./AdminAuditPage";
 
 vi.mock("../api/client", () => ({
   adminApi: {
+    userProfile: vi.fn(),
     exercises: vi.fn(),
     exercise: vi.fn(),
     exerciseAnalyticsDetail: vi.fn(),
@@ -234,6 +235,54 @@ describe("admin ops pages", () => {
     expect(screen.getByText("توزیع خطاها")).toBeTruthy();
     expect(screen.getByText("سرانجام پیشنهادها")).toBeTruthy();
     expect(screen.getByText("wrong_target")).toBeTruthy();
+  });
+
+  it("user detail renders 360 tabs with timeline", async () => {
+    const { AdminUserDetailPage } = await import("./AdminUserDetailPage");
+    const { Route, Routes } = await import("react-router-dom");
+    const user = (await import("@testing-library/user-event")).default.setup();
+    mockedAdmin.userProfile.mockResolvedValue({
+      overview: {
+        id: 7, username: "kid", display_name: "kid", roles: ["PLAYER"], is_active: true,
+        created_at: "2026-09-01T00:00:00", last_active_at: "2026-09-10T00:00:00", attempts_total: 12,
+      },
+      learning: {
+        attempts_by_exercise: [{ exercise_slug: "pin", attempts: 12, correct: 8 }],
+        skills: [{ skill: "pin", level: "emerging", confidence: "medium", evidence_count: 4 }],
+        overall_level: "emerging",
+        overall_confidence: "medium",
+        mastery: [{ skill: "pin", status: "developing", confidence: "medium", attempts: 6 }],
+        xp: { total: 120, level: 2 },
+        streak: { current: 3, longest: 5 },
+      },
+      commercial: {
+        current_subscription: {
+          plan_code: "free", status: "active", source: "free_beta", trial_ends_at: null,
+          current_period_end: null, coupon_code: null,
+        },
+        subscriptions: [],
+        attribution: null,
+        redemptions: [],
+        payments: [],
+      },
+      timeline: [
+        { kind: "first_attempt", at: "2026-09-02T00:00:00", detail: "", durable: true },
+        { kind: "registered", at: "2026-09-01T00:00:00", detail: "kid", durable: true },
+      ],
+    });
+    render(
+      <MemoryRouter initialEntries={["/admin/users/7"]}>
+        <Routes>
+          <Route path="/admin/users/:id" element={<AdminUserDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText("جزئیات کاربر")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "یادگیری" }));
+    await waitFor(() => expect(screen.getByText("مهارت‌های دیده‌شده")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "خط زمانی" }));
+    await waitFor(() => expect(screen.getByText("نخستین تلاش")).toBeTruthy());
+    expect(screen.getByText("ثبت‌نام")).toBeTruthy();
   });
 
   it("shows loading then error with retry", async () => {

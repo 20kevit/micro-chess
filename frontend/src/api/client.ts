@@ -1190,6 +1190,8 @@ export const adminApi = {
   users: (params?: { search?: string; role?: string; status?: string; page?: number; page_size?: number }) =>
     request<AdminUser[]>(`/api/v1/admin/users${adminQuery(params)}`),
   user: (id: number) => request<AdminUserDetail>(`/api/v1/admin/users/${id}`),
+  userProfile: (id: number) =>
+    request<import("./types").UserProfileFull>(`/api/v1/admin/users/${id}/profile`),
   suspendUser: (id: number) =>
     request<AdminUser>(`/api/v1/admin/users/${id}/suspend`, { method: "POST" }),
   reactivateUser: (id: number) =>

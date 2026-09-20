@@ -13,16 +13,21 @@ from sqlalchemy.orm import Session
 
 from app.modules.adaptive.models import AdaptiveRecommendation
 from app.modules.billing.models import (
+    BillingAttribution,
+    BillingCampaign,
+    BillingCoupon,
     BillingCouponRedemption,
     BillingPayment,
     BillingSubscription,
+    BillingSubscriptionEvent,
 )
 from app.modules.evidence.models import Evidence
 from app.modules.exercises.models import Exercise
+from app.modules.gamification_engine.models import PlayerGamificationState, PlayerStreak
 from app.modules.progress.models import Attempt
 from app.modules.puzzles.models import Puzzle
 from app.modules.support.models import SupportTicket
-from app.modules.users.models import User
+from app.modules.users.models import User, UserRole
 
 
 def _utcnow() -> datetime:
@@ -312,6 +317,237 @@ def sales_overview(db: Session) -> dict:
         "revenue_minor": int(revenue),
         "revenue_currency": "IRR",
         "redemptions_total": int(redemptions),
+    }
+
+
+TIMELINE_LIMIT = 50
+
+
+def user_profile_full(db: Session, user_id: int) -> dict | None:
+    """Read-only 360-degree operator view of one account.
+
+    Reuses the authoritative derivations (skill_state, mastery,
+    gamification projections, billing records). Never writes: it calls
+    only read getters (no ``ensure_*``/``get_or_create_*``), so merely
+    viewing a profile creates no subscription, XP, or streak rows.
+    Every timeline timestamp comes from a durable stored row.
+    """
+    from app.modules.mastery import service as mastery_service
+    from app.modules.skill_state import service as skill_state_service
+
+    user = db.get(User, user_id)
+    if user is None:
+        return None
+    roles = (
+        db.query(UserRole.role).filter(UserRole.user_id == user.id).order_by(UserRole.role).all()
+    )
+    attempts_total = (
+        db.query(func.count(Attempt.id)).filter(Attempt.user_id == user.id).scalar() or 0
+    )
+    first_attempt_at, last_active_at = (
+        db.query(func.min(Attempt.created_at), func.max(Attempt.created_at))
+        .filter(Attempt.user_id == user.id)
+        .first()
+    )
+    by_exercise = (
+        db.query(
+            Attempt.exercise_slug,
+            func.count(Attempt.id),
+            func.sum(case((Attempt.result == "correct", 1), else_=0)),
+        )
+        .filter(Attempt.user_id == user.id)
+        .group_by(Attempt.exercise_slug)
+        .order_by(func.count(Attempt.id).desc())
+        .limit(20)
+        .all()
+    )
+    skill_state = skill_state_service.skill_state_for_user(db, user.id)
+    mastery = mastery_service.mastery_for_user(db, user.id)
+    xp_row = (
+        db.query(PlayerGamificationState)
+        .filter(PlayerGamificationState.user_id == user.id)
+        .first()
+    )
+    streak_row = (
+        db.query(PlayerStreak).filter(PlayerStreak.user_id == user.id).first()
+    )
+    subs = (
+        db.query(BillingSubscription)
+        .filter(BillingSubscription.user_id == user.id)
+        .order_by(BillingSubscription.id.desc())
+        .limit(5)
+        .all()
+    )
+    sub_ids = [s.id for s in subs]
+    sub_events = (
+        (
+            db.query(BillingSubscriptionEvent)
+            .filter(BillingSubscriptionEvent.subscription_id.in_(sub_ids))
+            .order_by(BillingSubscriptionEvent.created_at.desc())
+            .limit(20)
+            .all()
+        )
+        if sub_ids
+        else []
+    )
+    attribution = (
+        db.query(BillingAttribution)
+        .filter(BillingAttribution.user_id == user.id)
+        .first()
+    )
+    redemptions = (
+        db.query(BillingCouponRedemption, BillingCoupon.code)
+        .join(BillingCoupon, BillingCoupon.id == BillingCouponRedemption.coupon_id)
+        .filter(BillingCouponRedemption.user_id == user.id)
+        .order_by(BillingCouponRedemption.id.desc())
+        .limit(10)
+        .all()
+    )
+    payments = (
+        db.query(BillingPayment)
+        .filter(BillingPayment.user_id == user.id)
+        .order_by(BillingPayment.id.desc())
+        .limit(10)
+        .all()
+    )
+    recommendations = (
+        db.query(AdaptiveRecommendation)
+        .filter(AdaptiveRecommendation.user_id == user.id)
+        .order_by(AdaptiveRecommendation.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    tickets = (
+        db.query(SupportTicket)
+        .filter(SupportTicket.user_id == user.id)
+        .order_by(SupportTicket.created_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    def _campaign_slug(campaign_id: int | None) -> str:
+        if not campaign_id:
+            return ""
+        campaign = db.get(BillingCampaign, campaign_id)
+        return campaign.slug if campaign else ""
+
+    current_sub = next(
+        (s for s in subs if s.status in ("trialing", "active")), None
+    )
+    timeline: list[dict] = [
+        {"kind": "registered", "at": user.created_at, "detail": user.username or "",
+         "durable": True}
+    ]
+    if first_attempt_at is not None:
+        timeline.append({"kind": "first_attempt", "at": first_attempt_at,
+                         "detail": "", "durable": True})
+    for event in sub_events:
+        timeline.append(
+            {"kind": "subscription", "at": event.created_at,
+             "detail": f"{event.from_status or '—'}->{event.to_status} ({event.reason or ''})",
+             "durable": True}
+        )
+    for payment in payments:
+        timeline.append(
+            {"kind": "payment", "at": payment.created_at,
+             "detail": f"{payment.plan_code} {payment.final_amount_minor} {payment.status}",
+             "durable": True}
+        )
+    for redemption, code in redemptions:
+        timeline.append(
+            {"kind": "coupon", "at": redemption.created_at,
+             "detail": f"{code} {redemption.status}", "durable": True}
+        )
+    for rec in recommendations:
+        timeline.append(
+            {"kind": "recommendation", "at": rec.created_at,
+             "detail": f"{rec.exercise_slug} {rec.status}", "durable": True}
+        )
+    for ticket in tickets:
+        timeline.append(
+            {"kind": "support", "at": ticket.created_at,
+             "detail": f"#{ticket.id} {ticket.subject} {ticket.status}", "durable": True}
+        )
+    timeline = sorted(
+        [item for item in timeline if item["at"] is not None],
+        key=lambda item: item["at"], reverse=True,
+    )[:TIMELINE_LIMIT]
+    return {
+        "overview": {
+            "id": user.id,
+            "username": user.username or "",
+            "display_name": user.display_name,
+            "roles": [r for (r,) in roles],
+            "is_active": bool(user.is_active),
+            "created_at": user.created_at,
+            "last_active_at": last_active_at,
+            "attempts_total": int(attempts_total),
+        },
+        "learning": {
+            "attempts_by_exercise": [
+                {"exercise_slug": slug, "attempts": int(attempts), "correct": int(correct or 0)}
+                for slug, attempts, correct in by_exercise
+            ],
+            "skills": [
+                {"skill": key, "level": level.level, "confidence": level.confidence,
+                 "evidence_count": level.evidence_count}
+                for key, level in skill_state.skills.items()
+                if level.evidence_count > 0
+            ],
+            "overall_level": skill_state.overall_level,
+            "overall_confidence": skill_state.overall_confidence,
+            "mastery": [
+                {"skill": key, "status": m.status, "confidence": m.confidence,
+                 "attempts": m.attempts}
+                for key, m in mastery.items()
+            ],
+            "xp": (
+                {"total": xp_row.total_xp, "level": xp_row.level} if xp_row else None
+            ),
+            "streak": (
+                {"current": streak_row.current_streak, "longest": streak_row.longest_streak}
+                if streak_row
+                else None
+            ),
+        },
+        "commercial": {
+            "current_subscription": (
+                {"plan_code": current_sub.plan_code, "status": current_sub.status,
+                 "source": current_sub.source,
+                 "trial_ends_at": current_sub.trial_ends_at,
+                 "current_period_end": current_sub.current_period_end,
+                 "coupon_code": current_sub.coupon_code}
+                if current_sub
+                else None
+            ),
+            "subscriptions": [
+                {"id": s.id, "plan_code": s.plan_code, "status": s.status,
+                 "source": s.source, "created_at": s.created_at}
+                for s in subs
+            ],
+            "attribution": (
+                {"first_source": attribution.first_source,
+                 "first_campaign": _campaign_slug(attribution.first_campaign_id),
+                 "first_coupon_code": attribution.first_coupon_code,
+                 "first_touched_at": attribution.first_touched_at,
+                 "last_source": attribution.last_source}
+                if attribution
+                else None
+            ),
+            "redemptions": [
+                {"code": code, "status": r.status,
+                 "discount_granted_minor": r.discount_granted_minor,
+                 "trial_days_granted": r.trial_days_granted, "created_at": r.created_at}
+                for r, code in redemptions
+            ],
+            "payments": [
+                {"id": p.id, "plan_code": p.plan_code,
+                 "final_amount_minor": p.final_amount_minor, "currency": p.currency,
+                 "status": p.status, "provider": p.provider, "created_at": p.created_at}
+                for p in payments
+            ],
+        },
+        "timeline": timeline,
     }
 
 

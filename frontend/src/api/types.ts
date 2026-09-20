@@ -854,6 +854,49 @@ export interface ReviewQueueItem {
   reasons: string[];
 }
 
+export interface UserProfileFull {
+  overview: {
+    id: number;
+    username: string;
+    display_name: string;
+    roles: string[];
+    is_active: boolean;
+    created_at: string;
+    last_active_at: string | null;
+    attempts_total: number;
+  };
+  learning: {
+    attempts_by_exercise: Array<{ exercise_slug: string; attempts: number; correct: number }>;
+    skills: Array<{ skill: string; level: string; confidence: string; evidence_count: number }>;
+    overall_level: string;
+    overall_confidence: string;
+    mastery: Array<{ skill: string; status: string; confidence: string; attempts: number }>;
+    xp: { total: number; level: number } | null;
+    streak: { current: number; longest: number } | null;
+  };
+  commercial: {
+    current_subscription: {
+      plan_code: string;
+      status: string;
+      source: string;
+      trial_ends_at: string | null;
+      current_period_end: string | null;
+      coupon_code: string | null;
+    } | null;
+    subscriptions: Array<{ id: number; plan_code: string; status: string; source: string; created_at: string }>;
+    attribution: {
+      first_source: string;
+      first_campaign: string;
+      first_coupon_code: string;
+      first_touched_at: string;
+      last_source: string;
+    } | null;
+    redemptions: Array<{ code: string; status: string; discount_granted_minor: number; trial_days_granted: number; created_at: string }>;
+    payments: Array<{ id: number; plan_code: string; final_amount_minor: number; currency: string; status: string; provider: string; created_at: string }>;
+  };
+  timeline: Array<{ kind: string; at: string; detail: string; durable: boolean }>;
+}
+
 export interface DashboardExtended {
   users_total: number;
   registrations: { today: number; week: number; month: number };

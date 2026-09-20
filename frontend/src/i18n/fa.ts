@@ -802,6 +802,22 @@ export const fa = {
   "admin.generatorsUnsupported": "تمرین‌های بدون مولد",
   "admin.generatorUnsupportedNote": "برای این تمرین مولد امن وجود ندارد؛ معما باید دستی ساخته و بازبینی شود.",
   "admin.ratedPlayers": "بازیکنان دارای ریتینگ",
+  "admin.registered": "ثبت‌نام",
+  "admin.lastActive": "آخرین فعالیت",
+  "admin.accountState": "وضعیت حساب",
+  "admin.totalXp": "مجموع امتیاز",
+  "admin.level": "سطح",
+  "admin.currentStreak": "روزهای پیاپی فعلی",
+  "admin.longestStreak": "طولانی‌ترین دوره",
+  "admin.skillsSeen": "مهارت‌های دیده‌شده",
+  "admin.noSubscription": "اشتراک فعالی نیست",
+  "admin.eventRegistered": "ثبت‌نام",
+  "admin.eventFirstAttempt": "نخستین تلاش",
+  "admin.eventSubscription": "اشتراک",
+  "admin.eventPayment": "پرداخت",
+  "admin.eventCoupon": "کوپن",
+  "admin.eventRecommendation": "پیشنهاد",
+  "admin.eventSupport": "پشتیبانی",
 } as const;
 
 export type FaKey = keyof typeof fa;
