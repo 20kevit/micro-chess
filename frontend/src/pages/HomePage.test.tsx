@@ -48,28 +48,30 @@ beforeEach(() => {
 });
 
 describe("player home", () => {
-  it("shows the exercise menu to anonymous visitors", () => {
+  it("shows the parent-focused landing (not the exercise catalog) to anonymous visitors", () => {
     authState(false);
     render(
       <MemoryRouter>
         <HomePage />
       </MemoryRouter>,
     );
-    expect(screen.getByText("تمرین‌ها")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "شطرنج را متفاوت تمرین کن!" })).toBeTruthy();
     expect(screen.queryByText(/سلام!/)).toBeNull();
   });
 
-  it("onboards anonymous visitors with a hero and register CTA", () => {
+  it("onboards anonymous visitors with a recommendation CTA into registration", () => {
     authState(false);
     render(
       <MemoryRouter>
         <HomePage />
       </MemoryRouter>,
     );
-    expect(screen.getByText("بازی کن، یاد بگیر!")).toBeTruthy();
-    expect(screen.getByText("تمرین‌های کوتاه و سرگرم‌کننده شطرنج، قدم‌به‌قدم.")).toBeTruthy();
-    const cta = screen.getByRole("link", { name: /شروع تمرین‌ها/ });
-    expect(cta.getAttribute("href")).toBe("/register");
+    const ctas = screen.getAllByRole("link", { name: "دریافت بسته‌ی تمرین پیشنهادی" });
+    expect(ctas.length).toBeGreaterThan(0);
+    for (const cta of ctas) expect(cta.getAttribute("href")).toBe("/register");
+    const logins = screen.getAllByRole("link", { name: "ورود به حساب" });
+    expect(logins.length).toBeGreaterThan(0);
+    for (const login of logins) expect(login.getAttribute("href")).toBe("/login");
   });
 
   it("shows the dashboard to authenticated players", async () => {

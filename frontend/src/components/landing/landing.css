@@ -1,0 +1,96 @@
+/* Landing-only styles. The shared design system stays untouched; everything
+   here is scoped under .mc-landing so gameplay pages are unaffected. */
+
+.mc-landing {
+  overflow-x: clip;
+}
+
+.mc-landing section {
+  scroll-margin-top: 1rem;
+}
+
+/* Scroll reveal: sections fade up once. Purely decorative — content is
+   fully visible when JS is off or motion is reduced. */
+.mc-reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s ease;
+}
+
+.mc-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Hero entrance (runs once on mount). */
+@keyframes mc-hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.mc-hero-rise {
+  animation: mc-hero-rise 0.8s ease both;
+}
+
+.mc-hero-rise-1 {
+  animation-delay: 0.08s;
+}
+
+.mc-hero-rise-2 {
+  animation-delay: 0.18s;
+}
+
+.mc-hero-rise-3 {
+  animation-delay: 0.3s;
+}
+
+/* Gentle float for decorative pieces only. */
+@keyframes mc-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--mc-tilt, 0deg));
+  }
+  50% {
+    transform: translateY(-10px) rotate(var(--mc-tilt, 0deg));
+  }
+}
+
+.mc-float {
+  animation: mc-float 6s ease-in-out infinite;
+}
+
+.mc-float-slow {
+  animation-duration: 8s;
+  animation-delay: -3s;
+}
+
+/* Dotted board-pattern backdrop for the hero visual. */
+.mc-dots {
+  background-image: radial-gradient(rgb(124 58 237 / 0.22) 1.5px, transparent 1.5px);
+  background-size: 18px 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .mc-hero-rise {
+    animation: none;
+  }
+
+  .mc-float,
+  .mc-float-slow {
+    animation: none;
+  }
+}

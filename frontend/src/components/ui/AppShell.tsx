@@ -51,8 +51,16 @@ export function AppShell() {
   const isParent = active === "PARENT";
   const isAdmin = active === "ADMIN";
 
+  // Anonymous landing ("/" without a session) gets a wider canvas so the
+  // marketing page can breathe; every authenticated view keeps max-w-3xl.
+  const isLanding = location.pathname === "/" && !user && !loading;
+
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col bg-[#f6f4ff]">
+    <div
+      className={`mx-auto flex min-h-dvh w-full flex-col bg-[#f6f4ff] ${
+        isLanding ? "max-w-6xl" : "max-w-3xl"
+      }`}
+    >
       <header className="flex items-center justify-between gap-2 px-4 pt-4">
         <span className="text-xl font-black text-violet-700">{t("app.name")}</span>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -108,7 +116,7 @@ export function AppShell() {
           )}
         </div>
       </header>
-      <main className="flex-1 px-4 pb-24 pt-4 md:pb-8">
+      <main className={isLanding ? "flex-1 pb-24 md:pb-8" : "flex-1 px-4 pb-24 pt-4 md:pb-8"}>
         <Outlet />
       </main>
       <nav className="fixed inset-x-0 bottom-0 mx-auto flex w-full max-w-3xl gap-2 bg-white/90 p-3 backdrop-blur md:static md:bg-transparent">
