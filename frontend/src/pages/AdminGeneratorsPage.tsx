@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "../api/client";
-import type { Generator, GeneratorRun } from "../api/types";
+import type { AdminExercise, Generator, GeneratorRun } from "../api/types";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -13,6 +13,7 @@ import { t } from "../i18n";
 // check and this UI only reflects server state.
 export function AdminGeneratorsPage() {
   const [generators, setGenerators] = useState<Generator[]>([]);
+  const [exercises, setExercises] = useState<AdminExercise[]>([]);
   const [runs, setRuns] = useState<GeneratorRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -27,9 +28,14 @@ export function AdminGeneratorsPage() {
   const load = useCallback(() => {
     setLoading(true);
     setFailed(false);
-    Promise.all([adminApi.generators(), adminApi.generatorRuns({ page_size: 20 })])
-      .then(([registry, history]) => {
+    Promise.all([
+      adminApi.generators(),
+      adminApi.generatorRuns({ page_size: 20 }),
+      adminApi.exercises().catch(() => []),
+    ])
+      .then(([registry, history, catalog]) => {
         setGenerators(registry);
+        setExercises(catalog);
         setRuns(history);
         if (!code && registry.length > 0) setCode(registry[0]?.code ?? "");
         setLoading(false);
@@ -77,9 +83,43 @@ export function AdminGeneratorsPage() {
     }
   }
 
+  const supported = new Set(generators.map((g) => g.exercise_slug));
+  const unsupported = exercises.filter((e) => !supported.has(e.slug));
+
   return (
     <div>
       <PageHeader title={t("admin.generators")} subtitle={t("admin.subtitle")} />
+      <Card>
+        <h2 className="font-black">{t("admin.generatorsSupported")}</h2>
+        {generators.length === 0 ? (
+          <p className="mt-1 text-sm text-stone-500">{t("admin.empty")}</p>
+        ) : (
+          <ul className="mt-2 flex flex-col gap-1">
+            {generators.map((g) => (
+              <li key={g.code} className="rounded-xl bg-stone-50 px-3 py-2 text-sm">
+                <span className="font-bold" dir="ltr">{g.code}</span>
+                <span className="text-stone-500" dir="ltr"> · {g.exercise_slug} · v{g.version}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+      <Card>
+        <h2 className="font-black">{t("admin.generatorsUnsupported")}</h2>
+        <p className="mt-1 text-xs text-stone-500">{t("admin.generatorUnsupportedNote")}</p>
+        {unsupported.length === 0 ? (
+          <p className="mt-1 text-sm text-stone-500">{t("admin.empty")}</p>
+        ) : (
+          <ul className="mt-2 flex flex-col gap-1">
+            {unsupported.map((e) => (
+              <li key={e.slug} className="rounded-xl bg-stone-50 px-3 py-2 text-sm">
+                <span className="font-bold">{e.title_fa}</span>
+                <span className="text-stone-500" dir="ltr"> · {e.slug}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
       <Card>
         <div className="flex flex-col gap-2">
           <select

@@ -290,6 +290,7 @@ describe("admin puzzles page", () => {
 describe("admin generators page", () => {
   it("shows the run form and the run history", async () => {
     mockedUseAuth.mockReturnValue(base({ user: ADMIN }));
+    mockedAdmin.exercises.mockResolvedValue([]);
     mockedAdmin.generators.mockResolvedValue([
       { code: "captures-v1", exercise_slug: "captures", version: "1.0.0", description: "", config_schema: {}, status: "active" },
     ]);
@@ -313,8 +314,30 @@ describe("admin generators page", () => {
     await waitFor(() => expect(screen.getByText("completed")).toBeTruthy());
   });
 
+  it("marks exercises with and without a safe generator", async () => {
+    mockedUseAuth.mockReturnValue(base({ user: ADMIN }));
+    mockedAdmin.exercises.mockResolvedValue([
+      { slug: "captures", title_fa: "گرفتن", title_en: "", description: "", is_active: true, sort_order: 1, puzzle_count: 0, published_count: 0, needs_review_count: 0, success_rate: null, low_supply: true },
+      { slug: "pin", title_fa: "آچمز", title_en: "", description: "", is_active: true, sort_order: 2, puzzle_count: 0, published_count: 0, needs_review_count: 0, success_rate: null, low_supply: true },
+    ]);
+    mockedAdmin.generators.mockResolvedValue([
+      { code: "captures-v1", exercise_slug: "captures", version: "1.0.0", description: "", config_schema: {}, status: "active" },
+    ]);
+    mockedAdmin.generatorRuns.mockResolvedValue([]);
+    render(
+      <MemoryRouter initialEntries={["/admin/generators"]}>
+        <AdminGeneratorsPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText("تمرین‌های دارای مولد")).toBeTruthy());
+    expect(screen.getByText("تمرین‌های بدون مولد")).toBeTruthy();
+    expect(screen.getByText("captures-v1")).toBeTruthy();
+    expect(screen.getByText("آچمز")).toBeTruthy();
+  });
+
   it("shows the empty state when no runs exist", async () => {
     mockedUseAuth.mockReturnValue(base({ user: ADMIN }));
+    mockedAdmin.exercises.mockResolvedValue([]);
     mockedAdmin.generators.mockResolvedValue([]);
     mockedAdmin.generatorRuns.mockResolvedValue([]);
     render(
@@ -322,7 +345,8 @@ describe("admin generators page", () => {
         <AdminGeneratorsPage />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(screen.getByText("موردی نیست.")).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText("موردی نیست.").length).toBeGreaterThanOrEqual(1));
+    expect(screen.getByText("اجراهای مولد")).toBeTruthy();
   });
 });
 
