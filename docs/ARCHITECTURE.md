@@ -45,6 +45,7 @@ docs/      product + architecture + api + exercises
 | `castling_rights` | exercise 21 (CONTENT-BLOCKED: seeded positions playable, no speed mode): validator + seed (registers `castling-rights`) |
 | `assignments` | placeholder |
 | `audio` | `AudioPort` boundary only |
+| `billing` | plans/prices (immutable versions), subscriptions (pending/trialing/active/expired/cancelled), entitlements (`require_entitlement`), coupons (percent/fixed/free_trial), campaigns + first-touch attribution, payments + `PaymentProvider` boundary (`none` today); free beta default (see `docs/PRICING_AND_BILLING.md`) |
 | `admin` | placeholder |
 | `tools/lichess_puzzles` | offline Lichess dump ingestion (download/process/validate CLI, streaming, no DB, never imported by `main.py`; see `docs/LICHESS_PUZZLES.md`) |
 

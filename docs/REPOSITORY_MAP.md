@@ -71,6 +71,8 @@ Platform:
 ```text
 auth/            Register/login, JWT sessions, guest sessions, active-role switching.
 users/           User accounts and profiles (no password logic; lives in auth/).
+billing/         Plans/prices, subscriptions, entitlements, coupons, campaigns,
+                 attribution, payments + NullProvider boundary (schema v15).
 admin/           Operational dashboard, user/exercise/puzzle management API.
 analytics/       Trend/comparison aggregates recomputed from attempts on read.
 support/         Support tickets and operator replies.
@@ -127,6 +129,7 @@ memory_board/, rule_of_the_square/  Empty dirs; no code yet, do not reference.
 | Board / pieces | `components/chess/ChessBoard.tsx`, `ChessPiece.tsx` (local SVG; board islands are `dir="ltr"`) |
 | Dashboard / progress | `pages/DashboardPage.tsx`, `pages/ProgressPage.tsx`; `components/player/` (`Recommendation`, `Adaptive`, `Gamification`, `Analytics`, `Ratings` sections) |
 | Auth screens / session | `pages/LoginPage.tsx`, `RegisterPage.tsx`, `AccountPage.tsx`; `lib/auth-context.tsx` |
+| Pricing / subscription | `pages/PricingPage.tsx` (`/pricing`); `lib/attribution.ts` (first-touch localStorage); `api/client.ts` (`billingApi`, `adminBillingApi`) |
 | Coach / parent views | `pages/MentorStudentsPage.tsx`, `pages/RelationshipsPage.tsx` |
 | Admin views | `pages/Admin*Page.tsx` (mirror `backend/app/modules/admin/`) |
 | Shared UI primitives | `components/ui/` (`Button`, `Card`, `PageHeader`, `Badge`, `AppShell`); reuse, don't restyle per page |
@@ -167,6 +170,7 @@ memory_board/, rule_of_the_square/  Empty dirs; no code yet, do not reference.
 | Change recommendations | `backend/app/modules/recommendations/service.py` (+ `test_p7/p8_*.py`) |
 | Change adaptive | `backend/app/modules/adaptive/service.py` (+ `test_adaptive.py`) |
 | Change Persian UI text | `frontend/src/i18n/fa.ts` only |
+| Change pricing/commerce | `backend/app/modules/billing/` + `docs/PRICING_AND_BILLING.md`; schema via `migration.py` |
 | Change shared UI | `frontend/src/components/ui/` |
 | Add backend tests | `backend/tests/test_<area>.py` (`pytest`) |
 | Add frontend tests | Colocated `<Name>.test.tsx` (`npm test`) |
@@ -190,6 +194,7 @@ memory_board/, rule_of_the_square/  Empty dirs; no code yet, do not reference.
 ## 9. Key docs (don't duplicate them here)
 
 - `docs/ARCHITECTURE.md` — patterns; `docs/platform/DATA_MODEL.md` — schema;
+  `docs/PRICING_AND_BILLING.md` — commerce (plans, billing, coupons);
   `docs/EXERCISES.md` — exercise roadmap; `docs/platform/IMPLEMENTATION_STATE.md` —
   verified phase state; `docs/DEPLOYMENT.md` + `docs/platform/CPANEL_DEPLOYMENT.md` —
   runbook; `docs/DESIGN_SYSTEM.md` — visual tokens; `docs/API.md`,
