@@ -134,6 +134,55 @@ export function AdminDashboardPage() {
           </div>
         </Card>
       ) : null}
+      {extended && extended.series.some((row) => row.revenue_minor > 0) ? (
+        <Card>
+          <h2 className="font-black">{t("admin.revenueTrend")}</h2>
+          <div className="mt-2 flex h-24 items-end gap-1" dir="ltr" aria-hidden>
+            {extended.series.map((row) => {
+              const max = Math.max(1, ...extended.series.map((r) => r.revenue_minor));
+              return (
+                <div
+                  key={row.day}
+                  title={`${row.day}: ${row.revenue_minor}`}
+                  className="min-w-2 flex-1 rounded-t bg-emerald-300"
+                  style={{ height: `${Math.max(4, Math.round((row.revenue_minor / max) * 96))}px` }}
+                />
+              );
+            })}
+          </div>
+        </Card>
+      ) : null}
+      {extended && extended.attribution.length > 0 ? (
+        <Card>
+          <h2 className="font-black">{t("admin.attributionOverview")}</h2>
+          <ul className="mt-2 flex flex-col gap-1">
+            {extended.attribution.map((row) => (
+              <li key={row.slug} className="rounded-xl bg-stone-50 px-3 py-2">
+                <p className="font-bold" dir="ltr">{row.slug}</p>
+                <p className="text-xs text-stone-500" dir="ltr">
+                  registrations {faNum(row.registrations)} · redemptions {faNum(row.redemptions)} · trials{" "}
+                  {faNum(row.trials)} · paid {faNum(row.paid)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+      {extended && extended.exercise_success.length > 0 ? (
+        <Card>
+          <h2 className="font-black">{t("admin.exerciseSuccess")}</h2>
+          <ul className="mt-2 flex flex-col gap-1">
+            {extended.exercise_success.map((row) => (
+              <li key={row.exercise_slug} className="flex min-h-[44px] items-center justify-between rounded-xl bg-stone-50 px-3">
+                <span dir="ltr" className="font-bold">{row.exercise_slug}</span>
+                <span className="text-sm text-stone-500" dir="ltr">
+                  {faNum(row.attempts)} · {row.success_rate === null ? "—" : `${Math.round(row.success_rate * 100)}٪`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
       {insights.length > 0 ? (
         <Card>
           <h2 className="font-black">

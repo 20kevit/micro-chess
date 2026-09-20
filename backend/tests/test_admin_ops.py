@@ -71,6 +71,10 @@ def test_ops_admin_ok_and_real_shapes(client, db_session):
     body = res.json()
     assert body["users_total"] >= 1
     assert "registrations" in body and "series" in body
+    assert len(body["series"]) == 14
+    assert all("revenue_minor" in row and "new_subscriptions" in row for row in body["series"])
+    assert isinstance(body["attribution"], list)
+    assert isinstance(body["exercise_success"], list)
     res = client.get("/api/v1/admin/analytics/retention", headers=headers)
     assert res.status_code == 200, res.text
     assert "cohorts" in res.json() and "offsets" in res.json()

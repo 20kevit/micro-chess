@@ -308,6 +308,8 @@ class DashboardExtendedOut(BaseModel):
     sales: dict = {}
     alerts: int = 0
     series: list[dict] = []
+    attribution: list[dict] = []
+    exercise_success: list[dict] = []
 
 
 class SupportStatsOut(BaseModel):

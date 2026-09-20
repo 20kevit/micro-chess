@@ -910,7 +910,24 @@ export interface DashboardExtended {
     redemptions_total: number;
   };
   alerts: number;
-  series: Array<{ day: string; registrations: number; attempts: number }>;
+  series: Array<{
+    day: string;
+    registrations: number;
+    attempts: number;
+    revenue_minor: number;
+    redemptions: number;
+    new_subscriptions: number;
+  }>;
+  attribution: Array<{
+    slug: string;
+    source: string;
+    medium: string;
+    registrations: number;
+    redemptions: number;
+    trials: number;
+    paid: number;
+  }>;
+  exercise_success: Array<{ exercise_slug: string; attempts: number; success_rate: number | null }>;
 }
 
 export interface RetentionData {

@@ -722,6 +722,48 @@ def dashboard_extended(db: Session) -> dict:
     )
     sales = sales_overview(db)
     insights = product_insights(db)
+    from app.modules.admin import service as admin_service
+    from app.modules.billing import service as billing_service
+
+    # Commercial daily movement (last 14 days): 3 bounded row queries
+    # bucketed in Python (portable across SQLite/PostgreSQL, no N+1).
+    fortnight_ago = now - timedelta(days=14)
+    revenue_rows = (
+        db.query(BillingPayment.created_at, BillingPayment.final_amount_minor)
+        .filter(
+            BillingPayment.status == "verified",
+            BillingPayment.created_at >= fortnight_ago,
+        )
+        .all()
+    )
+    redemption_rows = (
+        db.query(BillingCouponRedemption.created_at)
+        .filter(BillingCouponRedemption.created_at >= fortnight_ago)
+        .all()
+    )
+    new_sub_rows = (
+        db.query(BillingSubscription.created_at)
+        .filter(BillingSubscription.created_at >= fortnight_ago)
+        .all()
+    )
+    revenue_by_day: dict[str, int] = {}
+    for created_at, amount in revenue_rows:
+        if created_at is None:
+            continue
+        key = created_at.date().isoformat()
+        revenue_by_day[key] = revenue_by_day.get(key, 0) + int(amount or 0)
+    redemption_by_day: dict[str, int] = {}
+    for (created_at,) in redemption_rows:
+        if created_at is None:
+            continue
+        key = created_at.date().isoformat()
+        redemption_by_day[key] = redemption_by_day.get(key, 0) + 1
+    subs_by_day: dict[str, int] = {}
+    for (created_at,) in new_sub_rows:
+        if created_at is None:
+            continue
+        key = created_at.date().isoformat()
+        subs_by_day[key] = subs_by_day.get(key, 0) + 1
     # Registrations over time (last 14 days, UTC calendar buckets).
     series = []
     for back in range(13, -1, -1):
@@ -740,7 +782,28 @@ def dashboard_extended(db: Session) -> dict:
             .scalar()
             or 0
         )
-        series.append({"day": day.isoformat(), "registrations": int(regs), "attempts": int(atts)})
+        key = day.isoformat()
+        series.append(
+            {
+                "day": key,
+                "registrations": int(regs),
+                "attempts": int(atts),
+                "revenue_minor": revenue_by_day.get(key, 0),
+                "redemptions": redemption_by_day.get(key, 0),
+                "new_subscriptions": subs_by_day.get(key, 0),
+            }
+        )
+    attribution = billing_service.campaign_report(db)
+    perf = admin_service.exercise_supply_stats(db)["performance"]
+    exercise_success = sorted(
+        (
+            {"exercise_slug": slug, "attempts": stat["attempts"],
+             "success_rate": stat["success_rate"]}
+            for slug, stat in perf.items()
+        ),
+        key=lambda row: row["attempts"],
+        reverse=True,
+    )[:8]
     return {
         "users_total": int(users_total),
         "registrations": {"today": int(new_today), "week": int(new_week), "month": int(new_month)},
@@ -753,4 +816,6 @@ def dashboard_extended(db: Session) -> dict:
         "sales": sales,
         "alerts": len(insights),
         "series": series,
+        "attribution": attribution,
+        "exercise_success": exercise_success,
     }

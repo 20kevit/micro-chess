@@ -818,6 +818,9 @@ export const fa = {
   "admin.eventCoupon": "کوپن",
   "admin.eventRecommendation": "پیشنهاد",
   "admin.eventSupport": "پشتیبانی",
+  "admin.revenueTrend": "روند درآمد",
+  "admin.attributionOverview": "جذب بر اساس کمپین",
+  "admin.exerciseSuccess": "موفقیت تمرین‌ها",
 } as const;
 
 export type FaKey = keyof typeof fa;

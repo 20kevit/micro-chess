@@ -10,6 +10,8 @@ import { AdminAuditPage } from "./AdminAuditPage";
 
 vi.mock("../api/client", () => ({
   adminApi: {
+    dashboard: vi.fn(),
+    dashboardExtended: vi.fn(),
     userProfile: vi.fn(),
     exercises: vi.fn(),
     exercise: vi.fn(),
@@ -283,6 +285,55 @@ describe("admin ops pages", () => {
     await user.click(screen.getByRole("button", { name: "خط زمانی" }));
     await waitFor(() => expect(screen.getByText("نخستین تلاش")).toBeTruthy());
     expect(screen.getByText("ثبت‌نام")).toBeTruthy();
+  });
+
+  it("dashboard renders extended revenue, attribution, and exercise success", async () => {
+    const { AdminDashboardPage } = await import("./AdminDashboardPage");
+    mockedAdmin.dashboard.mockResolvedValue({
+      users_total: 5,
+      users_active: 4,
+      users_suspended: 1,
+      exercises_total: 2,
+      exercises_active: 2,
+      puzzles_total: 10,
+      puzzles_published: 6,
+      puzzles_archived: 0,
+      attempts_total: 40,
+      attempts_last_24h: 5,
+      recent_registrations: [],
+      recent_audit: [],
+    });
+    mockedAdmin.dashboardExtended.mockResolvedValue({
+      users_total: 5,
+      registrations: { today: 1, week: 3, month: 5 },
+      active: { today: 2, week: 4 },
+      attempts: { today: 5, week: 30, prev_week: 20 },
+      sales: {
+        subscriptions_by_status: [],
+        payments_by_status: [],
+        revenue_minor: 200000,
+        revenue_currency: "IRR",
+        redemptions_total: 2,
+      },
+      alerts: 0,
+      series: [
+        { day: "2026-09-01", registrations: 1, attempts: 5, revenue_minor: 200000, redemptions: 1, new_subscriptions: 1 },
+      ],
+      attribution: [
+        { slug: "abad", source: "s", medium: "", registrations: 5, redemptions: 2, trials: 1, paid: 0 },
+      ],
+      exercise_success: [{ exercise_slug: "pin", attempts: 40, success_rate: 0.625 }],
+    });
+    mockedAdmin.insights.mockResolvedValue([]);
+    render(
+      <MemoryRouter>
+        <AdminDashboardPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText("روند درآمد")).toBeTruthy());
+    expect(screen.getByText("جذب بر اساس کمپین")).toBeTruthy();
+    expect(screen.getByText("موفقیت تمرین‌ها")).toBeTruthy();
+    expect(screen.getByText("abad")).toBeTruthy();
   });
 
   it("shows loading then error with retry", async () => {
