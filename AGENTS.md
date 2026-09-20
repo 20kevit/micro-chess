@@ -49,3 +49,13 @@ Read this before changing code. Keep it simple and explicit.
 - Backend: `pytest` must pass. Add focused tests for chess rules, validators, scoring, rating.
 - Frontend: `npm run typecheck` and `npm run build` must pass.
 - Run the relevant gate before finishing any task.
+
+## Repository Map
+
+For a current high-level map of the repository, major domains, entry points,
+and common change locations, read:
+
+`docs/REPOSITORY_MAP.md`
+
+Use it as a navigation aid, then inspect the actual source files before making changes.
+The map is a guide, not a substitute for repository evidence.
