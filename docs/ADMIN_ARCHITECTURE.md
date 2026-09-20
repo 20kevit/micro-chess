@@ -42,6 +42,10 @@ capabilities (no new capability was needed):
 | `/admin/analytics/learning`, `/admin/analytics/recommendations` | `analytics.read_exercise` |
 | `/admin/sales/overview` | `billing.read` |
 | `/admin/support/stats` | `support.read` |
+| `/admin/users/{id}/profile` | `users.read_private` |
+| `PATCH /admin/billing/campaigns/{slug}` | `billing.manage` |
+| `PATCH /admin/billing/plans/{code}` | `billing.manage` |
+| `PATCH /admin/billing/prices/{id}` | `billing.manage` |
 
 Tests (`backend/tests/test_admin_ops.py`) assert 401 anonymous and
 403 authenticated-non-admin on every new endpoint.
@@ -79,6 +83,41 @@ Support staff list gained a `category` filter. Audit list gained an
 
 No migration: everything derives from existing tables
 (`SCHEMA_VERSION` stays 15).
+
+Hardening additions (no new tables, no new capabilities):
+
+- `GET /admin/users/{id}/profile` — 360° view: overview
+  (registration, last active, roles, attempts), learning (per-exercise
+  attempts, seen skills via `skill_state_for_user`, mastery via
+  `mastery_for_user`, XP level, streak), commercial (current + recent
+  subscriptions, first-touch attribution, redemptions, payments),
+  timeline (registration, first attempt, subscription events,
+  payments, redemptions, recommendations, support — every timestamp
+  from a durable row, newest first, capped at 50). Strictly read-only:
+  it calls no `ensure_*`/`get_or_create_*`, so viewing creates no
+  subscription/XP/streak rows (covered by test).
+- `GET /admin/exercises` — enriched rows (`published_count`,
+  `needs_review_count`, `success_rate`, `low_supply`) from 3 grouped
+  queries; filters `active`, `low_supply`, `needs_review`.
+- `GET /admin/analytics/exercises/{slug}` — added `supply_by_status`,
+  `difficulty_distribution`, windowed `mistake_distribution` (top 10),
+  `recommendation_outcomes`.
+- `GET /admin/dashboard-extended` — added per-day `revenue_minor`,
+  `redemptions`, `new_subscriptions` (14-day series), `attribution`
+  (reused `campaign_report`), `exercise_success` (top 8).
+- Billing toggles (`campaigns/{slug}`, `plans/{code}`,
+  `prices/{id}` `PATCH {is_active}`) — flag-only, history immutable,
+  audited; coupon admin view gained `applicable_plan_codes`;
+  redemptions gained `coupon_code` filter; payments expose
+  `failure_reason`/`provider_ref`; subscriptions expose `user_id`.
+- Campaign date fields were NOT added: the current product has no
+  scheduling requirement, so no migration was justified.
+- Subscriptions stay read-only in Admin: `cancel_subscription`
+  enforces owner identity and `activate_paid_subscription` requires a
+  verified payment, so no safe manual-override primitive exists;
+  Admin surfaces status instead of inventing a "set active" shortcut.
+- Generators UI derives supported vs unsupported exercises from the
+  registry + exercise catalog at render time (no second list).
 
 ## 4. Analytics definitions
 
