@@ -587,10 +587,10 @@ def test_fresh_database_boots_to_v9_with_content_tables():
     from app.db.base import Base
     from app.db.migration import SCHEMA_VERSION, ensure_schema, get_schema_version
 
-    assert SCHEMA_VERSION == 14
+    assert SCHEMA_VERSION == 15
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    assert ensure_schema(engine) == 14
-    assert get_schema_version(engine) == 14
+    assert ensure_schema(engine) == SCHEMA_VERSION
+    assert get_schema_version(engine) == SCHEMA_VERSION
     assert "audit_logs" in inspect(engine).get_table_names()
     assert "audit_logs" in Base.metadata.tables
     assert "generator_runs" in inspect(engine).get_table_names()
@@ -598,7 +598,7 @@ def test_fresh_database_boots_to_v9_with_content_tables():
     assert "puzzle_validations" in inspect(engine).get_table_names()
     assert "puzzle_reviews" in inspect(engine).get_table_names()
     # Idempotent re-run.
-    assert ensure_schema(engine) == 14
+    assert ensure_schema(engine) == SCHEMA_VERSION
     assert "relationships" in inspect(engine).get_table_names()
     assert "assignments" in inspect(engine).get_table_names()
     assert "adaptive_recommendations" in inspect(engine).get_table_names()

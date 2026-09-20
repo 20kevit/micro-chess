@@ -9,6 +9,16 @@ class RegisterIn(BaseModel):
     username: str
     password: str
     display_name: str = ""
+    # Optional marketing attribution captured at registration (first-touch
+    # source). Best-effort only: registration succeeds even when these are
+    # absent or invalid; the billing service validates coupons separately.
+    coupon_code: str | None = None
+    campaign_slug: str | None = None
+    source: str | None = None
+    medium: str | None = None
+    content: str | None = None
+    landing_path: str | None = None
+    referrer: str | None = None
 
 
 class LoginIn(BaseModel):

@@ -16,6 +16,8 @@ from app.modules.adaptive.router import coach_router as adaptive_coach_router
 from app.modules.adaptive.router import me_router as adaptive_router
 from app.modules.adaptive.router import parent_router as adaptive_parent_router
 from app.modules.auth.router import router as auth_router
+from app.modules.billing.router import admin_router as billing_admin_router
+from app.modules.billing.router import router as billing_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.balance_scale.router import router as balance_scale_router
 from app.modules.blindfold_calculation.router import router as blindfold_calculation_router
@@ -96,6 +98,8 @@ def health() -> dict[str, str]:
 
 
 app.include_router(auth_router, prefix=API_V1_PREFIX)
+app.include_router(billing_router, prefix=API_V1_PREFIX)
+app.include_router(billing_admin_router, prefix=API_V1_PREFIX)
 app.include_router(admin_router, prefix=API_V1_PREFIX)
 app.include_router(balance_scale_router, prefix=API_V1_PREFIX)
 app.include_router(blindfold_calculation_router, prefix=API_V1_PREFIX)

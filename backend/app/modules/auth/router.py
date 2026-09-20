@@ -35,6 +35,28 @@ def register(
             raise HTTPException(status_code=400, detail="username_taken")
         raise HTTPException(status_code=422, detail=str(exc))
     audit_event(action="auth.register", actor=user.id)
+    # Billing hook (best-effort, never breaks registration): persist
+    # first-touch attribution, ensure the free-beta subscription, and
+    # redeem a registration coupon (trial entitlement) when supplied.
+    try:
+        from app.modules.billing import service as billing_service
+
+        billing_service.record_registration_attribution(
+            db,
+            user_id=user.id,
+            touch={
+                "campaign_slug": body.campaign_slug,
+                "coupon_code": body.coupon_code,
+                "source": body.source,
+                "medium": body.medium,
+                "content": body.content,
+                "landing_path": body.landing_path,
+                "referrer": body.referrer,
+            },
+            coupon_code=body.coupon_code,
+        )
+    except Exception:
+        pass
     return schemas.TokenOut(access_token=token)
 
 

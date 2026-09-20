@@ -604,9 +604,9 @@ def test_suspend_and_reactivate_emit_mandatory_account_notices(client, db_sessio
 
 def test_fresh_database_boots_to_v10_with_support_tables():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    assert SCHEMA_VERSION == 14
-    assert ensure_schema(engine) == 14
-    assert get_schema_version(engine) == 14
+    assert SCHEMA_VERSION == 15
+    assert ensure_schema(engine) == SCHEMA_VERSION
+    assert get_schema_version(engine) == SCHEMA_VERSION
     tables = inspect(engine).get_table_names()
     for table in (
         "support_tickets",
@@ -617,14 +617,14 @@ def test_fresh_database_boots_to_v10_with_support_tables():
     ):
         assert table in tables
         assert table in Base.metadata.tables
-    assert ensure_schema(engine) == 14  # idempotent re-run
+    assert ensure_schema(engine) == SCHEMA_VERSION  # idempotent re-run
 
 
 def test_v9_database_upgrades_to_v10_preserving_users(client, db_session):
     from sqlalchemy.orm import sessionmaker
 
     users_before = db_session.query(User).count()
-    assert ensure_schema(db_session.get_bind()) == 14
+    assert ensure_schema(db_session.get_bind()) == SCHEMA_VERSION
     assert db_session.query(User).count() == users_before
     assert "support_tickets" in inspect(db_session.get_bind()).get_table_names()
 

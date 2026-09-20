@@ -708,8 +708,8 @@ def test_attempt_api_accepts_and_reports_p6_context(client, db_session):
 def test_fresh_boot_stamps_v14_with_p6_tables():
     engine = create_engine("sqlite:///:memory:")
     version = ensure_schema(engine)
-    assert version == SCHEMA_VERSION == 14
-    assert get_schema_version(engine) == 14
+    assert version == SCHEMA_VERSION == 15
+    assert get_schema_version(engine) == SCHEMA_VERSION
     tables = set(inspect(engine).get_table_names())
     assert "assessments" in tables
     attempt_cols = {c["name"] for c in inspect(engine).get_columns("attempts")}
@@ -717,7 +717,7 @@ def test_fresh_boot_stamps_v14_with_p6_tables():
     assignment_cols = {c["name"] for c in inspect(engine).get_columns("assignments")}
     assert {"source", "goal"} <= assignment_cols
     # Idempotent re-run.
-    assert ensure_schema(engine) == 14
+    assert ensure_schema(engine) == SCHEMA_VERSION
 
 
 def test_v14_migration_preserves_legacy_rows_without_backfill():

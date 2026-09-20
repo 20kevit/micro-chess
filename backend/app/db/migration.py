@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 
 class SchemaVersion(Base):
@@ -436,6 +436,20 @@ def _migrate_v14_p6(conn) -> None:
             conn.execute(text("ALTER TABLE attempts ADD COLUMN assessment_id INTEGER"))
 
 
+def _migrate_v15_billing(conn) -> None:
+    """Billing domain: plans, prices, subscriptions, coupons, attribution, payments.
+
+    The new ``billing_*`` tables are created by ``ensure_schema`` via
+    ``Base.metadata.create_all`` on fresh and existing databases alike;
+    no data backfill exists (commercial history starts with v15, no
+    historical subscriptions or redemptions are fabricated). Existing
+    accounts gain their free-beta subscription lazily on first
+    entitlement resolution, so the upgrade never blocks login. This
+    step exists so the version history records the change explicitly.
+    """
+    _ = conn
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
     (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
@@ -450,6 +464,7 @@ MIGRATIONS: list[tuple[int, str, object]] = [
     (12, "p1 attempt context: nullable puzzle_rating/difficulty snapshot columns", _migrate_v12_p1),
     (13, "p2 evidence: evidence table via create_all + nullable validation_detail column", _migrate_v13_p2),
     (14, "p6 assignment & assessment: assessments table via create_all + nullable assignment/assessment links and source/goal columns", _migrate_v14_p6),
+    (15, "billing: plans, prices, subscriptions, coupons, attribution, payments via create_all", _migrate_v15_billing),
 ]
 
 

@@ -81,6 +81,8 @@ class Capability(str, Enum):
     RELATIONSHIPS_ACCEPT = "relationships.accept"
     RELATIONSHIPS_REVOKE = "relationships.revoke"
     GUEST_MIGRATE = "accounts.migrate_guest"
+    BILLING_READ = "billing.read"
+    BILLING_MANAGE = "billing.manage"
 
 
 _PLAYER_CAPABILITIES = frozenset(

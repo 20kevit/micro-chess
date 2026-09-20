@@ -16,6 +16,7 @@ def db_session():
     from app.modules.adaptive import models as _adapt  # noqa: F401
     from app.modules.assessments import models as _assess  # noqa: F401
     from app.modules.auth import models as _auth  # noqa: F401
+    from app.modules.billing import models as _billing  # noqa: F401
     from app.modules.balance_scale import models as _bs  # noqa: F401
     from app.modules.blindfold_calculation import models as _bc  # noqa: F401
     from app.modules.blindfold_square_vision import models as _bsv  # noqa: F401
