@@ -98,9 +98,11 @@ export function AdminReviewQueuePage() {
                       {item.severity} · {item.status}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-stone-500" dir="ltr">
-                    attempts {faNum(item.attempts)} ·{" "}
-                    {item.failure_rate === null ? "—" : `${Math.round(item.failure_rate * 100)}٪`} ·{" "}
+                  <p className="mt-1 text-xs text-stone-500">
+                    {t("admin.attempts")}: {faNum(item.attempts)} · {t("admin.failureRate")}:{" "}
+                    {item.failure_rate === null ? "—" : `${Math.round(item.failure_rate * 100)}٪`}
+                  </p>
+                  <p className="mt-1 text-xs text-stone-400" dir="ltr">
                     {item.reasons.join(", ")}
                   </p>
                   <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-4">

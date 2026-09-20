@@ -83,8 +83,8 @@ export function AdminUserDetailPage() {
                 <p className="font-black" dir="ltr">{profile.overview.username}</p>
                 <p className="text-sm text-stone-500">{profile.overview.display_name}</p>
                 <p className="mt-1 text-xs text-stone-500" dir="ltr">
-                  roles: {profile.overview.roles.join(", ")} ·{" "}
-                  {profile.overview.is_active ? "active" : "suspended"}
+                  {profile.overview.roles.join(", ")} ·{" "}
+                  {profile.overview.is_active ? t("admin.statusActive") : t("admin.statusSuspended")}
                 </p>
               </Card>
               <div className="grid grid-cols-2 gap-2">
@@ -160,10 +160,13 @@ export function AdminUserDetailPage() {
                 {!profile.commercial.current_subscription ? (
                   <p className="mt-1 text-sm text-stone-500">{t("admin.noSubscription")}</p>
                 ) : (
-                  <p className="mt-1 text-sm" dir="ltr">
-                    {profile.commercial.current_subscription.plan_code} ·{" "}
-                    {profile.commercial.current_subscription.status} ·{" "}
-                    {profile.commercial.current_subscription.source}
+                  <p className="mt-1 text-sm">
+                    <span dir="ltr">
+                      {profile.commercial.current_subscription.plan_code} ·{" "}
+                      {profile.commercial.current_subscription.status}
+                    </span>{" "}
+                    · {t("admin.sourceLabel")}:{" "}
+                    <span dir="ltr">{profile.commercial.current_subscription.source}</span>
                   </p>
                 )}
               </Card>
@@ -172,10 +175,14 @@ export function AdminUserDetailPage() {
                 {!profile.commercial.attribution ? (
                   <p className="mt-1 text-sm text-stone-500">{t("admin.empty")}</p>
                 ) : (
-                  <p className="mt-1 text-xs text-stone-500" dir="ltr">
-                    first: {profile.commercial.attribution.first_source}/
-                    {profile.commercial.attribution.first_campaign || "—"} · coupon{" "}
-                    {profile.commercial.attribution.first_coupon_code || "—"}
+                  <p className="mt-1 text-xs text-stone-500">
+                    {t("admin.sourceLabel")}:{" "}
+                    <span dir="ltr">
+                      {profile.commercial.attribution.first_source}/
+                      {profile.commercial.attribution.first_campaign || "—"}
+                    </span>{" "}
+                    · {t("admin.couponCode")}:{" "}
+                    <span dir="ltr">{profile.commercial.attribution.first_coupon_code || "—"}</span>
                   </p>
                 )}
               </Card>
@@ -186,8 +193,9 @@ export function AdminUserDetailPage() {
                 ) : (
                   <ul className="mt-2 flex flex-col gap-1">
                     {profile.commercial.redemptions.map((r, i) => (
-                      <li key={`${r.code}-${i}`} className="rounded-xl bg-stone-50 px-3 py-2 text-xs" dir="ltr">
-                        {r.code} · {r.status} · discount {r.discount_granted_minor} · trial {r.trial_days_granted}d
+                      <li key={`${r.code}-${i}`} className="rounded-xl bg-stone-50 px-3 py-2 text-xs">
+                        <span dir="ltr">{r.code} · {r.status}</span> · {t("admin.discountValue")}:{" "}
+                        {faNum(r.discount_granted_minor)} · {t("admin.trialDays")}: {faNum(r.trial_days_granted)}
                       </li>
                     ))}
                   </ul>
@@ -200,8 +208,9 @@ export function AdminUserDetailPage() {
                 ) : (
                   <ul className="mt-2 flex flex-col gap-1">
                     {profile.commercial.payments.map((p) => (
-                      <li key={p.id} className="rounded-xl bg-stone-50 px-3 py-2 text-xs" dir="ltr">
-                        #{p.id} {p.plan_code} · {p.final_amount_minor} {p.currency} · {p.status}
+                      <li key={p.id} className="rounded-xl bg-stone-50 px-3 py-2 text-xs">
+                        #{p.id} <span dir="ltr">{p.plan_code} · {p.status}</span> ·{" "}
+                        {faNum(p.final_amount_minor)} <span dir="ltr">{p.currency}</span>
                       </li>
                     ))}
                   </ul>

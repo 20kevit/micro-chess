@@ -105,8 +105,9 @@ export function AdminSupportPage() {
       <PageHeader title={t("admin.support")} subtitle={t("admin.supportSubtitle")} />
       {stats ? (
         <Card>
-          <p className="text-sm text-stone-500" dir="ltr">
-            open {faNum(stats.open)} · answered {faNum(stats.answered)} · closed {faNum(stats.closed)}
+          <p className="text-sm text-stone-500">
+            {t("support.open")}: {faNum(stats.open)} · {t("support.answered")}: {faNum(stats.answered)} ·{" "}
+            {t("support.closed")}: {faNum(stats.closed)}
           </p>
           {stats.by_category.length > 0 ? (
             <p className="mt-1 text-xs text-stone-400" dir="ltr">
@@ -139,7 +140,7 @@ export function AdminSupportPage() {
             setCategory(e.target.value);
             setSelected(null);
           }}
-          placeholder="category…"
+          placeholder={t("admin.categoryPlaceholder")}
           dir="ltr"
           className="mt-2 min-h-[44px] w-full rounded-xl border border-stone-200 bg-white px-3"
         />

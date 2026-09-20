@@ -92,20 +92,20 @@ export function AdminDashboardPage() {
         <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
           <Card className="text-center">
             <p className="text-2xl font-black text-sky-700">{faNum(extended.registrations.today)}</p>
-            <p className="mt-1 text-xs text-stone-500" dir="ltr">
-              registrations today / week {faNum(extended.registrations.week)}
+            <p className="mt-1 text-xs text-stone-500">
+              {t("admin.newRegistrations")} امروز / هفته {faNum(extended.registrations.week)}
             </p>
           </Card>
           <Card className="text-center">
             <p className="text-2xl font-black text-sky-700">{faNum(extended.active.today)}</p>
-            <p className="mt-1 text-xs text-stone-500" dir="ltr">
-              active today / week {faNum(extended.active.week)}
+            <p className="mt-1 text-xs text-stone-500">
+              {t("admin.activeUsers")} امروز / هفته {faNum(extended.active.week)}
             </p>
           </Card>
           <Card className="text-center">
             <p className="text-2xl font-black text-sky-700">{faNum(extended.attempts.week)}</p>
-            <p className="mt-1 text-xs text-stone-500" dir="ltr">
-              attempts week (prev {faNum(extended.attempts.prev_week)})
+            <p className="mt-1 text-xs text-stone-500">
+              {t("admin.attemptsTotal")} هفته (قبلی {faNum(extended.attempts.prev_week)})
             </p>
           </Card>
           <Card className="text-center">
@@ -116,8 +116,8 @@ export function AdminDashboardPage() {
       ) : null}
       {extended && extended.series.length > 0 ? (
         <Card>
-          <h2 className="font-black" dir="ltr">
-            14-day registrations / attempts
+          <h2 className="font-black">
+            {t("admin.usageTrend")}
           </h2>
           <div className="mt-2 flex h-24 items-end gap-1" dir="ltr" aria-hidden>
             {extended.series.map((row) => {
@@ -159,9 +159,10 @@ export function AdminDashboardPage() {
             {extended.attribution.map((row) => (
               <li key={row.slug} className="rounded-xl bg-stone-50 px-3 py-2">
                 <p className="font-bold" dir="ltr">{row.slug}</p>
-                <p className="text-xs text-stone-500" dir="ltr">
-                  registrations {faNum(row.registrations)} · redemptions {faNum(row.redemptions)} · trials{" "}
-                  {faNum(row.trials)} · paid {faNum(row.paid)}
+                <p className="text-xs text-stone-500">
+                  {t("admin.newRegistrations")}: {faNum(row.registrations)} · {t("admin.redemptions")}:{" "}
+                  {faNum(row.redemptions)} · {t("admin.trials")}: {faNum(row.trials)} ·{" "}
+                  {t("admin.paidUsers")}: {faNum(row.paid)}
                 </p>
               </li>
             ))}

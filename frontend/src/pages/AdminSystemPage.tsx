@@ -43,11 +43,13 @@ export function AdminSystemPage() {
       ) : (
         <div className="flex flex-col gap-2">
           <Card>
-            <p className="font-black" dir="ltr">ok: {String(health.ok)}</p>
-            <p className="text-sm text-stone-500" dir="ltr">
-              database reachable: {String(health.database.reachable)} · schema ok:{" "}
-              {String(health.schema_status.ok)} (expected {String(health.schema_status.expected)}, stored{" "}
-              {String(health.schema_status.stored)})
+            <p className="font-black">
+              {t("admin.sysStatus")}: {health.ok ? t("admin.healthy") : t("admin.unhealthy")}
+            </p>
+            <p className="text-sm text-stone-500">
+              {t("admin.sysDatabase")}:{" "}
+              {health.database.reachable ? t("admin.reachable") : t("admin.unreachable")} ·{" "}
+              {t("admin.sysSchema")}: <span dir="ltr">{String(health.schema_status.expected)} → {String(health.schema_status.stored)}</span>
             </p>
           </Card>
           <Card className="text-center">

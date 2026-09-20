@@ -316,7 +316,7 @@ export function AdminSalesPage() {
                       <li key={price.id} className="flex min-h-[44px] items-center justify-between gap-2 rounded-xl bg-stone-50 px-3 py-1">
                         <span dir="ltr" className="text-sm">
                           v{faNum(price.version)} · {faNum(price.amount_minor)} {price.currency}
-                          {!price.is_active ? " · retired" : ""}
+                          {!price.is_active ? ` · ${t("admin.statusRetired")}` : ""}
                         </span>
                         <Button
                           variant="secondary"
@@ -380,12 +380,17 @@ export function AdminSalesPage() {
                     {coupon.is_active ? t("admin.deactivate") : t("admin.activate")}
                   </Button>
                 </div>
-                <p className="mt-1 text-xs text-stone-500" dir="ltr">
-                  {coupon.discount_type} {coupon.discount_value} · trial {coupon.trial_days}d · used{" "}
-                  {coupon.total_redemptions}
-                  {coupon.max_redemptions ? `/${coupon.max_redemptions}` : ""} · per-user {coupon.max_per_user}
-                  {coupon.valid_until ? ` · until ${coupon.valid_until}` : ""} · plans{" "}
-                  {coupon.applicable_plan_codes.length ? coupon.applicable_plan_codes.join(",") : "all"}
+                <p className="mt-1 text-xs text-stone-500">
+                  {t("admin.discountType")}: <span dir="ltr">{coupon.discount_type} {coupon.discount_value}</span> ·{" "}
+                  {t("admin.trialDays")}: {faNum(coupon.trial_days)} · {t("admin.redemptions")}:{" "}
+                  {faNum(coupon.total_redemptions)}
+                  {coupon.max_redemptions ? `/${faNum(coupon.max_redemptions)}` : ""} · {t("admin.maxPerUser")}:{" "}
+                  {faNum(coupon.max_per_user)}
+                  {coupon.valid_until ? ` · ${t("admin.validUntil")}: ${coupon.valid_until}` : ""} ·{" "}
+                  {t("admin.applicablePlans")}:{" "}
+                  <span dir="ltr">
+                    {coupon.applicable_plan_codes.length ? coupon.applicable_plan_codes.join(", ") : t("admin.all")}
+                  </span>
                 </p>
                 {detailCoupon?.id === coupon.id ? (
                   <div className="mt-2">
@@ -397,9 +402,11 @@ export function AdminSalesPage() {
                     ) : (
                       <ul className="mt-1 flex flex-col gap-1">
                         {redemptions.map((r) => (
-                          <li key={r.id} className="rounded-xl bg-stone-50 px-3 py-2 text-xs" dir="ltr">
-                            #{r.id} user {r.subscription_id ?? "?"} · {r.status} · discount {r.discount_granted_minor} · trial {r.trial_days_granted}d
-                          </li>
+                    <li key={r.id} className="rounded-xl bg-stone-50 px-3 py-2 text-xs">
+                      #{faNum(r.id)} · {t("admin.userLabel")} {r.subscription_id ?? "?"} ·{" "}
+                      <span dir="ltr">{r.status}</span> · {t("admin.discountValue")}:{" "}
+                      {faNum(r.discount_granted_minor)} · {t("admin.trialDays")}: {faNum(r.trial_days_granted)}
+                    </li>
                         ))}
                       </ul>
                     )}
@@ -445,9 +452,10 @@ export function AdminSalesPage() {
                   </div>
                   <p className="mt-1 text-sm text-stone-500">{campaign.name_fa}</p>
                   {stats ? (
-                    <p className="mt-1 text-xs text-stone-500" dir="ltr">
-                      registrations {faNum(stats.registrations)} · redemptions {faNum(stats.redemptions)} · trials{" "}
-                      {faNum(stats.trials)} · paid {faNum(stats.paid)}
+                    <p className="mt-1 text-xs text-stone-500">
+                      {t("admin.newRegistrations")}: {faNum(stats.registrations)} · {t("admin.redemptions")}:{" "}
+                      {faNum(stats.redemptions)} · {t("admin.trials")}: {faNum(stats.trials)} ·{" "}
+                      {t("admin.paidUsers")}: {faNum(stats.paid)}
                     </p>
                   ) : null}
                 </Card>
@@ -463,7 +471,7 @@ export function AdminSalesPage() {
             <p className="text-xs text-stone-500">{t("admin.readOnlyNote")}</p>
             <div className="mt-2 flex gap-2">
               <select value={subStatus} onChange={(e) => { setSubStatus(e.target.value); }} className={inputClass()} dir="ltr">
-                <option value="">all</option>
+                <option value="">{t("admin.all")}</option>
                 <option value="pending">pending</option>
                 <option value="trialing">trialing</option>
                 <option value="active">active</option>
@@ -481,10 +489,15 @@ export function AdminSalesPage() {
           ) : (
             subs.map((sub) => (
               <Card key={sub.id}>
-                <p className="font-bold" dir="ltr">#{sub.id} user {sub.user_id} · {sub.plan_code} · {sub.status}</p>
-                <p className="mt-1 text-xs text-stone-500" dir="ltr">
-                  source {sub.source} · trial {sub.trial_ends_at ?? "—"} · period {sub.current_period_start ?? "—"} →{" "}
-                  {sub.current_period_end ?? "—"} · coupon {sub.coupon_code ?? "—"}
+                <p className="font-bold">
+                  #{faNum(sub.id)} · {t("admin.userLabel")} {faNum(sub.user_id)} ·{" "}
+                  <span dir="ltr">{sub.plan_code} · {sub.status}</span>
+                </p>
+                <p className="mt-1 text-xs text-stone-500">
+                  {t("admin.sourceLabel")}: <span dir="ltr">{sub.source}</span> · {t("admin.trialDays")}:{" "}
+                  <span dir="ltr">{sub.trial_ends_at ?? "—"}</span> · {t("admin.periodLabel")}:{" "}
+                  <span dir="ltr">{sub.current_period_start ?? "—"} → {sub.current_period_end ?? "—"}</span> ·{" "}
+                  {t("admin.couponCode")}: <span dir="ltr">{sub.coupon_code ?? "—"}</span>
                 </p>
               </Card>
             ))
@@ -498,7 +511,7 @@ export function AdminSalesPage() {
             <p className="text-xs text-stone-500">{t("admin.readOnlyNote")}</p>
             <div className="mt-2 flex gap-2">
               <select value={payStatus} onChange={(e) => { setPayStatus(e.target.value); }} className={inputClass()} dir="ltr">
-                <option value="">all</option>
+                <option value="">{t("admin.all")}</option>
                 <option value="pending">pending</option>
                 <option value="requires_action">requires_action</option>
                 <option value="verified">verified</option>
@@ -515,12 +528,16 @@ export function AdminSalesPage() {
           ) : (
             payments.map((row) => (
               <Card key={String(row["id"])}>
-                <p className="font-bold" dir="ltr">
-                  #{String(row["id"])} user {String(row["user_id"])} · {faNum(Number(row["final_amount_minor"]))} {String(row["currency"])} · {String(row["status"])}
+                <p className="font-bold">
+                  #{String(row["id"])} · {t("admin.userLabel")} {String(row["user_id"])} ·{" "}
+                  {faNum(Number(row["final_amount_minor"]))} <span dir="ltr">{String(row["currency"])}</span> ·{" "}
+                  <span dir="ltr">{String(row["status"])}</span>
                 </p>
-                <p className="mt-1 text-xs text-stone-500" dir="ltr">
-                  provider {String(row["provider"])} · ref {String(row["provider_ref"] ?? "—")} · sub{" "}
-                  {String(row["subscription_id"] ?? "—")} · coupon {String(row["coupon_code"] ?? "—")}
+                <p className="mt-1 text-xs text-stone-500">
+                  {t("admin.providerLabel")}: <span dir="ltr">{String(row["provider"])}</span> ·{" "}
+                  {t("admin.refLabel")}: <span dir="ltr">{String(row["provider_ref"] ?? "—")}</span> ·{" "}
+                  {t("admin.subscriptions")}: <span dir="ltr">{String(row["subscription_id"] ?? "—")}</span> ·{" "}
+                  {t("admin.couponCode")}: <span dir="ltr">{String(row["coupon_code"] ?? "—")}</span>
                 </p>
                 {row["failure_reason"] ? (
                   <p className="mt-1 text-xs font-bold text-red-600" dir="ltr">{String(row["failure_reason"])}</p>
@@ -553,8 +570,9 @@ export function AdminSalesPage() {
               ) : (
                 <ul className="mt-2 flex flex-col gap-1">
                   {redemptions.map((r) => (
-                    <li key={r.id} className="rounded-xl bg-stone-50 px-3 py-2 text-xs" dir="ltr">
-                      #{r.id} {r.coupon_code} · {r.status} · discount {r.discount_granted_minor}
+                    <li key={r.id} className="rounded-xl bg-stone-50 px-3 py-2 text-xs">
+                      #{faNum(r.id)} <span dir="ltr">{r.coupon_code} · {r.status}</span> ·{" "}
+                      {t("admin.discountValue")}: {faNum(r.discount_granted_minor)}
                     </li>
                   ))}
                 </ul>

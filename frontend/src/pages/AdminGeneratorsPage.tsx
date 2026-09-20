@@ -6,6 +6,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { t } from "../i18n";
+import { faNum } from "../lib/playerDisplay";
 
 // Generator administration: registry inspection, bounded generation
 // jobs, and run history. Generated content stays non-production until
@@ -205,9 +206,11 @@ export function AdminGeneratorsPage() {
                       </span>
                       <Badge>{run.status}</Badge>
                     </div>
-                    <p className="mt-1 text-xs text-stone-500" dir="ltr">
-                      accepted {run.accepted_count} · rejected {run.rejected_count}
-                      {run.seed !== null ? ` · seed ${run.seed}` : null} · v{run.generator_version}
+                    <p className="mt-1 text-xs text-stone-500">
+                      {t("admin.accepted")}: {faNum(run.accepted_count)} · {t("admin.rejected")}:{" "}
+                      {faNum(run.rejected_count)}
+                      {run.seed !== null ? ` · ${t("admin.seed")}: ${run.seed}` : null} ·{" "}
+                      <span dir="ltr">v{run.generator_version}</span>
                     </p>
                     {(run.result.accepted_puzzle_ids ?? []).length > 0 ? (
                       <p className="mt-1 text-xs text-stone-500" dir="ltr">

@@ -36,7 +36,7 @@ export function AdminAuditPage() {
       <Card>
         <input
           className="min-h-[44px] w-full rounded-xl border px-3"
-          placeholder="action…"
+          placeholder={t("admin.actionPlaceholder")}
           dir="ltr"
           value={action}
           onChange={(e) => setAction(e.target.value)}
