@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { billingApi } from "../api/client";
+import type { Subscription } from "../api/types";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -11,12 +13,29 @@ import { authErrorKey } from "../lib/auth-errors";
 // Minimal account screen: server-owned identity only. Quick links follow
 // the session's active role so admin/coach/parent/player dashboards never
 // mix. Multi-role accounts switch this session's active role here
-// (server-authoritative).
+// (server-authoritative). Subscription state is display-only; the backend
+// owns access.
 export function AccountPage() {
   const { user, logout, switchRole } = useAuth();
   const navigate = useNavigate();
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<FaKey | null>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (user) {
+      billingApi
+        .subscription()
+        .then((s) => {
+          if (alive) setSubscription(s);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      alive = false;
+    };
+  }, [user]);
   if (!user) return null;
 
   async function onLogout() {
@@ -81,6 +100,25 @@ export function AccountPage() {
           </div>
         ) : null}
         <div className="mt-4 flex flex-col gap-2">
+          <div className="rounded-2xl bg-violet-50 px-4 py-3 text-center">
+            <p className="text-sm font-bold text-stone-700">
+              {t("account.subscriptionTitle")}:{" "}
+              {subscription
+                ? subscription.plan_code === "premium"
+                  ? t("account.plan.premium")
+                  : t("account.plan.free")
+                : t("common.loading")}
+              {subscription ? ` (${t(`pricing.status.${subscription.status}` as FaKey)})` : null}
+            </p>
+            {subscription && subscription.plan_code === "free" ? (
+              <p className="mt-1 text-xs text-stone-500">{t("account.freeNote")}</p>
+            ) : null}
+            <Link to="/pricing" className="mt-2 block">
+              <Button variant="secondary" className="w-full">
+                {t("account.viewPricing")}
+              </Button>
+            </Link>
+          </div>
           {activeRole === "ADMIN" ? (
             <Link to="/admin" className="block">
               <Button variant="secondary" className="w-full">

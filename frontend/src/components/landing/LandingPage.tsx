@@ -1,7 +1,8 @@
 import { useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { ChessPiece } from "../chess/ChessPiece";
 import { t } from "../../i18n";
+import { captureAttribution } from "../../lib/attribution";
 import { faNum } from "../../lib/playerDisplay";
 import "./landing.css";
 
@@ -10,6 +11,12 @@ import "./landing.css";
 // catalog here by design — the catalog lives at /exercises.
 export function LandingPage() {
   useRevealOnScroll();
+  const location = useLocation();
+  // Persist first-touch attribution (survives into registration).
+  useEffect(() => {
+    captureAttribution(location.search, `${location.pathname}${location.search}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="mc-landing">
@@ -514,6 +521,12 @@ function FreeSection() {
           className="mx-auto mt-6 flex min-h-[52px] max-w-xs items-center justify-center rounded-2xl bg-amber-300 px-6 text-base font-black text-stone-900 active:bg-amber-400"
         >
           {t("landing.hero.primary")}
+        </Link>
+        <Link
+          to="/pricing"
+          className="mx-auto mt-3 flex min-h-[44px] max-w-xs items-center justify-center rounded-2xl px-6 text-sm font-bold text-white underline"
+        >
+          {t("nav.pricing")}
         </Link>
       </div>
     </section>

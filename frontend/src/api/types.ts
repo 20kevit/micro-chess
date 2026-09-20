@@ -635,6 +635,79 @@ export interface Recommendation {
   assignment_id: number | null;
 }
 
+// Billing (mirrors backend modules/billing/schemas.py). Display and
+// transport shapes only; prices, discounts, and access are computed
+// server-side and never trusted from the client.
+export interface PlanPrice {
+  version: number;
+  amount_minor: number;
+  currency: string;
+  billing_interval: string;
+}
+
+export interface BillingPlan {
+  code: string;
+  name_fa: string;
+  description_fa: string;
+  billing_interval: string;
+  is_active: boolean;
+  sort_order: number;
+  prices: PlanPrice[];
+}
+
+export interface Subscription {
+  id: number;
+  plan_code: string;
+  status: string;
+  source: string;
+  trial_ends_at: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  price_amount_minor: number | null;
+  price_currency: string;
+  coupon_code: string | null;
+  created_at: string;
+}
+
+export interface Entitlements {
+  plan_code: string;
+  status: string;
+  has_paid_access: boolean;
+  features: string[];
+}
+
+export interface CouponQuote {
+  code: string;
+  discount_type: string;
+  plan_code: string;
+  price_amount_minor: number | null;
+  currency: string;
+  discount_minor: number;
+  trial_days: number;
+  final_amount_minor: number | null;
+}
+
+export interface Redemption {
+  id: number;
+  coupon_code: string;
+  status: string;
+  discount_granted_minor: number;
+  trial_days_granted: number;
+  plan_code: string;
+  subscription_id: number | null;
+  already: boolean;
+}
+
+export interface CampaignReport {
+  slug: string;
+  source: string;
+  medium: string;
+  registrations: number;
+  redemptions: number;
+  trials: number;
+  paid: number;
+}
+
 // Authentication state (mirrors backend users/schemas.py UserOut).
 // The server owns roles/capabilities; the client only renders them.
 // `active_role` is this session's authoritative role (always a member

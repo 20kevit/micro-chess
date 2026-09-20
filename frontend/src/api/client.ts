@@ -21,8 +21,12 @@ import type {
   AttemptResponse,
   AuthToken,
   AuthUser,
+  BillingPlan,
+  CampaignReport,
   ChessIdentity,
+  CouponQuote,
   Dashboard,
+  Entitlements,
   Exercise,
   ExerciseProgress,
   GamificationSummary,
@@ -42,12 +46,14 @@ import type {
   RatingHistoryResponse,
   RatingsResponse,
   ReconstructionStepResponse,
+  Redemption,
   RelatedStudent,
   Relationship,
   SpeedReport,
   SpeedSession,
   SpeedSubmitResponse,
   SpeedSummary,
+  Subscription,
   SupportMessage,
   SupportTicket,
   XpHistoryResponse,
@@ -902,7 +908,20 @@ export const api = {
     }),
   // Authentication transport. The server owns identity, roles, and
   // sessions; these functions only carry credentials and tokens.
-  register: (body: { username: string; password: string; display_name?: string }) =>
+  // Attribution extras are best-effort: invalid coupons never break
+  // registration (the server validates separately).
+  register: (body: {
+    username: string;
+    password: string;
+    display_name?: string;
+    coupon_code?: string;
+    campaign_slug?: string;
+    source?: string;
+    medium?: string;
+    content?: string;
+    landing_path?: string;
+    referrer?: string;
+  }) =>
     request<AuthToken>("/api/v1/auth/register", {
       method: "POST",
       body: JSON.stringify(body),
@@ -1267,4 +1286,61 @@ export const adminApi = {
     }),
   closeSupport: (id: number) =>
     request<SupportTicket>(`/api/v1/admin/support/tickets/${id}/close`, { method: "POST" }),
+};
+
+// Billing transport. UX only — plans display, coupon quotes come from
+// the server, and access is enforced backend-side (never inferred here).
+export const billingApi = {
+  plans: () => request<BillingPlan[]>("/api/v1/billing/plans"),
+  subscription: () => request<Subscription>("/api/v1/billing/me/subscription"),
+  entitlements: () => request<Entitlements>("/api/v1/billing/me/entitlements"),
+  validateCoupon: (body: { code: string; plan_code?: string }) =>
+    request<CouponQuote>("/api/v1/billing/coupons/validate", {
+      method: "POST",
+      body: JSON.stringify({ plan_code: "premium", ...body }),
+    }),
+  redeemCoupon: (body: { code: string; plan_code?: string; idempotency_key?: string }) =>
+    request<Redemption>("/api/v1/billing/coupons/redeem", {
+      method: "POST",
+      body: JSON.stringify({ plan_code: "premium", ...body }),
+    }),
+  touchAttribution: (body: {
+    campaign_slug?: string;
+    coupon_code?: string;
+    landing_path?: string;
+  }) =>
+    request<void>("/api/v1/billing/me/attribution", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  cancelSubscription: () =>
+    request<Subscription>("/api/v1/billing/me/subscription/cancel", {
+      method: "POST",
+    }),
+};
+
+// Admin billing transport (billing.read / billing.manage capabilities).
+export const adminBillingApi = {
+  campaigns: () =>
+    request<Array<{ slug: string; name_fa: string; source: string; medium: string; content: string; is_active: boolean }>>(
+      "/api/v1/admin/billing/campaigns",
+    ),
+  createCampaign: (body: { slug: string; name_fa?: string; source?: string; medium?: string; content?: string }) =>
+    request<{ slug: string }>("/api/v1/admin/billing/campaigns", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  coupons: () => request<CouponQuote[]>("/api/v1/admin/billing/coupons"),
+  createCoupon: (body: Record<string, unknown>) =>
+    request<CouponQuote>("/api/v1/admin/billing/coupons", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  setCouponActive: (id: number, isActive: boolean) =>
+    request<CouponQuote>(`/api/v1/admin/billing/coupons/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: isActive }),
+    }),
+  report: () => request<CampaignReport[]>("/api/v1/admin/billing/report"),
+  redemptions: () => request<Redemption[]>("/api/v1/admin/billing/redemptions"),
 };

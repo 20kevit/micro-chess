@@ -6,12 +6,18 @@ import type { ReactNode } from "react";
 import { api, apiStatus, clearToken, getToken, setToken } from "../api/client";
 import type { AuthUser } from "../api/types";
 
+export interface RegisterExtra {
+  coupon_code?: string;
+  campaign_slug?: string;
+  landing_path?: string;
+}
+
 export interface AuthState {
   user: AuthUser | null;
   loading: boolean;
   error: string;
   login: (username: string, password: string, role?: string) => Promise<void>;
-  register: (username: string, password: string) => Promise<void>;
+  register: (username: string, password: string, extra?: RegisterExtra) => Promise<void>;
   switchRole: (role: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -94,10 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const register = useCallback(async (username: string, password: string) => {
+  const register = useCallback(async (username: string, password: string, extra?: RegisterExtra) => {
     setLoading(true);
     try {
-      const token = await api.register({ username, password });
+      const token = await api.register({ username, password, ...extra });
       setToken(token.access_token);
       setUser(await api.me());
       setError("");

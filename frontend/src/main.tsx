@@ -41,6 +41,7 @@ import { PinPage } from "./pages/PinPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ProgressPage } from "./pages/ProgressPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { PricingPage } from "./pages/PricingPage";
 import { SupportDetailPage } from "./pages/SupportDetailPage";
 import { SupportPage } from "./pages/SupportPage";
 import { AdminSupportPage } from "./pages/AdminSupportPage";
@@ -56,6 +57,7 @@ const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { path: "/", element: <HomePage /> },
+      { path: "/pricing", element: <PricingPage /> },
       { path: "/exercises", element: <ExercisesPage /> },
       { path: "/login", element: <LoginPage /> },
       { path: "/register", element: <RegisterPage /> },
