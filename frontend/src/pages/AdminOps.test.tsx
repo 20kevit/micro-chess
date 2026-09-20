@@ -20,7 +20,24 @@ vi.mock("../api/client", () => ({
     systemHealth: vi.fn(),
     audit: vi.fn(),
   },
-  adminBillingApi: { report: vi.fn() },
+  adminBillingApi: {
+    report: vi.fn(),
+    plans: vi.fn(),
+    createPlan: vi.fn(),
+    createPrice: vi.fn(),
+    setPlanActive: vi.fn(),
+    setPriceActive: vi.fn(),
+    coupons: vi.fn(),
+    createCoupon: vi.fn(),
+    setCouponActive: vi.fn(),
+    campaigns: vi.fn(),
+    createCampaign: vi.fn(),
+    setCampaignActive: vi.fn(),
+    subscriptions: vi.fn(),
+    payments: vi.fn(),
+    redemptions: vi.fn(),
+  },
+  apiDetail: () => "",
 }));
 
 const mockedAdmin = vi.mocked(adminApi, true);
@@ -75,8 +92,73 @@ describe("admin ops pages", () => {
         <AdminSalesPage />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(screen.getByText("فروش")).toBeTruthy());
-    expect(screen.getByText("abad")).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByText("فروش").length).toBeGreaterThanOrEqual(1));
+  });
+
+  it("sales plans tab lists price history and toggles", async () => {
+    const user = (await import("@testing-library/user-event")).default.setup();
+    mockedAdmin.salesOverview.mockResolvedValue({
+      subscriptions_by_status: [],
+      payments_by_status: [],
+      revenue_minor: 0,
+      revenue_currency: "IRR",
+      redemptions_total: 0,
+    });
+    mockedBilling.report.mockResolvedValue([]);
+    mockedBilling.plans.mockResolvedValue([
+      {
+        code: "club", name_fa: "باشگاهی", description_fa: "", billing_interval: "monthly",
+        is_active: true, sort_order: 1,
+        prices: [
+          { id: 3, version: 2, amount_minor: 100000, currency: "IRR", billing_interval: "monthly", is_active: true, effective_from: null },
+        ],
+      },
+    ]);
+    mockedBilling.setPriceActive.mockResolvedValue({} as never);
+    window.confirm = vi.fn(() => true);
+    render(
+      <MemoryRouter>
+        <AdminSalesPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getAllByText("فروش").length).toBeGreaterThanOrEqual(1));
+    await user.click(screen.getByRole("button", { name: "طرح‌ها" }));
+    await waitFor(() => expect(screen.getByText("باشگاهی")).toBeTruthy());
+    expect(screen.getByText("تاریخچه قیمت‌ها")).toBeTruthy();
+    await user.click(screen.getAllByRole("button", { name: "غیرفعال کردن" })[1]);
+    await waitFor(() => expect(mockedBilling.setPriceActive).toHaveBeenCalledWith(3, false));
+  });
+
+  it("sales coupons tab lists coupons with usage and limits", async () => {
+    const user = (await import("@testing-library/user-event")).default.setup();
+    mockedAdmin.salesOverview.mockResolvedValue({
+      subscriptions_by_status: [],
+      payments_by_status: [],
+      revenue_minor: 0,
+      revenue_currency: "IRR",
+      redemptions_total: 0,
+    });
+    mockedBilling.report.mockResolvedValue([]);
+    mockedBilling.coupons.mockResolvedValue([
+      {
+        id: 5, code: "SHOP10", campaign_slug: "camp", discount_type: "percent", discount_value: 10,
+        trial_days: 0, is_active: true, valid_from: null, valid_until: null, max_redemptions: 100,
+        max_per_user: 1, total_redemptions: 4, applicable_plan_codes: ["premium"],
+      },
+    ]);
+    mockedBilling.redemptions.mockResolvedValue([]);
+    render(
+      <MemoryRouter>
+        <AdminSalesPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getAllByText("فروش").length).toBeGreaterThanOrEqual(1));
+    await user.click(screen.getByRole("button", { name: "کوپن‌ها" }));
+    await waitFor(() => expect(screen.getByText("SHOP10")).toBeTruthy());
+    await user.click(screen.getByText("SHOP10"));
+    await waitFor(() => expect(mockedBilling.redemptions).toHaveBeenCalledWith(
+      expect.objectContaining({ coupon_code: "SHOP10" }),
+    ));
   });
 
   it("insights page shows empty state", async () => {

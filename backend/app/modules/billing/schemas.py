@@ -133,6 +133,27 @@ class CouponAdminOut(BaseModel):
     max_redemptions: int | None
     max_per_user: int
     total_redemptions: int
+    applicable_plan_codes: list[str] = []
+
+
+class PlanPriceAdminOut(BaseModel):
+    id: int
+    version: int
+    amount_minor: int
+    currency: str
+    billing_interval: str
+    is_active: bool
+    effective_from: datetime | None
+
+
+class PlanAdminOut(BaseModel):
+    code: str
+    name_fa: str
+    description_fa: str
+    billing_interval: str
+    is_active: bool
+    sort_order: int
+    prices: list[PlanPriceAdminOut]
 
 
 class PlanCreateIn(BaseModel):

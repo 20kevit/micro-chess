@@ -925,6 +925,27 @@ export interface AdminCoupon {
   max_redemptions: number | null;
   max_per_user: number;
   total_redemptions: number;
+  applicable_plan_codes: string[];
+}
+
+export interface AdminPrice {
+  id: number;
+  version: number;
+  amount_minor: number;
+  currency: string;
+  billing_interval: string;
+  is_active: boolean;
+  effective_from: string | null;
+}
+
+export interface AdminPlan {
+  code: string;
+  name_fa: string;
+  description_fa: string;
+  billing_interval: string;
+  is_active: boolean;
+  sort_order: number;
+  prices: AdminPrice[];
 }
 
 export interface AdminCampaign {

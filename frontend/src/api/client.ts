@@ -1392,13 +1392,28 @@ export const adminBillingApi = {
       body: JSON.stringify({ is_active: isActive }),
     }),
   report: () => request<CampaignReport[]>("/api/v1/admin/billing/report"),
-  redemptions: (params?: { status?: string; page?: number; page_size?: number }) =>
+  redemptions: (params?: { status?: string; coupon_code?: string; page?: number; page_size?: number }) =>
     request<Redemption[]>(`/api/v1/admin/billing/redemptions${adminQuery(params)}`),
   subscriptions: (params?: { user_id?: number; status?: string; page?: number; page_size?: number }) =>
-    request<Subscription[]>(`/api/v1/admin/billing/subscriptions${adminQuery(params)}`),
+    request<Array<Subscription & { user_id: number }>>(`/api/v1/admin/billing/subscriptions${adminQuery(params)}`),
   payments: (params?: { status?: string; page?: number; page_size?: number }) =>
     request<Array<Record<string, unknown>>>(`/api/v1/admin/billing/payments${adminQuery(params)}`),
-  plans: () => request<BillingPlan[]>("/api/v1/admin/billing/plans"),
+  plans: () => request<import("./types").AdminPlan[]>("/api/v1/admin/billing/plans"),
+  setPlanActive: (code: string, isActive: boolean) =>
+    request<import("./types").AdminPlan>(`/api/v1/admin/billing/plans/${code}`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: isActive }),
+    }),
+  setPriceActive: (id: number, isActive: boolean) =>
+    request<import("./types").AdminPrice>(`/api/v1/admin/billing/prices/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: isActive }),
+    }),
+  setCampaignActive: (slug: string, isActive: boolean) =>
+    request<{ slug: string }>(`/api/v1/admin/billing/campaigns/${slug}`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: isActive }),
+    }),
   createPlan: (body: Record<string, unknown>) =>
     request<Record<string, unknown>>("/api/v1/admin/billing/plans", {
       method: "POST",

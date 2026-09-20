@@ -228,6 +228,7 @@ def _coupon_admin_view(db: Session, coupon) -> schemas.CouponAdminOut:
         max_redemptions=coupon.max_redemptions,
         max_per_user=coupon.max_per_user,
         total_redemptions=total,
+        applicable_plan_codes=service._coupon_plan_codes(db, coupon.id),
     )
 
 
@@ -327,18 +328,91 @@ def attribution_report(
     return service.campaign_report(db)
 
 
-@admin_router.get("/plans", response_model=list[schemas.PlanOut])
+@admin_router.get("/plans", response_model=list[schemas.PlanAdminOut])
 def list_admin_plans(
     db: Session = Depends(get_db),
     user: User = Depends(require_capability(Capability.BILLING_READ)),
 ):
     _ = user
-    return service.list_public_plans(db)
+    return service.list_all_plans(db)
+
+
+def _billing_not_found(exc: ValueError) -> HTTPException:
+    code = str(exc)
+    if code in ("campaign_not_found", "plan_not_found", "price_not_found"):
+        return HTTPException(status_code=404, detail=code)
+    return HTTPException(status_code=422, detail=code)
+
+
+@admin_router.patch("/campaigns/{slug}", response_model=schemas.CampaignOut)
+def patch_campaign(
+    slug: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.BILLING_MANAGE)),
+):
+    if set(body) != {"is_active"}:
+        raise HTTPException(status_code=422, detail="only_is_active_supported")
+    try:
+        campaign = service.set_campaign_active(
+            db, slug=slug, is_active=bool(body["is_active"]), actor_id=user.id
+        )
+    except ValueError as exc:
+        raise _billing_not_found(exc)
+    return schemas.CampaignOut(
+        slug=campaign.slug, name_fa=campaign.name_fa, source=campaign.source,
+        medium=campaign.medium, content=campaign.content, is_active=campaign.is_active,
+    )
+
+
+@admin_router.patch("/plans/{plan_code}", response_model=schemas.PlanAdminOut)
+def patch_plan(
+    plan_code: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.BILLING_MANAGE)),
+):
+    if set(body) != {"is_active"}:
+        raise HTTPException(status_code=422, detail="only_is_active_supported")
+    try:
+        service.set_plan_active(
+            db, code=plan_code, is_active=bool(body["is_active"]), actor_id=user.id
+        )
+    except ValueError as exc:
+        raise _billing_not_found(exc)
+    rows = service.list_all_plans(db)
+    current = next((row for row in rows if row["code"] == service.normalize_slug(plan_code)), None)
+    if current is None:
+        raise HTTPException(status_code=404, detail="plan_not_found")
+    return current
+
+
+@admin_router.patch("/prices/{price_id}", response_model=schemas.PlanPriceAdminOut)
+def patch_price(
+    price_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.BILLING_MANAGE)),
+):
+    if set(body) != {"is_active"}:
+        raise HTTPException(status_code=422, detail="only_is_active_supported")
+    try:
+        price = service.set_price_active(
+            db, price_id=price_id, is_active=bool(body["is_active"]), actor_id=user.id
+        )
+    except ValueError as exc:
+        raise _billing_not_found(exc)
+    return schemas.PlanPriceAdminOut(
+        id=price.id, version=price.version, amount_minor=price.amount_minor,
+        currency=price.currency, billing_interval=price.billing_interval,
+        is_active=price.is_active, effective_from=price.effective_from,
+    )
 
 
 @admin_router.get("/redemptions")
 def list_redemptions(
     status: str | None = None,
+    coupon_code: str | None = None,
     page: int = 1,
     page_size: int = 50,
     db: Session = Depends(get_db),
@@ -351,6 +425,11 @@ def list_redemptions(
     )
     if status:
         query = query.filter(service.BillingCouponRedemption.status == status)
+    if coupon_code:
+        coupon = service.get_coupon_by_code(db, coupon_code)
+        if coupon is None:
+            return []
+        query = query.filter(service.BillingCouponRedemption.coupon_id == coupon.id)
     rows = query.offset((page - 1) * page_size).limit(page_size).all()
     out = []
     for row in rows:
@@ -387,7 +466,14 @@ def list_subscriptions(
     if status:
         query = query.filter(service.BillingSubscription.status == status)
     rows = query.offset((page - 1) * page_size).limit(page_size).all()
-    return [_sub_out(row).model_dump() for row in rows]
+    out = []
+    for row in rows:
+        payload = _sub_out(row).model_dump()
+        # Admin visibility only (secret-free): which account holds this
+        # subscription. The owner-facing schema intentionally omits it.
+        payload["user_id"] = row.user_id
+        out.append(payload)
+    return out
 
 
 @admin_router.get("/payments")
@@ -416,7 +502,9 @@ def list_payments(
             "currency": row.currency,
             "coupon_code": row.coupon_code,
             "provider": row.provider,
+            "provider_ref": row.provider_ref,
             "status": row.status,
+            "failure_reason": row.failure_reason or "",
             "created_at": row.created_at.isoformat() if row.created_at else None,
         }
         for row in rows

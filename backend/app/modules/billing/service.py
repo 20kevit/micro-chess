@@ -621,6 +621,96 @@ def set_coupon_active(
     return coupon
 
 
+def set_campaign_active(
+    db: Session, *, slug: str, is_active: bool, actor_id: int | None = None,
+) -> BillingCampaign:
+    """Toggle campaign availability. History (coupons, attributions,
+    redemptions) is never rewritten — only the flag flips."""
+    campaign = db.query(BillingCampaign).filter(BillingCampaign.slug == normalize_slug(slug)).first()
+    if campaign is None:
+        raise ValueError("campaign_not_found")
+    campaign.is_active = bool(is_active)
+    db.commit()
+    db.refresh(campaign)
+    audit_event(action="billing.campaign_deactivated" if not is_active else "billing.campaign_activated",
+                actor=actor_id, target_type="campaign", target_id=campaign.id)
+    return campaign
+
+
+def set_plan_active(
+    db: Session, *, code: str, is_active: bool, actor_id: int | None = None,
+) -> BillingPlan:
+    """Toggle plan availability. Price history and existing
+    subscriptions/payments keep their snapshots — only the flag flips."""
+    plan = get_plan_by_code(db, normalize_slug(code))
+    if plan is None:
+        raise ValueError("plan_not_found")
+    plan.is_active = bool(is_active)
+    db.commit()
+    db.refresh(plan)
+    audit_event(action="billing.plan_deactivated" if not is_active else "billing.plan_activated",
+                actor=actor_id, target_type="plan", target_id=plan.id)
+    return plan
+
+
+def set_price_active(
+    db: Session, *, price_id: int, is_active: bool, actor_id: int | None = None,
+) -> BillingPlanPrice:
+    """Toggle one immutable price version. Versions are never edited or
+    deleted; deactivation only removes the version from future quotes
+    (``get_active_price`` already filters on this flag)."""
+    price = db.get(BillingPlanPrice, price_id)
+    if price is None:
+        raise ValueError("price_not_found")
+    price.is_active = bool(is_active)
+    db.commit()
+    db.refresh(price)
+    plan = db.get(BillingPlan, price.plan_id)
+    audit_event(action="billing.price_deactivated" if not is_active else "billing.price_activated",
+                actor=actor_id, target_type="plan_price", target_id=price.id,
+                extra={"plan": plan.code if plan else "", "version": price.version})
+    return price
+
+
+def list_all_plans(db: Session) -> list[dict]:
+    """Every plan with every price version (active and retired), newest
+    version first. Admin visibility only; the public listing stays
+    active-only (``list_public_plans``)."""
+    ensure_default_plans(db)
+    plans = db.query(BillingPlan).order_by(BillingPlan.sort_order, BillingPlan.id).all()
+    out = []
+    for plan in plans:
+        prices = (
+            db.query(BillingPlanPrice)
+            .filter(BillingPlanPrice.plan_id == plan.id)
+            .order_by(BillingPlanPrice.version.desc())
+            .all()
+        )
+        out.append(
+            {
+                "code": plan.code,
+                "name_fa": plan.name_fa,
+                "description_fa": plan.description_fa,
+                "billing_interval": plan.billing_interval,
+                "is_active": plan.is_active,
+                "sort_order": plan.sort_order,
+                "prices": [
+                    {
+                        "id": p.id,
+                        "version": p.version,
+                        "amount_minor": p.amount_minor,
+                        "currency": p.currency,
+                        "billing_interval": p.billing_interval,
+                        "is_active": p.is_active,
+                        "effective_from": p.effective_from,
+                    }
+                    for p in prices
+                ],
+            }
+        )
+    return out
+
+
 def get_coupon_by_code(db: Session, code: str) -> BillingCoupon | None:
     code = normalize_coupon_code(code)
     if not code:
