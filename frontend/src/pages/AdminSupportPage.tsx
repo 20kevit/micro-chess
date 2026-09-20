@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiDetail, adminApi } from "../api/client";
-import type { SupportTicket } from "../api/types";
+import type { SupportStats, SupportTicket } from "../api/types";
+import { AdminLayout } from "../components/admin/AdminLayout";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -15,6 +16,8 @@ export function AdminSupportPage() {
   const [rows, setRows] = useState<SupportTicket[]>([]);
   const [selected, setSelected] = useState<SupportTicket | null>(null);
   const [filter, setFilter] = useState("");
+  const [category, setCategory] = useState("");
+  const [stats, setStats] = useState<SupportStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [reply, setReply] = useState("");
@@ -24,17 +27,23 @@ export function AdminSupportPage() {
   const load = useCallback(() => {
     setLoading(true);
     setFailed(false);
-    adminApi
-      .supportTickets(filter ? { status: filter } : undefined)
-      .then((res) => {
+    Promise.all([
+      adminApi.supportTickets({
+        status: filter || undefined,
+        category: category || undefined,
+      }),
+      adminApi.supportStats().catch(() => null),
+    ])
+      .then(([res, st]) => {
         setRows(res);
+        setStats(st);
         setLoading(false);
       })
       .catch(() => {
         setFailed(true);
         setLoading(false);
       });
-  }, [filter]);
+  }, [filter, category]);
 
   useEffect(() => {
     load();
@@ -92,8 +101,20 @@ export function AdminSupportPage() {
   }
 
   return (
-    <div>
+    <AdminLayout>
       <PageHeader title={t("admin.support")} subtitle={t("admin.supportSubtitle")} />
+      {stats ? (
+        <Card>
+          <p className="text-sm text-stone-500" dir="ltr">
+            open {faNum(stats.open)} · answered {faNum(stats.answered)} · closed {faNum(stats.closed)}
+          </p>
+          {stats.by_category.length > 0 ? (
+            <p className="mt-1 text-xs text-stone-400" dir="ltr">
+              {stats.by_category.map((c) => `${c.category || "—"}=${c.count}`).join(" · ")}
+            </p>
+          ) : null}
+        </Card>
+      ) : null}
       <Card>
         <label className="block text-sm font-bold" htmlFor="admin-support-filter">
           {t("admin.supportFilter")}
@@ -112,6 +133,16 @@ export function AdminSupportPage() {
           <option value="answered">{t("support.answered")}</option>
           <option value="closed">{t("support.closed")}</option>
         </select>
+        <input
+          value={category}
+          onChange={(e) => {
+            setCategory(e.target.value);
+            setSelected(null);
+          }}
+          placeholder="category…"
+          dir="ltr"
+          className="mt-2 min-h-[44px] w-full rounded-xl border border-stone-200 bg-white px-3"
+        />
       </Card>
       {loading ? (
         <p className="py-8 text-center text-stone-500">{t("common.loading")}</p>
@@ -194,6 +225,6 @@ export function AdminSupportPage() {
           {notice ? <p className="mt-2 text-sm font-bold text-violet-700">{notice}</p> : null}
         </Card>
       ) : null}
-    </div>
+    </AdminLayout>
   );
 }

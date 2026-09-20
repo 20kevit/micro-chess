@@ -18,6 +18,9 @@ vi.mock("../api/client", async (importOriginal) => {
       platformAnalytics: vi.fn(),
       exerciseAnalytics: vi.fn(),
       puzzleAnalytics: vi.fn(),
+      retention: vi.fn().mockResolvedValue(null),
+      learning: vi.fn().mockResolvedValue(null),
+      recommendationStats: vi.fn().mockResolvedValue(null),
     },
   };
 });
@@ -97,6 +100,9 @@ function puzzles(): AdminPuzzleAnalytics[] {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mockedAdmin.retention.mockResolvedValue(null as never);
+  mockedAdmin.learning.mockResolvedValue(null as never);
+  mockedAdmin.recommendationStats.mockResolvedValue(null as never);
 });
 
 function renderPage() {

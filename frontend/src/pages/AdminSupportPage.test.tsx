@@ -13,6 +13,7 @@ vi.mock("../api/client", () => ({
     supportTicket: vi.fn(),
     respondSupport: vi.fn(),
     closeSupport: vi.fn(),
+    supportStats: vi.fn().mockResolvedValue(null),
   },
   apiDetail: () => "",
 }));
@@ -36,6 +37,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocked.supportTickets.mockResolvedValue([ticket]);
   mocked.supportTicket.mockResolvedValue(ticket);
+  mocked.supportStats.mockResolvedValue(null as never);
 });
 
 function renderPage() {
@@ -51,7 +53,7 @@ describe("admin support page", () => {
     mocked.respondSupport.mockResolvedValue({ id: 2, author: "staff", body: "hi", created_at: "" });
     mocked.closeSupport.mockResolvedValue({ ...ticket, status: "closed" });
     renderPage();
-    await waitFor(() => expect(screen.getByText(t("admin.support"))).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText(t("admin.support")).length).toBeGreaterThanOrEqual(1));
     expect(screen.getByText("Login problem")).toBeTruthy();
 
     const user = userEvent.setup();
@@ -70,11 +72,13 @@ describe("admin support page", () => {
 
   it("filters by status and shows the empty state", async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByText(t("admin.support"))).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText(t("admin.support")).length).toBeGreaterThanOrEqual(1));
     const user = userEvent.setup();
     await user.selectOptions(screen.getByLabelText(t("admin.supportFilter")), "closed");
     await waitFor(() =>
-      expect(mocked.supportTickets).toHaveBeenCalledWith({ status: "closed" }),
+      expect(mocked.supportTickets).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "closed" }),
+      ),
     );
 
     mocked.supportTickets.mockResolvedValue([]);

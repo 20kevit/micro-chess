@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "../api/client";
-import type { AdminOverview } from "../api/types";
+import type { AdminOverview, DashboardExtended, ProductInsight } from "../api/types";
+import { AdminLayout } from "../components/admin/AdminLayout";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -12,6 +13,8 @@ import { faNum } from "../lib/playerDisplay";
 // from the server; the response carries no secrets.
 export function AdminDashboardPage() {
   const [data, setData] = useState<AdminOverview | null>(null);
+  const [extended, setExtended] = useState<DashboardExtended | null>(null);
+  const [insights, setInsights] = useState<ProductInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -20,11 +23,16 @@ export function AdminDashboardPage() {
     let alive = true;
     setLoading(true);
     setFailed(false);
-    adminApi
-      .dashboard()
-      .then((d) => {
+    Promise.all([
+      adminApi.dashboard(),
+      adminApi.dashboardExtended().catch(() => null),
+      adminApi.insights().catch(() => []),
+    ])
+      .then(([d, e, i]) => {
         if (alive) {
           setData(d);
+          setExtended(e);
+          setInsights(i ?? []);
           setLoading(false);
         }
       })
@@ -39,17 +47,24 @@ export function AdminDashboardPage() {
     };
   }, [retryKey]);
 
-  if (loading) return <p className="py-8 text-center text-stone-500">{t("common.loading")}</p>;
+  if (loading)
+    return (
+      <AdminLayout>
+        <p className="py-8 text-center text-stone-500">{t("common.loading")}</p>
+      </AdminLayout>
+    );
   if (failed || !data)
     return (
-      <div className="py-8 text-center">
-        <p className="text-stone-500">{t("common.error")}</p>
-        <div className="mx-auto mt-3 max-w-xs">
-          <Button onClick={() => setRetryKey((k) => k + 1)} className="w-full">
-            {t("common.retry")}
-          </Button>
+      <AdminLayout>
+        <div className="py-8 text-center">
+          <p className="text-stone-500">{t("common.error")}</p>
+          <div className="mx-auto mt-3 max-w-xs">
+            <Button onClick={() => setRetryKey((k) => k + 1)} className="w-full">
+              {t("common.retry")}
+            </Button>
+          </div>
         </div>
-      </div>
+      </AdminLayout>
     );
 
   const stats: Array<[string, number]> = [
@@ -63,7 +78,7 @@ export function AdminDashboardPage() {
   ];
 
   return (
-    <div>
+    <AdminLayout>
       <PageHeader title={t("admin.title")} subtitle={t("admin.subtitle")} />
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
         {stats.map(([label, value]) => (
@@ -73,6 +88,71 @@ export function AdminDashboardPage() {
           </Card>
         ))}
       </div>
+      {extended ? (
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+          <Card className="text-center">
+            <p className="text-2xl font-black text-sky-700">{faNum(extended.registrations.today)}</p>
+            <p className="mt-1 text-xs text-stone-500" dir="ltr">
+              registrations today / week {faNum(extended.registrations.week)}
+            </p>
+          </Card>
+          <Card className="text-center">
+            <p className="text-2xl font-black text-sky-700">{faNum(extended.active.today)}</p>
+            <p className="mt-1 text-xs text-stone-500" dir="ltr">
+              active today / week {faNum(extended.active.week)}
+            </p>
+          </Card>
+          <Card className="text-center">
+            <p className="text-2xl font-black text-sky-700">{faNum(extended.attempts.week)}</p>
+            <p className="mt-1 text-xs text-stone-500" dir="ltr">
+              attempts week (prev {faNum(extended.attempts.prev_week)})
+            </p>
+          </Card>
+          <Card className="text-center">
+            <p className="text-2xl font-black text-emerald-700">{faNum(extended.sales.revenue_minor)}</p>
+            <p className="mt-1 text-xs text-stone-500">{t("admin.revenue")}</p>
+          </Card>
+        </div>
+      ) : null}
+      {extended && extended.series.length > 0 ? (
+        <Card>
+          <h2 className="font-black" dir="ltr">
+            14-day registrations / attempts
+          </h2>
+          <div className="mt-2 flex h-24 items-end gap-1" dir="ltr" aria-hidden>
+            {extended.series.map((row) => {
+              const max = Math.max(1, ...extended.series.map((r) => r.attempts));
+              return (
+                <div
+                  key={row.day}
+                  title={`${row.day}: ${row.registrations}/${row.attempts}`}
+                  className="min-w-2 flex-1 rounded-t bg-violet-300"
+                  style={{ height: `${Math.max(4, Math.round((row.attempts / max) * 96))}px` }}
+                />
+              );
+            })}
+          </div>
+        </Card>
+      ) : null}
+      {insights.length > 0 ? (
+        <Card>
+          <h2 className="font-black">
+            {t("admin.insights")} ({faNum(insights.length)})
+          </h2>
+          <ul className="mt-2 flex flex-col gap-1">
+            {insights.slice(0, 5).map((item) => (
+              <li key={item.key} className="rounded-xl bg-amber-50 px-3 py-2 text-sm">
+                <span className="font-bold">{item.title}</span>
+              </li>
+            ))}
+          </ul>
+          <Link to="/admin/insights" className="mt-2 block">
+            <Button variant="secondary" className="w-full">
+              {t("admin.details")}
+            </Button>
+          </Link>
+        </Card>
+      ) : null}
       <div className="mt-3 flex flex-col gap-3">
         <Card>
           <h2 className="font-black">{t("admin.users")}</h2>
@@ -121,35 +201,13 @@ export function AdminDashboardPage() {
               ))}
             </ul>
           )}
+          <Link to="/admin/audit" className="mt-2 block">
+            <Button variant="secondary" className="w-full">
+              {t("admin.details")}
+            </Button>
+          </Link>
         </Card>
-        <div className="grid grid-cols-2 gap-2">
-          <Link to="/admin/analytics" className="block">
-            <Button variant="secondary" className="w-full">
-              {t("admin.analytics")}
-            </Button>
-          </Link>
-          <Link to="/admin/exercises" className="block">
-            <Button variant="secondary" className="w-full">
-              {t("admin.exercises")}
-            </Button>
-          </Link>
-          <Link to="/admin/puzzles" className="block">
-            <Button variant="secondary" className="w-full">
-              {t("admin.puzzles")}
-            </Button>
-          </Link>
-          <Link to="/admin/generators" className="block">
-            <Button variant="secondary" className="w-full">
-              {t("admin.generators")}
-            </Button>
-          </Link>
-          <Link to="/admin/support" className="block">
-            <Button variant="secondary" className="w-full">
-              {t("admin.support")}
-            </Button>
-          </Link>
-        </div>
       </div>
-    </div>
+    </AdminLayout>
   );
 }

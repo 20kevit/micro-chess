@@ -4,6 +4,9 @@ import type {
   AdminExerciseAnalytics,
   AdminPlatformAnalytics,
   AdminPuzzleAnalytics,
+  LearningOverview,
+  RecommendationOverview,
+  RetentionData,
 } from "../api/types";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -37,6 +40,9 @@ export function AdminAnalyticsPage() {
   const [overview, setOverview] = useState<AdminPlatformAnalytics | null>(null);
   const [exercises, setExercises] = useState<AdminExerciseAnalytics[] | null>(null);
   const [puzzles, setPuzzles] = useState<AdminPuzzleAnalytics[] | null>(null);
+  const [retention, setRetention] = useState<RetentionData | null>(null);
+  const [learning, setLearning] = useState<LearningOverview | null>(null);
+  const [recommendations, setRecommendations] = useState<RecommendationOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -49,12 +55,18 @@ export function AdminAnalyticsPage() {
       adminApi.platformAnalytics({ period }),
       adminApi.exerciseAnalytics({ period }),
       adminApi.puzzleAnalytics({ period, page_size: 20 }),
+      adminApi.retention().catch(() => null),
+      adminApi.learning(30).catch(() => null),
+      adminApi.recommendationStats(30).catch(() => null),
     ])
-      .then(([platform, byExercise, byPuzzle]) => {
+      .then(([platform, byExercise, byPuzzle, ret, learn, recs]) => {
         if (!alive) return;
         setOverview(platform);
         setExercises(byExercise);
         setPuzzles(byPuzzle);
+        setRetention(ret);
+        setLearning(learn);
+        setRecommendations(recs);
         setLoading(false);
       })
       .catch(() => {
@@ -158,6 +170,50 @@ export function AdminAnalyticsPage() {
                 </li>
               ))}
             </ul>
+          )}
+        </Card>
+        <Card>
+          <h2 className="font-black">{t("admin.retention")}</h2>
+          {!retention || retention.cohorts.length === 0 ? (
+            <p className="mt-2 text-sm text-stone-500">{t("admin.empty")}</p>
+          ) : (
+            <ul className="mt-2 flex flex-col gap-1">
+              {retention.cohorts.slice(-7).map((row) => (
+                <li key={row.cohort} className="rounded-xl bg-stone-50 px-3 py-2 text-xs" dir="ltr">
+                  {row.cohort} (n={row.size}):{" "}
+                  {retention.offsets.map((n) => `D${n}=${row.rates[String(n)] ?? "—"}`).join(" · ")}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Card>
+          <h2 className="font-black">{t("admin.learning")}</h2>
+          {!learning ? (
+            <p className="mt-2 text-sm text-stone-500">{t("admin.empty")}</p>
+          ) : (
+            <ul className="mt-2 flex flex-col gap-1">
+              {learning.mistake_distribution.map((row) => (
+                <li key={row.mistake} className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2 text-xs" dir="ltr">
+                  <span>{row.mistake}</span>
+                  <span>{faNum(row.count)}</span>
+                </li>
+              ))}
+              {learning.mistake_distribution.length === 0 && (
+                <p className="text-sm text-stone-500">{t("admin.empty")}</p>
+              )}
+            </ul>
+          )}
+        </Card>
+        <Card>
+          <h2 className="font-black">{t("admin.recommendations")}</h2>
+          {!recommendations ? (
+            <p className="mt-2 text-sm text-stone-500">{t("admin.empty")}</p>
+          ) : (
+            <p className="mt-2 text-xs text-stone-500" dir="ltr">
+              total {faNum(recommendations.total)} ·{" "}
+              {recommendations.by_status.map((s) => `${s.status}=${s.count}`).join(" · ")}
+            </p>
           )}
         </Card>
         <Card>

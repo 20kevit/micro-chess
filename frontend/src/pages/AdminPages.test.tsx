@@ -39,6 +39,10 @@ vi.mock("../api/client", async (importOriginal) => {
       puzzleHistory: vi.fn(),
       publishPuzzle: vi.fn(),
       retirePuzzle: vi.fn(),
+      quarantinePuzzle: vi.fn(),
+      releasePuzzle: vi.fn(),
+      rejectPuzzle: vi.fn(),
+      restorePuzzle: vi.fn(),
       generators: vi.fn(),
       runGenerator: vi.fn(),
       generatorRuns: vi.fn(),
@@ -48,6 +52,19 @@ vi.mock("../api/client", async (importOriginal) => {
       platformAnalytics: vi.fn(),
       exerciseAnalytics: vi.fn(),
       puzzleAnalytics: vi.fn(),
+      supportStats: vi.fn(),
+      reviewQueue: vi.fn(),
+      dashboardExtended: vi.fn(),
+      retention: vi.fn(),
+      learning: vi.fn(),
+      recommendationStats: vi.fn(),
+      salesOverview: vi.fn(),
+      insights: vi.fn(),
+      systemHealth: vi.fn(),
+      supportTickets: vi.fn(),
+      supportTicket: vi.fn(),
+      respondSupport: vi.fn(),
+      closeSupport: vi.fn(),
     },
   };
 });
@@ -133,6 +150,8 @@ describe("admin route guard (UX only)", () => {
 
   it("renders the dashboard for admins", async () => {
     mockedUseAuth.mockReturnValue(base({ user: ADMIN }));
+    mockedAdmin.dashboardExtended.mockRejectedValue(new Error("no-extended"));
+    mockedAdmin.insights.mockResolvedValue([]);
     mockedAdmin.dashboard.mockResolvedValue({
       users_total: 2,
       users_active: 2,
@@ -169,6 +188,8 @@ describe("admin route guard (UX only)", () => {
 describe("admin dashboard states", () => {
   it("shows loading, then an error with retry", async () => {
     mockedUseAuth.mockReturnValue(base({ user: ADMIN }));
+    mockedAdmin.dashboardExtended.mockRejectedValue(new Error("no-extended"));
+    mockedAdmin.insights.mockResolvedValue([]);
     mockedAdmin.dashboard.mockRejectedValue(new Error("api_error:500"));
     render(
       <MemoryRouter initialEntries={["/admin"]}>
@@ -262,7 +283,7 @@ describe("admin puzzles page", () => {
     // Each lifecycle word appears once in the filter <select> and once
     // per matching badge, so both must be present at least twice.
     expect(screen.getAllByText("اعتبارسنجی‌شده").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText(/مولد/)).toBeTruthy();
+    expect(screen.getAllByText(/مولد/).length).toBeGreaterThanOrEqual(1);
   });
 });
 

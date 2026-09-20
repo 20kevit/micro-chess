@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "../api/client";
 import type { AdminPuzzle, PuzzleHistory } from "../api/types";
+import { AdminLayout } from "../components/admin/AdminLayout";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -110,7 +111,7 @@ export function AdminPuzzlesPage() {
   }
 
   return (
-    <div>
+    <AdminLayout>
       <PageHeader title={t("admin.puzzles")} subtitle={t("admin.subtitle")} />
       <Card>
         <p className="text-xs text-stone-500">{t("admin.lifecycleHint")}</p>
@@ -133,6 +134,8 @@ export function AdminPuzzlesPage() {
             <option value="reviewed">{t("admin.statusReviewed")}</option>
             <option value="approved">{t("admin.statusApproved")}</option>
             <option value="published">{t("admin.statusPublished")}</option>
+            <option value="quarantined">{t("admin.statusArchived")}</option>
+            <option value="rejected">{t("admin.reject")}</option>
             <option value="retired">{t("admin.statusRetired")}</option>
           </select>
         </div>
@@ -245,6 +248,62 @@ export function AdminPuzzlesPage() {
                   ) : (
                     <span />
                   )}
+                  {p.status === "published" || p.status === "validated" || p.status === "reviewed" || p.status === "approved" ? (
+                    <Button
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        if (!window.confirm(t("admin.quarantineConfirm"))) return;
+                        void act(() => adminApi.quarantinePuzzle(p.id));
+                      }}
+                    >
+                      {t("admin.quarantine")}
+                    </Button>
+                  ) : (
+                    <span />
+                  )}
+                  {p.status === "quarantined" ? (
+                    <Button
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        if (!window.confirm(t("admin.releaseConfirm"))) return;
+                        void act(() => adminApi.releasePuzzle(p.id));
+                      }}
+                    >
+                      {t("admin.release")}
+                    </Button>
+                  ) : (
+                    <span />
+                  )}
+                  {p.status !== "rejected" && p.status !== "published" && p.status !== "retired" ? (
+                    <Button
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        if (!window.confirm(t("admin.rejectConfirm"))) return;
+                        void act(() => adminApi.rejectPuzzle(p.id));
+                      }}
+                    >
+                      {t("admin.reject")}
+                    </Button>
+                  ) : (
+                    <span />
+                  )}
+                  {p.status === "retired" || p.status === "archived" ? (
+                    <Button
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        if (!window.confirm(t("admin.restoreConfirm"))) return;
+                        void act(() => adminApi.restorePuzzle(p.id));
+                      }}
+                    >
+                      {t("admin.restore")}
+                    </Button>
+                  ) : (
+                    <span />
+                  )}
                 </div>
                 {historyOpen === p.id && history[p.id] ? (
                   <div className="mt-2 rounded-xl bg-stone-50 p-3 text-xs" dir="ltr">
@@ -276,6 +335,6 @@ export function AdminPuzzlesPage() {
           ))}
         </ul>
       )}
-    </div>
+    </AdminLayout>
   );
 }

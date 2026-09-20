@@ -819,3 +819,119 @@ export interface NotificationPreference {
   enabled: boolean;
   mandatory: boolean;
 }
+
+// Admin operations (mirrors backend modules/admin/ops.py + schemas).
+// All aggregates are server-derived; the client only renders them.
+export interface ReviewQueueItem {
+  id: number;
+  exercise_slug: string;
+  status: string;
+  source: string;
+  difficulty: number | null;
+  initial_rating: number;
+  created_at: string;
+  attempts: number;
+  failure_rate: number | null;
+  severity: string;
+  reasons: string[];
+}
+
+export interface DashboardExtended {
+  users_total: number;
+  registrations: { today: number; week: number; month: number };
+  active: { today: number; week: number };
+  attempts: { today: number; week: number; prev_week: number };
+  sales: {
+    subscriptions_by_status: Array<{ status: string; count: number }>;
+    payments_by_status: Array<{ status: string; count: number }>;
+    revenue_minor: number;
+    revenue_currency: string;
+    redemptions_total: number;
+  };
+  alerts: number;
+  series: Array<{ day: string; registrations: number; attempts: number }>;
+}
+
+export interface RetentionData {
+  cohorts: Array<{ cohort: string; size: number; rates: Record<string, number | null> }>;
+  offsets: number[];
+}
+
+export interface LearningOverview {
+  window_days: number;
+  exercise_usage: Array<{
+    exercise_slug: string;
+    attempts: number;
+    correct: number;
+    success_rate: number | null;
+    users: number;
+  }>;
+  mistake_distribution: Array<{ mistake: string; count: number }>;
+  direction_distribution: Array<{ direction: string; count: number }>;
+  top_skills: Array<{ skill_key: string; count: number }>;
+}
+
+export interface RecommendationOverview {
+  window_days: number;
+  total: number;
+  by_status: Array<{ status: string; count: number }>;
+  by_reason: Array<{ reason: string; count: number }>;
+  by_exercise: Array<{ exercise_slug: string; count: number }>;
+}
+
+export interface SalesOverview {
+  subscriptions_by_status: Array<{ status: string; count: number }>;
+  payments_by_status: Array<{ status: string; count: number }>;
+  revenue_minor: number;
+  revenue_currency: string;
+  redemptions_total: number;
+}
+
+export interface ProductInsight {
+  key: string;
+  title: string;
+  severity: string;
+  domain: string;
+  entity: string;
+  evidence: Record<string, unknown>;
+  suggestion: string;
+}
+
+export interface SystemHealth {
+  ok: boolean;
+  database: { reachable: boolean };
+  schema_status: { expected: number | null; stored: number | null; ok: boolean };
+  puzzles: { total: number; published: number };
+}
+
+export interface SupportStats {
+  by_status: Array<{ status: string; count: number }>;
+  by_category: Array<{ category: string; count: number }>;
+  open: number;
+  answered: number;
+  closed: number;
+}
+
+export interface AdminCoupon {
+  id: number;
+  code: string;
+  campaign_slug: string | null;
+  discount_type: string;
+  discount_value: number;
+  trial_days: number;
+  is_active: boolean;
+  valid_from: string | null;
+  valid_until: string | null;
+  max_redemptions: number | null;
+  max_per_user: number;
+  total_redemptions: number;
+}
+
+export interface AdminCampaign {
+  slug: string;
+  name_fa: string;
+  source: string;
+  medium: string;
+  content: string;
+  is_active: boolean;
+}

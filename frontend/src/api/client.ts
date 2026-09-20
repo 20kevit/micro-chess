@@ -1276,7 +1276,7 @@ export const adminApi = {
     request<AdminPuzzleAnalytics[]>(`/api/v1/admin/analytics/puzzles${adminQuery(params)}`),
   // Staff support workflows (Phase 11). UX only — every endpoint
   // authorizes server-side via support.read/respond/close.
-  supportTickets: (params?: { status?: string; page?: number; page_size?: number }) =>
+  supportTickets: (params?: { status?: string; category?: string; page?: number; page_size?: number }) =>
     request<SupportTicket[]>(`/api/v1/admin/support/tickets${adminQuery(params)}`),
   supportTicket: (id: number) => request<SupportTicket>(`/api/v1/admin/support/tickets/${id}`),
   respondSupport: (id: number, body: string) =>
@@ -1286,6 +1286,56 @@ export const adminApi = {
     }),
   closeSupport: (id: number) =>
     request<SupportTicket>(`/api/v1/admin/support/tickets/${id}/close`, { method: "POST" }),
+  supportStats: () => request<import("./types").SupportStats>("/api/v1/admin/support/stats"),
+  // Puzzle safety transitions (server-enforced lifecycle; only valid
+  // transitions succeed).
+  quarantinePuzzle: (id: number, reason?: string) =>
+    request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}/quarantine`, {
+      method: "POST",
+      body: JSON.stringify({ reason: reason ?? "" }),
+    }),
+  releasePuzzle: (id: number, reason?: string) =>
+    request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}/release`, {
+      method: "POST",
+      body: JSON.stringify({ reason: reason ?? "" }),
+    }),
+  rejectPuzzle: (id: number, reason?: string) =>
+    request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason: reason ?? "" }),
+    }),
+  restorePuzzle: (id: number, reason?: string) =>
+    request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}/restore`, {
+      method: "POST",
+      body: JSON.stringify({ reason: reason ?? "" }),
+    }),
+  // Operations: review queue, dashboard, analytics, sales, insights, health.
+  reviewQueue: (params?: { exercise?: string; status?: string; page?: number; page_size?: number }) =>
+    request<import("./types").ReviewQueueItem[]>(`/api/v1/admin/review-queue${adminQuery(params)}`),
+  dashboardExtended: () =>
+    request<import("./types").DashboardExtended>("/api/v1/admin/dashboard-extended"),
+  retention: () => request<import("./types").RetentionData>("/api/v1/admin/analytics/retention"),
+  learning: (days?: number) =>
+    request<import("./types").LearningOverview>(
+      `/api/v1/admin/analytics/learning${adminQuery(days ? { days } : undefined)}`,
+    ),
+  recommendationStats: (days?: number) =>
+    request<import("./types").RecommendationOverview>(
+      `/api/v1/admin/analytics/recommendations${adminQuery(days ? { days } : undefined)}`,
+    ),
+  salesOverview: () =>
+    request<import("./types").SalesOverview>("/api/v1/admin/sales/overview"),
+  insights: () => request<import("./types").ProductInsight[]>("/api/v1/admin/insights"),
+  systemHealth: () => request<import("./types").SystemHealth>("/api/v1/admin/system/health"),
+  auditDetail: (id: number) => request<AdminAuditRecord>(`/api/v1/admin/audit/${id}`),
+  exerciseAnalyticsDetail: (slug: string, params?: { period?: string }) =>
+    request<AdminExerciseAnalytics>(
+      `/api/v1/admin/analytics/exercises/${slug}${adminQuery(params)}`,
+    ),
+  puzzleAnalyticsDetail: (id: number, params?: { period?: string }) =>
+    request<AdminPuzzleAnalytics>(
+      `/api/v1/admin/analytics/puzzles/${id}${adminQuery(params)}`,
+    ),
 };
 
 // Billing transport. UX only — plans display, coupon quotes come from
@@ -1330,17 +1380,33 @@ export const adminBillingApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  coupons: () => request<CouponQuote[]>("/api/v1/admin/billing/coupons"),
+  coupons: () => request<import("./types").AdminCoupon[]>("/api/v1/admin/billing/coupons"),
   createCoupon: (body: Record<string, unknown>) =>
-    request<CouponQuote>("/api/v1/admin/billing/coupons", {
+    request<import("./types").AdminCoupon>("/api/v1/admin/billing/coupons", {
       method: "POST",
       body: JSON.stringify(body),
     }),
   setCouponActive: (id: number, isActive: boolean) =>
-    request<CouponQuote>(`/api/v1/admin/billing/coupons/${id}`, {
+    request<import("./types").AdminCoupon>(`/api/v1/admin/billing/coupons/${id}`, {
       method: "PATCH",
       body: JSON.stringify({ is_active: isActive }),
     }),
   report: () => request<CampaignReport[]>("/api/v1/admin/billing/report"),
-  redemptions: () => request<Redemption[]>("/api/v1/admin/billing/redemptions"),
+  redemptions: (params?: { status?: string; page?: number; page_size?: number }) =>
+    request<Redemption[]>(`/api/v1/admin/billing/redemptions${adminQuery(params)}`),
+  subscriptions: (params?: { user_id?: number; status?: string; page?: number; page_size?: number }) =>
+    request<Subscription[]>(`/api/v1/admin/billing/subscriptions${adminQuery(params)}`),
+  payments: (params?: { status?: string; page?: number; page_size?: number }) =>
+    request<Array<Record<string, unknown>>>(`/api/v1/admin/billing/payments${adminQuery(params)}`),
+  plans: () => request<BillingPlan[]>("/api/v1/admin/billing/plans"),
+  createPlan: (body: Record<string, unknown>) =>
+    request<Record<string, unknown>>("/api/v1/admin/billing/plans", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  createPrice: (planCode: string, body: Record<string, unknown>) =>
+    request<Record<string, unknown>>(`/api/v1/admin/billing/plans/${planCode}/prices`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };

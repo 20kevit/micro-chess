@@ -11,11 +11,19 @@ import { AuthProvider } from "./lib/auth-context";
 import { RequireAuth } from "./lib/require-auth";
 import { RequireRole } from "./lib/require-role";
 import { RequireAdmin } from "./lib/require-admin";
+import { AdminLayout } from "./components/admin/AdminLayout";
 import { AdminAnalyticsPage } from "./pages/AdminAnalyticsPage";
+import { AdminAuditPage } from "./pages/AdminAuditPage";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
+import { AdminExerciseDetailPage } from "./pages/AdminExerciseDetailPage";
 import { AdminExercisesPage } from "./pages/AdminExercisesPage";
 import { AdminGeneratorsPage } from "./pages/AdminGeneratorsPage";
+import { AdminInsightsPage } from "./pages/AdminInsightsPage";
 import { AdminPuzzlesPage } from "./pages/AdminPuzzlesPage";
+import { AdminReviewQueuePage } from "./pages/AdminReviewQueuePage";
+import { AdminSalesPage } from "./pages/AdminSalesPage";
+import { AdminSystemPage } from "./pages/AdminSystemPage";
+import { AdminUserDetailPage } from "./pages/AdminUserDetailPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { BalanceScalePage } from "./pages/BalanceScalePage";
 import { BlindfoldCalculationPage } from "./pages/BlindfoldCalculationPage";
@@ -167,7 +175,9 @@ const router = createBrowserRouter([
         path: "/admin/analytics",
         element: (
           <RequireAdmin>
-            <AdminAnalyticsPage />
+            <AdminLayout>
+              <AdminAnalyticsPage />
+            </AdminLayout>
           </RequireAdmin>
         ),
       },
@@ -175,7 +185,17 @@ const router = createBrowserRouter([
         path: "/admin/users",
         element: (
           <RequireAdmin>
-            <AdminUsersPage />
+            <AdminLayout>
+              <AdminUsersPage />
+            </AdminLayout>
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/users/:id",
+        element: (
+          <RequireAdmin>
+            <AdminUserDetailPage />
           </RequireAdmin>
         ),
       },
@@ -183,7 +203,17 @@ const router = createBrowserRouter([
         path: "/admin/exercises",
         element: (
           <RequireAdmin>
-            <AdminExercisesPage />
+            <AdminLayout>
+              <AdminExercisesPage />
+            </AdminLayout>
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/exercises/:slug",
+        element: (
+          <RequireAdmin>
+            <AdminExerciseDetailPage />
           </RequireAdmin>
         ),
       },
@@ -199,7 +229,25 @@ const router = createBrowserRouter([
         path: "/admin/generators",
         element: (
           <RequireAdmin>
-            <AdminGeneratorsPage />
+            <AdminLayout>
+              <AdminGeneratorsPage />
+            </AdminLayout>
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/review-queue",
+        element: (
+          <RequireAdmin>
+            <AdminReviewQueuePage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/sales",
+        element: (
+          <RequireAdmin>
+            <AdminSalesPage />
           </RequireAdmin>
         ),
       },
@@ -208,6 +256,30 @@ const router = createBrowserRouter([
         element: (
           <RequireAdmin>
             <AdminSupportPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/insights",
+        element: (
+          <RequireAdmin>
+            <AdminInsightsPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/system",
+        element: (
+          <RequireAdmin>
+            <AdminSystemPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/admin/audit",
+        element: (
+          <RequireAdmin>
+            <AdminAuditPage />
           </RequireAdmin>
         ),
       },
