@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { adminApi } from "../api/client";
 import type { AdminExercise, AdminExerciseDetail } from "../api/types";
 import { Badge } from "../components/ui/Badge";
@@ -6,7 +7,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { t } from "../i18n";
-import { faNum } from "../lib/playerDisplay";
+import { faNum, faPercent } from "../lib/playerDisplay";
 
 // Exercise availability management: inspect, rename metadata, and
 // enable/disable. Slugs are immutable; history is never rewritten.
@@ -18,12 +19,21 @@ export function AdminExercisesPage() {
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [activeFilter, setActiveFilter] = useState("");
+  const [lowSupplyOnly, setLowSupplyOnly] = useState(false);
+  const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
 
   async function load() {
     setLoading(true);
     setFailed(false);
     try {
-      setRows(await adminApi.exercises());
+      setRows(
+        await adminApi.exercises({
+          active: activeFilter === "" ? undefined : activeFilter === "active",
+          low_supply: lowSupplyOnly || undefined,
+          needs_review: needsReviewOnly || undefined,
+        }),
+      );
       setLoading(false);
     } catch {
       setFailed(true);
@@ -33,7 +43,7 @@ export function AdminExercisesPage() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [activeFilter, lowSupplyOnly, needsReviewOnly]);
 
   async function openDetail(slug: string) {
     setBusy(true);
@@ -90,6 +100,28 @@ export function AdminExercisesPage() {
   return (
     <div>
       <PageHeader title={t("admin.exercises")} subtitle={t("admin.subtitle")} />
+      <Card>
+        <div className="flex flex-col gap-2 md:flex-row">
+          <select
+            aria-label={t("admin.supportFilter")}
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value)}
+            className="min-h-[44px] rounded-xl border border-stone-200 bg-white px-3 text-sm"
+          >
+            <option value="">{t("admin.allStatuses")}</option>
+            <option value="active">{t("admin.filterActive")}</option>
+            <option value="inactive">{t("admin.filterInactive")}</option>
+          </select>
+          <label className="flex min-h-[44px] items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-bold">
+            <input type="checkbox" checked={lowSupplyOnly} onChange={(e) => setLowSupplyOnly(e.target.checked)} />
+            {t("admin.filterLowSupply")}
+          </label>
+          <label className="flex min-h-[44px] items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-bold">
+            <input type="checkbox" checked={needsReviewOnly} onChange={(e) => setNeedsReviewOnly(e.target.checked)} />
+            {t("admin.filterNeedsReview")}
+          </label>
+        </div>
+      </Card>
       {notice ? (
         <p className="mt-2 text-center text-sm font-bold text-red-600">{notice}</p>
       ) : null}
@@ -122,6 +154,15 @@ export function AdminExercisesPage() {
                   <span className="font-bold">{e.title_fa}</span>
                   <Badge>{e.is_active ? t("admin.statusEnabled") : t("admin.statusDisabled")}</Badge>
                 </button>
+                <p className="mt-1 text-xs text-stone-500" dir="ltr">
+                  {t("admin.publishedCount")}: {faNum(e.published_count)} · {t("admin.needsReview")}:{" "}
+                  {faNum(e.needs_review_count)} · {t("admin.successRate")}:{" "}
+                  {e.success_rate === null ? "—" : faPercent(e.success_rate)}
+                  {e.low_supply ? ` · ${t("admin.lowSupply")}` : ""}
+                </p>
+                <Link to={`/admin/exercises/${e.slug}`} className="mt-1 inline-block text-sm font-bold text-violet-700">
+                  {t("admin.details")}
+                </Link>
               </Card>
             </li>
           ))}

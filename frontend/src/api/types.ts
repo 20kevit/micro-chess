@@ -303,10 +303,14 @@ export interface AdminExercise {
   description: string;
   is_active: boolean;
   sort_order: number;
+  puzzle_count: number;
+  published_count: number;
+  needs_review_count: number;
+  success_rate: number | null;
+  low_supply: boolean;
 }
 
 export interface AdminExerciseDetail extends AdminExercise {
-  puzzle_count: number;
   attempts_count: number;
 }
 
@@ -579,6 +583,20 @@ export interface AdminPuzzleAnalytics {
   repeated_failures: number;
   observed_difficulty: string;
   avg_response_ms: number | null;
+}
+
+export interface AdminExerciseAnalyticsDetail extends AdminExerciseAnalytics {
+  period: string;
+  start: string | null;
+  end: string;
+  terminal: number;
+  total_practice_ms: number;
+  by_mode: Array<{ mode: string; attempts: number; correct: number; accuracy: number }>;
+  daily: Array<{ bucket_start: string; attempts: number; correct: number; accuracy: number; xp: number }>;
+  supply_by_status: Array<{ status: string; count: number }>;
+  difficulty_distribution: Array<{ difficulty: number | null; count: number }>;
+  mistake_distribution: Array<{ mistake: string; count: number }>;
+  recommendation_outcomes: Array<{ status: string; count: number }>;
 }
 
 // Relationships (mirrors backend modules/relationships/schemas.py).

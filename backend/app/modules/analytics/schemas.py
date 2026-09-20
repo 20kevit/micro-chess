@@ -167,6 +167,10 @@ class AdminExerciseDetailOut(AdminExerciseAnalyticsOut):
     total_practice_ms: int
     by_mode: list[ModeBreakdown]
     daily: list[DailyBucketOut]
+    supply_by_status: list[dict] = []
+    difficulty_distribution: list[dict] = []
+    mistake_distribution: list[dict] = []
+    recommendation_outcomes: list[dict] = []
 
 
 class PuzzleAnalyticsOut(BaseModel):

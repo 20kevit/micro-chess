@@ -10,6 +10,9 @@ import { AdminAuditPage } from "./AdminAuditPage";
 
 vi.mock("../api/client", () => ({
   adminApi: {
+    exercises: vi.fn(),
+    exercise: vi.fn(),
+    exerciseAnalyticsDetail: vi.fn(),
     reviewQueue: vi.fn(),
     publishPuzzle: vi.fn(),
     quarantinePuzzle: vi.fn(),
@@ -196,6 +199,41 @@ describe("admin ops pages", () => {
     );
     await waitFor(() => expect(screen.getAllByText("گزارش حسابرسی").length).toBeGreaterThanOrEqual(1));
     expect(screen.getByText("هنوز رویداد مدیریتی ثبت نشده است.")).toBeTruthy();
+  });
+
+  it("exercise detail renders supply, difficulty, mistakes, and recommendations", async () => {
+    const { AdminExerciseDetailPage } = await import("./AdminExerciseDetailPage");
+    const { Route, Routes } = await import("react-router-dom");
+    mockedAdmin.exercise.mockResolvedValue({
+      slug: "pin", title_fa: "آچمز", title_en: "Pin", description: "", is_active: true,
+      sort_order: 1, puzzle_count: 10, published_count: 6, needs_review_count: 2,
+      success_rate: 0.6, low_supply: false, attempts_count: 50,
+    });
+    mockedAdmin.exerciseAnalyticsDetail.mockResolvedValue({
+      exercise: "pin", is_active: true, attempts: 50, unique_players: 8, correct: 30,
+      partial: 5, wrong: 15, accuracy: 0.6, avg_response_ms: null, active_days: 6,
+      puzzles_total: 10, puzzles_published: 6, rating_events_in_period: 4,
+      rating_delta_sum_in_period: 3.5, current_ratings: 5, current_rating_avg: 1210,
+      period: "30d", start: null, end: "", terminal: 0, total_practice_ms: 0,
+      by_mode: [], daily: [],
+      supply_by_status: [{ status: "published", count: 6 }, { status: "validated", count: 2 }],
+      difficulty_distribution: [{ difficulty: 2, count: 6 }],
+      mistake_distribution: [{ mistake: "wrong_target", count: 9 }],
+      recommendation_outcomes: [{ status: "completed", count: 3 }],
+    });
+    render(
+      <MemoryRouter initialEntries={["/admin/exercises/pin"]}>
+        <Routes>
+          <Route path="/admin/exercises/:slug" element={<AdminExerciseDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText("جزئیات تمرین")).toBeTruthy());
+    expect(screen.getByText("موجودی معما بر اساس وضعیت")).toBeTruthy();
+    expect(screen.getByText("توزیع دشواری")).toBeTruthy();
+    expect(screen.getByText("توزیع خطاها")).toBeTruthy();
+    expect(screen.getByText("سرانجام پیشنهادها")).toBeTruthy();
+    expect(screen.getByText("wrong_target")).toBeTruthy();
   });
 
   it("shows loading then error with retry", async () => {

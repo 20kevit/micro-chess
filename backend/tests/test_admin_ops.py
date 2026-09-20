@@ -95,6 +95,54 @@ def test_ops_admin_ok_and_real_shapes(client, db_session):
     assert "by_status" in res.json()
 
 
+def test_exercise_overview_fields_and_filters(client, db_session):
+    from app.modules.exercises.models import Exercise
+
+    headers = _admin_headers(client, db_session, "ops_ex_admin")
+    if db_session.get(Exercise, "pin") is None:
+        db_session.add(Exercise(slug="pin", title_fa="آچمز", is_active=True, sort_order=1))
+        db_session.commit()
+    res = client.get("/api/v1/admin/exercises", headers=headers)
+    assert res.status_code == 200, res.text
+    rows = res.json()
+    assert rows, "catalog must not be empty"
+    for row in rows:
+        assert "published_count" in row and "needs_review_count" in row
+        assert "success_rate" in row and "low_supply" in row
+    res = client.get("/api/v1/admin/exercises?needs_review=true", headers=headers)
+    assert res.status_code == 200, res.text
+    assert all(row["needs_review_count"] > 0 for row in res.json())
+    res = client.get("/api/v1/admin/exercises?low_supply=true", headers=headers)
+    assert res.status_code == 200, res.text
+    assert all(row["low_supply"] for row in res.json())
+    res = client.get("/api/v1/admin/exercises?active=true", headers=headers)
+    assert res.status_code == 200, res.text
+    assert all(row["is_active"] for row in res.json())
+    # Detail carries the same supply signals.
+    slug = rows[0]["slug"]
+    res = client.get(f"/api/v1/admin/exercises/{slug}", headers=headers)
+    assert res.status_code == 200, res.text
+    assert "published_count" in res.json() and "success_rate" in res.json()
+
+
+def test_exercise_analytics_detail_sections(client, db_session):
+    from app.modules.exercises.models import Exercise
+
+    headers = _admin_headers(client, db_session, "ops_ex_detail_admin")
+    if db_session.get(Exercise, "pin") is None:
+        db_session.add(Exercise(slug="pin", title_fa="آچمز", is_active=True, sort_order=1))
+        db_session.commit()
+    res = client.get("/api/v1/admin/analytics/exercises/pin", headers=headers)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    for key in ("supply_by_status", "difficulty_distribution", "mistake_distribution",
+                "recommendation_outcomes", "daily", "by_mode"):
+        assert key in body, key
+    assert isinstance(body["supply_by_status"], list)
+    res = client.get("/api/v1/admin/analytics/exercises/nope", headers=headers)
+    assert res.status_code == 404
+
+
 def test_audit_actor_filter(client, db_session):
     token = _admin_token(client, db_session, username="ops_admin_two")
     headers = _bearer(token)

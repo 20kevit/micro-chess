@@ -43,8 +43,11 @@ Rules enforced here:
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.modules.adaptive.models import AdaptiveRecommendation
+from app.modules.evidence.models import Evidence
 from app.modules.exercises import registry
 from app.modules.exercises.models import Exercise
 from app.modules.gamification_engine.models import (
@@ -664,6 +667,42 @@ def exercise_detail(db: Session, slug: str, window: Window) -> dict | None:
         .count()
     )
     catalog_row = db.get(Exercise, slug)
+    supply_rows = (
+        db.query(Puzzle.status, func.count(Puzzle.id))
+        .filter(Puzzle.exercise_slug == slug)
+        .group_by(Puzzle.status)
+        .all()
+    )
+    difficulty_rows = (
+        db.query(Puzzle.difficulty, func.count(Puzzle.id))
+        .filter(Puzzle.exercise_slug == slug)
+        .group_by(Puzzle.difficulty)
+        .all()
+    )
+    mistake_query = (
+        db.query(Evidence.mistake_core, func.count(Evidence.id))
+        .filter(Evidence.exercise_slug == slug, Evidence.observed_at < window.end)
+    )
+    if window.start is not None:
+        mistake_query = mistake_query.filter(Evidence.observed_at >= window.start)
+    mistake_rows = (
+        mistake_query.group_by(Evidence.mistake_core)
+        .order_by(func.count(Evidence.id).desc())
+        .limit(10)
+        .all()
+    )
+    recommendation_query = (
+        db.query(AdaptiveRecommendation.status, func.count(AdaptiveRecommendation.id))
+        .filter(
+            AdaptiveRecommendation.exercise_slug == slug,
+            AdaptiveRecommendation.created_at < window.end,
+        )
+    )
+    if window.start is not None:
+        recommendation_query = recommendation_query.filter(
+            AdaptiveRecommendation.created_at >= window.start
+        )
+    recommendation_rows = recommendation_query.group_by(AdaptiveRecommendation.status).all()
     return {
         "exercise": slug,
         "is_active": bool(catalog_row.is_active) if catalog_row is not None else None,
@@ -672,6 +711,21 @@ def exercise_detail(db: Session, slug: str, window: Window) -> dict | None:
         "end": window.end,
         "puzzles_total": puzzles_total,
         "puzzles_published": puzzles_published,
+        "supply_by_status": [
+            {"status": status, "count": int(count)} for status, count in supply_rows
+        ],
+        "difficulty_distribution": [
+            {"difficulty": difficulty, "count": int(count)}
+            for difficulty, count in difficulty_rows
+        ],
+        "mistake_distribution": [
+            {"mistake": mistake or "none", "count": int(count)}
+            for mistake, count in mistake_rows
+        ],
+        "recommendation_outcomes": [
+            {"status": status, "count": int(count)}
+            for status, count in recommendation_rows
+        ],
         "attempts": stats["attempts"],
         "unique_players": len({r[4] for r in rows}),
         "correct": stats["correct"],

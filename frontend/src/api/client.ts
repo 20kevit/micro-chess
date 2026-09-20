@@ -1176,7 +1176,7 @@ export const parentApi = {
 
 // Administration transport (Phase 6). UX only — every endpoint
 // authorizes server-side via canonical capabilities.
-function adminQuery(params?: Record<string, string | number | undefined>): string {
+function adminQuery(params?: Record<string, string | number | boolean | undefined>): string {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params ?? {})) {
     if (value !== undefined && value !== "") query.set(key, String(value));
@@ -1204,7 +1204,8 @@ export const adminApi = {
     request<{ roles: string[] }>(`/api/v1/admin/users/${id}/roles/${role}`, {
       method: "DELETE",
     }),
-  exercises: () => request<AdminExercise[]>("/api/v1/admin/exercises"),
+  exercises: (params?: { active?: boolean; low_supply?: boolean; needs_review?: boolean }) =>
+    request<AdminExercise[]>(`/api/v1/admin/exercises${adminQuery(params)}`),
   exercise: (slug: string) => request<AdminExerciseDetail>(`/api/v1/admin/exercises/${slug}`),
   updateExercise: (
     slug: string,
@@ -1329,7 +1330,7 @@ export const adminApi = {
   systemHealth: () => request<import("./types").SystemHealth>("/api/v1/admin/system/health"),
   auditDetail: (id: number) => request<AdminAuditRecord>(`/api/v1/admin/audit/${id}`),
   exerciseAnalyticsDetail: (slug: string, params?: { period?: string }) =>
-    request<AdminExerciseAnalytics>(
+    request<import("./types").AdminExerciseAnalyticsDetail>(
       `/api/v1/admin/analytics/exercises/${slug}${adminQuery(params)}`,
     ),
   puzzleAnalyticsDetail: (id: number, params?: { period?: string }) =>

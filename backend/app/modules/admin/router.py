@@ -196,15 +196,20 @@ def revoke_user_role(
 # --- exercises --------------------------------------------------------------
 
 
-@router.get("/exercises", response_model=list[schemas.ExerciseAdminOut])
+@router.get("/exercises", response_model=list[schemas.ExerciseAdminListOut])
 def list_exercises(
+    active: bool | None = None,
+    low_supply: bool = False,
+    needs_review: bool = False,
     db: Session = Depends(get_db),
     # NOTE: EXERCISES_MANAGE — EXERCISES_READ is held by every player
     # for the public catalog; the admin full-catalog view is privileged.
     user: User = Depends(require_capability(Capability.EXERCISES_MANAGE)),
 ):
     _ = user
-    return service.list_exercises_admin(db)
+    return service.list_exercises_overview(
+        db, active=active, low_supply=low_supply, needs_review=needs_review
+    )
 
 
 @router.get("/exercises/{exercise_slug}", response_model=schemas.ExerciseAdminDetailOut)

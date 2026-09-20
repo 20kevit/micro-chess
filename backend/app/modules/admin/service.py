@@ -41,7 +41,7 @@ generation jobs and follows the same review/approval gates.
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 from app.core.audit import audit_event
@@ -434,21 +434,95 @@ def revoke_role(db: Session, *, actor_id: int, target_id: int, role: str) -> tup
 # --- exercises --------------------------------------------------------------
 
 
-def list_exercises_admin(db: Session) -> list[Exercise]:
-    return db.query(Exercise).order_by(Exercise.sort_order, Exercise.slug).all()
-
-
 def get_exercise_admin(db: Session, slug: str) -> Exercise | None:
     return db.get(Exercise, slug)
 
 
+# Puzzle supply that needs human attention (pre-publish or safety hold).
+REVIEW_NEEDED_STATUSES = ("validated", "reviewed", "approved", "quarantined")
+LOW_SUPPLY_THRESHOLD = 5
+
+
+def exercise_supply_stats(db: Session) -> dict[str, dict]:
+    """Per-exercise supply + success aggregates in 3 bounded grouped
+    queries (no per-exercise N+1)."""
+    supply: dict[str, dict] = {}
+    for slug, status, count in (
+        db.query(Puzzle.exercise_slug, Puzzle.status, func.count(Puzzle.id))
+        .group_by(Puzzle.exercise_slug, Puzzle.status)
+        .all()
+    ):
+        entry = supply.setdefault(
+            slug, {"by_status": {}, "published": 0, "needs_review": 0, "total": 0}
+        )
+        entry["by_status"][status] = int(count)
+        entry["total"] += int(count)
+        if status == STATUS_PUBLISHED:
+            entry["published"] += int(count)
+        if status in REVIEW_NEEDED_STATUSES:
+            entry["needs_review"] += int(count)
+    performance: dict[str, dict] = {}
+    for slug, attempts, correct in (
+        db.query(
+            Attempt.exercise_slug,
+            func.count(Attempt.id),
+            func.sum(case((Attempt.result == "correct", 1), else_=0)),
+        )
+        .group_by(Attempt.exercise_slug)
+        .all()
+    ):
+        attempts = int(attempts or 0)
+        correct = int(correct or 0)
+        performance[slug] = {
+            "attempts": attempts,
+            "success_rate": (correct / attempts) if attempts else None,
+        }
+    return {"supply": supply, "performance": performance}
+
+
+def list_exercises_overview(
+    db: Session,
+    *,
+    active: bool | None = None,
+    low_supply: bool = False,
+    needs_review: bool = False,
+) -> list[dict]:
+    """Full catalog enriched with supply/success signals + operator filters."""
+    stats = exercise_supply_stats(db)
+    items = []
+    for exercise in db.query(Exercise).order_by(Exercise.sort_order, Exercise.slug).all():
+        entry = stats["supply"].get(exercise.slug, {"published": 0, "needs_review": 0, "total": 0})
+        perf = stats["performance"].get(exercise.slug, {"attempts": 0, "success_rate": None})
+        if active is not None and bool(exercise.is_active) != active:
+            continue
+        if low_supply and entry["published"] >= LOW_SUPPLY_THRESHOLD:
+            continue
+        if needs_review and entry["needs_review"] <= 0:
+            continue
+        items.append(
+            {
+                "slug": exercise.slug,
+                "title_fa": exercise.title_fa,
+                "title_en": exercise.title_en,
+                "description": exercise.description,
+                "is_active": bool(exercise.is_active),
+                "sort_order": exercise.sort_order,
+                "puzzle_count": entry["total"],
+                "published_count": entry["published"],
+                "needs_review_count": entry["needs_review"],
+                "success_rate": perf["success_rate"],
+                "low_supply": entry["published"] < LOW_SUPPLY_THRESHOLD,
+            }
+        )
+    return items
+
+
 def exercise_admin_view(db: Session, exercise: Exercise) -> dict:
-    puzzle_count = (
-        db.query(func.count(Puzzle.id)).filter(Puzzle.exercise_slug == exercise.slug).scalar() or 0
+    stats = exercise_supply_stats(db)
+    entry = stats["supply"].get(
+        exercise.slug, {"published": 0, "needs_review": 0, "total": 0}
     )
-    attempts = (
-        db.query(func.count(Attempt.id)).filter(Attempt.exercise_slug == exercise.slug).scalar() or 0
-    )
+    perf = stats["performance"].get(exercise.slug, {"attempts": 0, "success_rate": None})
     return {
         "slug": exercise.slug,
         "title_fa": exercise.title_fa,
@@ -456,8 +530,12 @@ def exercise_admin_view(db: Session, exercise: Exercise) -> dict:
         "description": exercise.description,
         "is_active": bool(exercise.is_active),
         "sort_order": exercise.sort_order,
-        "puzzle_count": puzzle_count,
-        "attempts_count": attempts,
+        "puzzle_count": entry["total"],
+        "attempts_count": perf["attempts"],
+        "published_count": entry["published"],
+        "needs_review_count": entry["needs_review"],
+        "success_rate": perf["success_rate"],
+        "low_supply": entry["published"] < LOW_SUPPLY_THRESHOLD,
     }
 
 

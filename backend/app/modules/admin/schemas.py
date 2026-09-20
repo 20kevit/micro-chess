@@ -50,9 +50,21 @@ class ExerciseAdminOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ExerciseAdminListOut(ExerciseAdminOut):
+    puzzle_count: int = 0
+    published_count: int = 0
+    needs_review_count: int = 0
+    success_rate: float | None = None
+    low_supply: bool = False
+
+
 class ExerciseAdminDetailOut(ExerciseAdminOut):
     puzzle_count: int = 0
     attempts_count: int = 0
+    published_count: int = 0
+    needs_review_count: int = 0
+    success_rate: float | None = None
+    low_supply: bool = False
 
 
 class ExerciseUpdateIn(BaseModel):
