@@ -327,18 +327,31 @@ def attribution_report(
     return service.campaign_report(db)
 
 
-@admin_router.get("/redemptions")
-def list_redemptions(
+@admin_router.get("/plans", response_model=list[schemas.PlanOut])
+def list_admin_plans(
     db: Session = Depends(get_db),
     user: User = Depends(require_capability(Capability.BILLING_READ)),
 ):
     _ = user
-    rows = (
-        db.query(service.BillingCouponRedemption)
-        .order_by(service.BillingCouponRedemption.id.desc())
-        .limit(200)
-        .all()
+    return service.list_public_plans(db)
+
+
+@admin_router.get("/redemptions")
+def list_redemptions(
+    status: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.BILLING_READ)),
+):
+    _ = user
+    page_size = min(max(page_size, 1), 200)
+    query = db.query(service.BillingCouponRedemption).order_by(
+        service.BillingCouponRedemption.id.desc()
     )
+    if status:
+        query = query.filter(service.BillingCouponRedemption.status == status)
+    rows = query.offset((page - 1) * page_size).limit(page_size).all()
     out = []
     for row in rows:
         coupon = db.get(service.BillingCoupon, row.coupon_id)
@@ -360,29 +373,37 @@ def list_redemptions(
 @admin_router.get("/subscriptions")
 def list_subscriptions(
     user_id: int | None = None,
+    status: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
     db: Session = Depends(get_db),
     user: User = Depends(require_capability(Capability.BILLING_READ)),
 ):
     _ = user
+    page_size = min(max(page_size, 1), 200)
     query = db.query(service.BillingSubscription).order_by(service.BillingSubscription.id.desc())
     if user_id is not None:
         query = query.filter(service.BillingSubscription.user_id == user_id)
-    rows = query.limit(200).all()
+    if status:
+        query = query.filter(service.BillingSubscription.status == status)
+    rows = query.offset((page - 1) * page_size).limit(page_size).all()
     return [_sub_out(row).model_dump() for row in rows]
 
 
 @admin_router.get("/payments")
 def list_payments(
+    status: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
     db: Session = Depends(get_db),
     user: User = Depends(require_capability(Capability.BILLING_READ)),
 ):
     _ = user
-    rows = (
-        db.query(service.BillingPayment)
-        .order_by(service.BillingPayment.id.desc())
-        .limit(200)
-        .all()
-    )
+    page_size = min(max(page_size, 1), 200)
+    query = db.query(service.BillingPayment).order_by(service.BillingPayment.id.desc())
+    if status:
+        query = query.filter(service.BillingPayment.status == status)
+    rows = query.offset((page - 1) * page_size).limit(page_size).all()
     return [
         {
             "id": row.id,

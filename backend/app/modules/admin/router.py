@@ -676,6 +676,7 @@ def _support_error(exc: ValueError) -> HTTPException:
 @router.get("/support/tickets", response_model=list[support_schemas.SupportTicketStaffOut])
 def list_support_tickets(
     status: str | None = None,
+    category: str | None = None,
     page: PageQuery = 1,
     page_size: PageSizeQuery = DEFAULT_PAGE_SIZE,
     db: Session = Depends(get_db),
@@ -684,7 +685,7 @@ def list_support_tickets(
     _ = user
     try:
         rows, _ = support_service.list_all_tickets(
-            db, status=status, page=page, page_size=page_size
+            db, status=status, category=category, page=page, page_size=page_size
         )
     except ValueError as exc:
         raise _support_error(exc)
@@ -752,14 +753,152 @@ def close_support_ticket(
 def list_audit(
     action: str | None = None,
     target_type: str | None = None,
+    actor_id: int | None = None,
     page: PageQuery = 1,
     page_size: PageSizeQuery = DEFAULT_PAGE_SIZE,
     db: Session = Depends(get_db),
     user: User = Depends(require_capability(Capability.AUDIT_VIEW)),
 ):
     _ = user
-    rows, _ = service.list_audit(db, action=action, target_type=target_type, page=page, page_size=page_size)
+    rows, _ = service.list_audit(
+        db, action=action, target_type=target_type, actor_id=actor_id,
+        page=page, page_size=page_size,
+    )
     return [service.audit_view(row) for row in rows]
+
+
+# --- operations: review queue / analytics / sales / insights / health -------
+
+
+@router.get("/review-queue", response_model=list[schemas.ReviewQueueItemOut])
+def get_review_queue(
+    exercise: str | None = None,
+    status: str | None = None,
+    page: PageQuery = 1,
+    page_size: PageSizeQuery = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.PUZZLES_MANAGE)),
+):
+    _ = user
+    from app.modules.admin import ops as ops_service
+
+    try:
+        items, _ = ops_service.review_queue(
+            db, exercise=exercise, status=status, page=page, page_size=page_size
+        )
+    except ValueError as exc:
+        raise _domain_error(exc)
+    return items
+
+
+@router.get("/dashboard-extended", response_model=schemas.DashboardExtendedOut)
+def get_dashboard_extended(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ADMIN_OVERVIEW)),
+):
+    _ = user
+    from app.modules.admin import ops as ops_service
+
+    return ops_service.dashboard_extended(db)
+
+
+@router.get("/analytics/retention", response_model=schemas.RetentionOut)
+def get_retention(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ANALYTICS_READ_PLATFORM)),
+):
+    _ = user
+    from app.modules.admin import ops as ops_service
+
+    return ops_service.retention(db)
+
+
+@router.get("/analytics/learning", response_model=schemas.LearningOverviewOut)
+def get_learning(
+    days: int = 30,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ANALYTICS_READ_EXERCISE)),
+):
+    _ = user
+    from app.modules.admin import ops as ops_service
+
+    return ops_service.learning_overview(db, days=min(max(days, 1), 90))
+
+
+@router.get("/analytics/recommendations", response_model=schemas.RecommendationOverviewOut)
+def get_recommendations_overview(
+    days: int = 30,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ANALYTICS_READ_EXERCISE)),
+):
+    _ = user
+    from app.modules.admin import ops as ops_service
+
+    return ops_service.recommendation_overview(db, days=min(max(days, 1), 90))
+
+
+@router.get("/sales/overview", response_model=schemas.SalesOverviewOut)
+def get_sales_overview(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.BILLING_READ)),
+):
+    _ = user
+    from app.modules.admin import ops as ops_service
+
+    return ops_service.sales_overview(db)
+
+
+@router.get("/insights", response_model=list[schemas.InsightOut])
+def get_insights(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ADMIN_OVERVIEW)),
+):
+    _ = user
+    from app.modules.admin import ops as ops_service
+
+    return ops_service.product_insights(db)
+
+
+@router.get("/system/health", response_model=schemas.SystemHealthOut)
+def get_system_health(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ADMIN_OVERVIEW)),
+):
+    _ = user
+    from app.modules.admin import ops as ops_service
+
+    return ops_service.system_health(db)
+
+
+@router.get("/support/stats", response_model=schemas.SupportStatsOut)
+def get_support_stats(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.SUPPORT_READ)),
+):
+    _ = user
+    from sqlalchemy import func
+
+    from app.modules.support.models import SupportTicket
+
+    by_status = (
+        db.query(SupportTicket.status, func.count(SupportTicket.id))
+        .group_by(SupportTicket.status)
+        .all()
+    )
+    by_category = (
+        db.query(SupportTicket.category, func.count(SupportTicket.id))
+        .group_by(SupportTicket.category)
+        .limit(20)
+        .all()
+    )
+    counts = {str(s): int(c) for s, c in by_status}
+    return {
+        "by_status": [{"status": s, "count": int(c)} for s, c in by_status],
+        "by_category": [{"category": c or "", "count": int(n)} for c, n in by_category],
+        "open": counts.get("open", 0),
+        "answered": counts.get("answered", 0),
+        "closed": counts.get("closed", 0),
+    }
 
 
 @router.get("/audit/{audit_id}", response_model=schemas.AuditOut)

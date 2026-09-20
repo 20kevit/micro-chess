@@ -1313,6 +1313,7 @@ def list_audit(
     *,
     action: str | None = None,
     target_type: str | None = None,
+    actor_id: int | None = None,
     page: int = 1,
     page_size: int = 50,
 ) -> tuple[list[AuditLog], int]:
@@ -1321,6 +1322,8 @@ def list_audit(
         query = query.filter(AuditLog.action == action)
     if target_type:
         query = query.filter(AuditLog.target_type == target_type)
+    if actor_id is not None:
+        query = query.filter(AuditLog.actor_user_id == actor_id)
     total = query.count()
     rows = (
         query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())

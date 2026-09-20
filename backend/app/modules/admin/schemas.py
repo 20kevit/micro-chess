@@ -219,3 +219,81 @@ class AuditOut(BaseModel):
     metadata: dict = {}
     result: str
     created_at: datetime
+
+
+class ReviewQueueItemOut(BaseModel):
+    id: int
+    exercise_slug: str
+    status: str
+    source: str = "manual"
+    difficulty: int | None = None
+    initial_rating: float = 1200.0
+    created_at: datetime
+    attempts: int = 0
+    failure_rate: float | None = None
+    severity: str = "normal"
+    reasons: list[str] = []
+
+
+class RetentionOut(BaseModel):
+    cohorts: list[dict] = []
+    offsets: list[int] = [1, 7, 14, 30]
+
+
+class LearningOverviewOut(BaseModel):
+    window_days: int = 30
+    exercise_usage: list[dict] = []
+    mistake_distribution: list[dict] = []
+    direction_distribution: list[dict] = []
+    top_skills: list[dict] = []
+
+
+class RecommendationOverviewOut(BaseModel):
+    window_days: int = 30
+    total: int = 0
+    by_status: list[dict] = []
+    by_reason: list[dict] = []
+    by_exercise: list[dict] = []
+
+
+class SalesOverviewOut(BaseModel):
+    subscriptions_by_status: list[dict] = []
+    payments_by_status: list[dict] = []
+    revenue_minor: int = 0
+    revenue_currency: str = "IRR"
+    redemptions_total: int = 0
+
+
+class InsightOut(BaseModel):
+    key: str
+    title: str
+    severity: str
+    domain: str
+    entity: str = ""
+    evidence: dict = {}
+    suggestion: str = ""
+
+
+class SystemHealthOut(BaseModel):
+    ok: bool = False
+    database: dict = {}
+    schema_status: dict = {}
+    puzzles: dict = {}
+
+
+class DashboardExtendedOut(BaseModel):
+    users_total: int = 0
+    registrations: dict = {}
+    active: dict = {}
+    attempts: dict = {}
+    sales: dict = {}
+    alerts: int = 0
+    series: list[dict] = []
+
+
+class SupportStatsOut(BaseModel):
+    by_status: list[dict] = []
+    by_category: list[dict] = []
+    open: int = 0
+    answered: int = 0
+    closed: int = 0

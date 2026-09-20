@@ -122,7 +122,12 @@ def list_owner_tickets(
 
 
 def list_all_tickets(
-    db: Session, *, status: str | None = None, page: int = 1, page_size: int = 50
+    db: Session,
+    *,
+    status: str | None = None,
+    category: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
 ) -> tuple[list[SupportTicket], int]:
     from app.modules.support.models import STATUSES
 
@@ -131,6 +136,8 @@ def list_all_tickets(
     query = db.query(SupportTicket)
     if status is not None:
         query = query.filter(SupportTicket.status == status)
+    if category:
+        query = query.filter(SupportTicket.category == category[:50])
     total = query.count()
     rows = (
         query.order_by(SupportTicket.created_at.desc(), SupportTicket.id.desc())
