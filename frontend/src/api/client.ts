@@ -35,12 +35,22 @@ import type {
   HistoryAttempt,
   NotificationItem,
   NotificationPreference,
+  OtpSent,
+  Onboarding,
   PathStepResponse,
+  PhoneStatus,
+  PlacementItem,
   PlayerAnalytics,
   PlayerComparison,
   PlayerProfile,
   PlayerRating,
   ProgressSummary,
+  PushSubscription,
+  ChannelLink,
+  LinkToken,
+  Quest,
+  TodayJourney,
+  TrainingPlan,
   Puzzle,
   PuzzleHistory,
   RatingHistoryResponse,
@@ -914,6 +924,7 @@ export const api = {
     username: string;
     password: string;
     display_name?: string;
+    phone?: string;
     coupon_code?: string;
     campaign_slug?: string;
     source?: string;
@@ -1426,5 +1437,82 @@ export const adminBillingApi = {
     request<Record<string, unknown>>(`/api/v1/admin/billing/plans/${planCode}/prices`, {
       method: "POST",
       body: JSON.stringify(body),
+    }),
+};
+
+// P11 journey transport: phone verification, onboarding/placement/plan,
+// daily quests, push subscriptions, channel links, extended preferences,
+// analytics events. Backend remains authoritative on every endpoint.
+export const phoneApi = {
+  status: () => request<PhoneStatus>("/api/v1/me/phone"),
+  start: (phone: string) =>
+    request<OtpSent>("/api/v1/me/phone/start", {
+      method: "POST",
+      body: JSON.stringify({ phone }),
+    }),
+  resend: () =>
+    request<OtpSent>("/api/v1/me/phone/resend", { method: "POST" }),
+  verify: (code: string) =>
+    request<PhoneStatus>("/api/v1/me/phone/verify", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+};
+
+export const onboardingApi = {
+  get: () => request<Onboarding>("/api/v1/me/onboarding"),
+  save: (body: Record<string, unknown>) =>
+    request<Onboarding>("/api/v1/me/onboarding", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  placement: () => request<PlacementItem[]>("/api/v1/me/placement"),
+  completePlacement: () =>
+    request<Onboarding>("/api/v1/me/placement/complete", { method: "POST" }),
+  plan: () => request<TrainingPlan>("/api/v1/me/plan"),
+};
+
+export const journeyApi = {
+  today: (timezone?: string) =>
+    request<TodayJourney>(
+      `/api/v1/me/journey/today${timezone ? `?timezone=${encodeURIComponent(timezone)}` : ""}`,
+    ),
+  startQuest: (id: number) =>
+    request<Quest>(`/api/v1/me/journey/quests/${id}/start`, { method: "POST" }),
+  completeQuest: (id: number) =>
+    request<Quest>(`/api/v1/me/journey/quests/${id}/complete`, {
+      method: "POST",
+    }),
+};
+
+export const notifyApi = {
+  pushList: () => request<PushSubscription[]>("/api/v1/me/push/subscriptions"),
+  pushSubscribe: (body: { endpoint: string; p256dh?: string; auth?: string }) =>
+    request<PushSubscription>("/api/v1/me/push/subscriptions", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  pushUnsubscribe: (endpoint: string) =>
+    request<void>("/api/v1/me/push/subscriptions", {
+      method: "DELETE",
+      body: JSON.stringify({ endpoint }),
+    }),
+  channelLinks: () => request<ChannelLink[]>("/api/v1/me/channel-links"),
+  linkToken: (channel: string) =>
+    request<LinkToken>(`/api/v1/me/channel-links/${channel}/token`, {
+      method: "POST",
+    }),
+  unlink: (channel: string) =>
+    request<void>(`/api/v1/me/channel-links/${channel}`, { method: "DELETE" }),
+  preferences: () => request<NotificationPreference[]>("/api/v1/me/notify-preferences"),
+  updatePreference: (body: { category: string; channel: string; enabled: boolean }) =>
+    request<NotificationPreference>("/api/v1/me/notify-preferences", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  track: (type: string, props?: Record<string, unknown>) =>
+    request<void>("/api/v1/me/analytics", {
+      method: "POST",
+      body: JSON.stringify({ type, props: props ?? {} }),
     }),
 };

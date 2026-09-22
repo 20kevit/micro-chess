@@ -1,0 +1,21 @@
+{
+  "name": "میکروچس",
+  "short_name": "میکروچس",
+  "description": "تمرین شطرنج برای بچه‌ها",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f4ff",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "/chess-pieces/wN.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

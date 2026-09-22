@@ -5,6 +5,10 @@ import App from "./App";
 import { AppShell } from "./components/ui/AppShell";
 import { AccountPage } from "./pages/AccountPage";
 import { HomePage } from "./pages/HomePage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { JourneyPage } from "./pages/JourneyPage";
+import { OnboardingPage } from "./pages/OnboardingPage";
+import { VerifyPhonePage } from "./pages/VerifyPhonePage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { AuthProvider } from "./lib/auth-context";
@@ -69,6 +73,38 @@ const router = createBrowserRouter([
       { path: "/exercises", element: <ExercisesPage /> },
       { path: "/login", element: <LoginPage /> },
       { path: "/register", element: <RegisterPage /> },
+      {
+        path: "/verify-phone",
+        element: (
+          <RequireAuth>
+            <VerifyPhonePage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/onboarding",
+        element: (
+          <RequireAuth>
+            <OnboardingPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/journey",
+        element: (
+          <RequireAuth>
+            <JourneyPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/dashboard",
+        element: (
+          <RequireAuth>
+            <DashboardPage />
+          </RequireAuth>
+        ),
+      },
       {
         path: "/account",
         element: (

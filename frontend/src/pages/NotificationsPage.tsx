@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiDetail, notificationsApi } from "../api/client";
-import type { NotificationItem, NotificationPreference } from "../api/types";
+import { apiDetail, notificationsApi, notifyApi } from "../api/client";
+import type { ChannelLink, NotificationItem, NotificationPreference } from "../api/types";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { t } from "../i18n";
+import { pushState, subscribePush } from "../lib/push";
 
 // Notification center: server-owned list with read/unread state plus
 // preference controls. Refreshing preserves state (server is the source
@@ -75,12 +76,26 @@ export function NotificationsPage() {
   }
 
   function prefLabel(category: string): string {
-    return category === "account" ? t("notif.account") : t("notif.support");
+    if (category === "account") return t("notif.account");
+    if (category === "reminder") return t("notif.prefs.reminder");
+    if (category === "journey") return t("notif.prefs.journey");
+    if (category === "reward") return t("notif.prefs.reward");
+    if (category === "system") return t("notif.prefs.system");
+    return t("notif.support");
+  }
+
+  function channelLabel(channel: string): string {
+    if (channel === "web_push") return t("notif.channel.web_push");
+    if (channel === "telegram") return t("notif.channel.telegram");
+    if (channel === "bale") return t("notif.channel.bale");
+    if (channel === "sms") return t("notif.channel.sms");
+    return t("notif.channel.in_app");
   }
 
   return (
     <div>
       <PageHeader title={t("notif.title")} subtitle={t("notif.subtitle")} />
+      <JourneyNotifySection />
       <Card>
         <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm font-bold">
           <input
@@ -136,15 +151,13 @@ export function NotificationsPage() {
         <h2 className="font-black">{t("notif.prefsTitle")}</h2>
         <p className="mt-1 text-sm text-stone-500">{t("notif.prefsSubtitle")}</p>
         <ul className="mt-2 flex flex-col gap-2">
-          {prefs
-            .filter((p) => p.channel === "in_app")
-            .map((p) => (
+          {prefs.map((p) => (
               <li
                 key={`${p.category}:${p.channel}`}
                 className="flex min-h-[44px] items-center justify-between gap-2 rounded-xl bg-stone-50 px-3 py-2"
               >
                 <span className="text-sm font-bold">
-                  {prefLabel(p.category)}{" "}
+                  {prefLabel(p.category)} · {channelLabel(p.channel)}{" "}
                   {p.mandatory ? (
                     <span className="text-xs font-normal text-stone-500">
                       ({t("notif.mandatory")})
@@ -155,7 +168,7 @@ export function NotificationsPage() {
                   type="button"
                   role="switch"
                   aria-checked={p.enabled}
-                  aria-label={prefLabel(p.category)}
+                  aria-label={`${prefLabel(p.category)} ${channelLabel(p.channel)}`}
                   disabled={p.mandatory}
                   onClick={() => togglePref(p)}
                   className={`flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl px-3 text-sm font-bold ${
@@ -170,5 +183,155 @@ export function NotificationsPage() {
         {notice ? <p className="mt-2 text-sm font-bold text-violet-700">{notice}</p> : null}
       </Card>
     </div>
+  );
+}
+
+// P11 journey notification controls: Web Push subscribe (asked only here,
+// after the user sees the value), Telegram/Bale linking, and the
+// extended preference matrix. Channels stay independent.
+function JourneyNotifySection() {
+  const [prefs, setPrefs] = useState<NotificationPreference[]>([]);
+  const [links, setLinks] = useState<ChannelLink[]>([]);
+  const [push, setPush] = useState<string>("prompt");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY ?? "";
+
+  useEffect(() => {
+    notifyApi.preferences().then(setPrefs).catch(() => {});
+    notifyApi.channelLinks().then(setLinks).catch(() => {});
+    pushState().then(setPush).catch(() => {});
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
+
+  async function toggle(pref: NotificationPreference) {
+    if (pref.mandatory) return;
+    try {
+      const updated = await notifyApi.updatePreference({
+        category: pref.category,
+        channel: pref.channel,
+        enabled: !pref.enabled,
+      });
+      setPrefs((prev) =>
+        prev.map((p) =>
+          p.category === updated.category && p.channel === updated.channel ? updated : p,
+        ),
+      );
+    } catch {
+      setMessage(t("common.error"));
+    }
+  }
+
+  async function enablePush() {
+    setBusy(true);
+    setMessage("");
+    await notifyApi.track("notification_permission_prompted").catch(() => {});
+    const ok = await subscribePush(vapidKey);
+    setPush(await pushState().catch(() => "unsupported" as const));
+    if (!ok) setMessage(t("notif.push.denied"));
+    setBusy(false);
+  }
+
+  async function link(channel: "telegram" | "bale") {
+    setBusy(true);
+    setMessage("");
+    try {
+      const tok = await notifyApi.linkToken(channel);
+      if (tok.deep_link) {
+        window.open(tok.deep_link, "_blank", "noopener");
+      } else {
+        setMessage(t("notif.link.hint"));
+      }
+      // Refresh link state (the bot webhook completes the link).
+      setTimeout(() => {
+        notifyApi.channelLinks().then(setLinks).catch(() => {});
+      }, 2000);
+    } catch {
+      setMessage(t("common.error"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unlink(channel: string) {
+    try {
+      await notifyApi.unlink(channel);
+      setLinks((prev) => prev.filter((l) => l.channel !== channel));
+    } catch {
+      setMessage(t("common.error"));
+    }
+  }
+
+  const linked = (channel: string) => links.some((l) => l.channel === channel && l.linked);
+
+  return (
+    <Card className="mb-3">
+      <h2 className="font-black">{t("notif.journeyTitle")}</h2>
+      <p className="mt-1 text-sm text-stone-500">{t("notif.push.explain")}</p>
+      <div className="mt-2 flex flex-col gap-2">
+        {push === "unsupported" ? null : push === "subscribed" ? (
+          <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
+            {t("notif.push.enabled")}
+          </p>
+        ) : (
+          <Button onClick={enablePush} disabled={busy || push === "denied" || !vapidKey}>
+            {busy ? t("common.loading") : t("notif.push.enable")}
+          </Button>
+        )}
+        {push === "denied" ? (
+          <p className="text-sm text-stone-500">{t("notif.push.denied")}</p>
+        ) : null}
+        {(["telegram", "bale"] as const).map((channel) => (
+          <div
+            key={channel}
+            className="flex min-h-[44px] items-center justify-between gap-2 rounded-xl bg-stone-50 px-3 py-2"
+          >
+            <span className="text-sm font-bold">
+              {channel === "telegram" ? t("notif.channel.telegram") : t("notif.channel.bale")}
+            </span>
+            {linked(channel) ? (
+              <Button variant="secondary" onClick={() => unlink(channel)}>
+                {t("notif.link.unlink")}
+              </Button>
+            ) : (
+              <Button variant="secondary" onClick={() => link(channel)} disabled={busy}>
+                {channel === "telegram" ? t("notif.link.telegram") : t("notif.link.bale")}
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+      {prefs.length ? (
+        <ul className="mt-2 flex flex-col gap-2">
+          {prefs
+            .filter((p) => p.channel !== "in_app")
+            .map((p) => (
+              <li
+                key={`${p.category}:${p.channel}`}
+                className="flex min-h-[44px] items-center justify-between gap-2 rounded-xl bg-stone-50 px-3 py-2"
+              >
+                <span className="text-sm font-bold">
+                  {p.category} · {p.channel}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={p.enabled}
+                  aria-label={`${p.category} ${p.channel}`}
+                  onClick={() => toggle(p)}
+                  className={`flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl px-3 text-sm font-bold ${
+                    p.enabled ? "bg-violet-600 text-white" : "bg-stone-200 text-stone-600"
+                  }`}
+                >
+                  {p.enabled ? "✓" : "–"}
+                </button>
+              </li>
+            ))}
+        </ul>
+      ) : null}
+      {message ? <p className="mt-2 text-sm font-bold text-violet-700">{message}</p> : null}
+    </Card>
   );
 }

@@ -117,6 +117,7 @@ export function AppShell() {
         </div>
       </header>
       <main className={isLanding ? "flex-1 pb-24 md:pb-8" : "flex-1 px-4 pb-24 pt-4 md:pb-8"}>
+        <QuestReturnBanner />
         <Outlet />
       </main>
       <nav className="fixed inset-x-0 bottom-0 mx-auto flex w-full max-w-3xl gap-2 bg-white/90 p-3 backdrop-blur md:static md:bg-transparent">
@@ -175,6 +176,25 @@ export function AppShell() {
           </NavLink>
         )}
       </nav>
+    </div>
+  );
+}
+
+// Quest return path: when an exercise was opened from the Daily Journey
+// (?quest=...), a sticky banner keeps the way back obvious so completing
+// a quest naturally leads to the next one instead of a dead end.
+function QuestReturnBanner() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  if (!params.get("quest")) return null;
+  return (
+    <div className="sticky top-0 z-10 mb-2">
+      <Link
+        to="/journey"
+        className="flex min-h-[44px] items-center justify-center rounded-2xl bg-violet-600 px-4 py-2 text-sm font-black text-white"
+      >
+        {t("journey.backToJourney")}
+      </Link>
     </div>
   );
 }
