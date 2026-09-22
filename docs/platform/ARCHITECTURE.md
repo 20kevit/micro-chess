@@ -24,7 +24,7 @@ backend/                 FastAPI app + Passenger entry + requirements mirror
   app/main.py            composition root: lifespan, middleware, router mounts, SPA mount
   app/core/              config, error envelope, auth deps, capabilities,
                          rate limits, logging, pagination, SPA fallback
-  app/db/                session/engine + idempotent ensure_schema (SCHEMA_VERSION = 11)
+  app/db/                session/engine + idempotent ensure_schema (SCHEMA_VERSION = 16)
   app/modules/*/        one responsibility per module (section 3)
   app/cli.py             admin bootstrap (create-admin)
   passenger_wsgi.py      cPanel Passenger entry (WSGI callable `application`)

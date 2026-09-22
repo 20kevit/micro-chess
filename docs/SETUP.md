@@ -79,7 +79,7 @@ require the additional `--confirm-production` flag
 The dev database is SQLite at `backend/microchess.db`
 (`DATABASE_URL=sqlite:///./microchess.db`, gitignored). Schema is
 managed by idempotent `ensure_schema`
-(`backend/app/db/migration.py`, currently `SCHEMA_VERSION = 11`):
+(`backend/app/db/migration.py`, currently `SCHEMA_VERSION = 16`):
 it runs on startup, upgrades older databases preserving data, and
 refuses to boot on a newer-than-code database. No manual migration
 step exists; PostgreSQL later is a `DATABASE_URL` change only.

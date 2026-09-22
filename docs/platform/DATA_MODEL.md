@@ -1702,24 +1702,42 @@ Privacy semantics remain governed by `SECURITY.md`.
 
 # 59. Notifications
 
-Notifications are **future infrastructure**.
-
-They are not required by the minimum platform data model.
-
-A future model may contain:
+Notifications are implemented infrastructure (Phase 11 + P11).
 
 ```text
 Notification
 ------------
 id
 user_id
-type
-payload_json
+type            # support.* | account.* | journey.* | reminder.* | reward.* | system.*
+category        # support | account (mandatory) | journey | reminder | reward | system
+title
+body
+dedup_key       # idempotency (unique, nullable)
 read_at
 created_at
+
+NotificationDelivery
+--------------------
+id
+notification_id
+channel         # in_app | web_push | telegram | bale | sms
+status          # pending | sent | delivered | failed
+attempts
+last_error      # provider summary only, never payloads
+created_at / updated_at
+
+NotificationPreference
+----------------------
+id
+user_id
+category
+channel
+enabled         # missing row = enabled, except P11 opt-in channels (web_push/telegram/bale/sms default off)
+updated_at
 ```
 
-Do not implement notification tables or channels merely because a future architecture may use them.
+Only payload summaries reach logs; OTP values never persist anywhere.
 
 ---
 
