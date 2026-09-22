@@ -819,3 +819,51 @@ def dashboard_extended(db: Session) -> dict:
         "attribution": attribution,
         "exercise_success": exercise_success,
     }
+
+
+def journey_overview(db: Session) -> dict:
+    """P11 funnel metrics (all real counts; no OTP/phone values exposed)."""
+    from app.modules.daily_quests.models import DailyQuest, DailyQuestDay
+    from app.modules.notifications.models import NotificationDelivery
+    from app.modules.notify.models import AnalyticsEvent, ChannelLink, PushSubscription
+    from app.modules.onboarding.models import OnboardingProfile
+
+    def _c(q):
+        try:
+            return int(q.scalar() or 0)
+        except Exception:
+            return 0
+
+    onboarded = _c(db.query(func.count(OnboardingProfile.id)).filter(
+        OnboardingProfile.onboarding_completed.is_(True)))
+    placement = _c(db.query(func.count(OnboardingProfile.id)).filter(
+        OnboardingProfile.placement_completed.is_(True)))
+    verified = _c(db.query(func.count(User.id)).filter(User.phone_verified.is_(True)))
+    quest_days = _c(db.query(func.count(DailyQuestDay.id)))
+    quests_done = _c(db.query(func.count(DailyQuest.id)).filter(
+        DailyQuest.status == "completed"))
+    quests_total = _c(db.query(func.count(DailyQuest.id)))
+    push = _c(db.query(func.count(PushSubscription.id)))
+    telegram = _c(db.query(func.count(ChannelLink.id)).filter(ChannelLink.channel == "telegram"))
+    bale = _c(db.query(func.count(ChannelLink.id)).filter(ChannelLink.channel == "bale"))
+    notif_failed = _c(db.query(func.count(NotificationDelivery.id)).filter(
+        NotificationDelivery.status == "failed"))
+    events = {
+        str(t): int(c) for t, c in
+        db.query(AnalyticsEvent.type, func.count(AnalyticsEvent.id))
+        .group_by(AnalyticsEvent.type).all()
+    }
+    return {
+        "onboarding_completed": onboarded,
+        "placement_completed": placement,
+        "phones_verified": verified,
+        "quest_days": quest_days,
+        "quests_completed": quests_done,
+        "quests_total": quests_total,
+        "quest_completion_rate": (quests_done / quests_total) if quests_total else 0.0,
+        "push_subscriptions": push,
+        "telegram_links": telegram,
+        "bale_links": bale,
+        "notification_delivery_failures": notif_failed,
+        "events": events,
+    }
