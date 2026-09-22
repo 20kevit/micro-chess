@@ -9,6 +9,9 @@ class RegisterIn(BaseModel):
     username: str
     password: str
     display_name: str = ""
+    # P11: optional phone collected at registration (verified separately
+    # via OTP; never blocks account creation).
+    phone: str | None = None
     # Optional marketing attribution captured at registration (first-touch
     # source). Best-effort only: registration succeeds even when these are
     # absent or invalid; the billing service validates coupons separately.
