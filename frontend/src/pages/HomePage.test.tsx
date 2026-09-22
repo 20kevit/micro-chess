@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HomePage } from "./HomePage";
 import { AppShell } from "../components/ui/AppShell";
 import { useAuth } from "../lib/auth-context";
-import { api, notificationsApi } from "../api/client";
+import { journeyApi, notificationsApi, onboardingApi, phoneApi } from "../api/client";
 
 vi.mock("../lib/auth-context", () => ({ useAuth: vi.fn() }));
 vi.mock("../api/client", () => ({
@@ -12,6 +12,20 @@ vi.mock("../api/client", () => ({
     dashboard: vi.fn(),
     progress: vi.fn(),
     trainingAttempts: vi.fn(),
+  },
+  phoneApi: {
+    status: vi.fn(),
+  },
+  onboardingApi: {
+    get: vi.fn(),
+  },
+  journeyApi: {
+    today: vi.fn(),
+    startQuest: vi.fn(),
+    completeQuest: vi.fn(),
+  },
+  notifyApi: {
+    track: vi.fn().mockResolvedValue(undefined),
   },
   // AppShell fetches the unread badge through this transport.
   notificationsApi: {
@@ -24,7 +38,6 @@ vi.mock("../api/client", () => ({
 }));
 
 const mockedUseAuth = vi.mocked(useAuth);
-const mockedApi = vi.mocked(api, true);
 
 function authState(user: boolean) {
   mockedUseAuth.mockReturnValue({
@@ -74,20 +87,82 @@ describe("player home", () => {
     for (const login of logins) expect(login.getAttribute("href")).toBe("/login");
   });
 
-  it("shows the dashboard to authenticated players", async () => {
+  it("shows the daily journey to onboarded players with verified phones", async () => {
     authState(true);
-    mockedApi.dashboard.mockResolvedValue({
-      profile: { display_name: "kid_01", bio: "", avatar_reference: "", updated_at: null },
-      progress: { attempts: 0, correct: 0, accuracy: 0, exercises: [] },
-      recent_attempts: [],
+    vi.mocked(phoneApi.status).mockResolvedValue({ phone: "+9891", verified: true });
+    vi.mocked(onboardingApi.get).mockResolvedValue({
+      experience: "beginner",
+      play_frequency: "weekly",
+      fide_rating: null,
+      lichess_username: "",
+      chesscom_username: "",
+      goal: "improve",
+      intensity: "standard",
+      timezone: "Asia/Tehran",
+      onboarding_completed: true,
+      placement_completed: true,
+    });
+    vi.mocked(journeyApi.today).mockResolvedValue({
+      local_date: "2026-09-21",
+      timezone: "Asia/Tehran",
+      completed_count: 0,
+      total: 3,
+      is_complete: false,
+      quests: [],
     });
     render(
       <MemoryRouter>
         <HomePage />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(screen.getByText("هنوز تمرینی انجام نداده‌ای.")).toBeTruthy());
-    expect(mockedApi.dashboard).toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText("امروز ۳ مأموریت برایت آماده کرده‌ایم.")).toBeTruthy());
+    expect(phoneApi.status).toHaveBeenCalled();
+  });
+
+  it("gates unverified phones to the verification screen", async () => {
+    authState(true);
+    vi.mocked(phoneApi.status).mockResolvedValue({ phone: "+9891", verified: false });
+    vi.mocked(onboardingApi.get).mockResolvedValue({
+      experience: "",
+      play_frequency: "",
+      fide_rating: null,
+      lichess_username: "",
+      chesscom_username: "",
+      goal: "",
+      intensity: "standard",
+      timezone: "Asia/Tehran",
+      onboarding_completed: false,
+      placement_completed: false,
+    });
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText("تأیید شماره موبایل")).toBeTruthy());
+  });
+
+  it("gates incomplete onboarding to the onboarding flow", async () => {
+    authState(true);
+    vi.mocked(phoneApi.status).mockResolvedValue({ phone: "+9891", verified: true });
+    vi.mocked(onboardingApi.get).mockResolvedValue({
+      experience: "",
+      play_frequency: "",
+      fide_rating: null,
+      lichess_username: "",
+      chesscom_username: "",
+      goal: "",
+      intensity: "standard",
+      timezone: "Asia/Tehran",
+      onboarding_completed: false,
+      placement_completed: false,
+    });
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText("سطحت در شطرنج چطوره؟")).toBeTruthy());
   });
 
   it("shows four nav tabs for players and two for guests", () => {

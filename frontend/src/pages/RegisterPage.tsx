@@ -14,17 +14,18 @@ import {
   getStoredAttribution,
 } from "../lib/attribution";
 
-// Registration screen: username + password only. Persian RTL. An optional
-// group coupon captured from the URL (?coupon= / ?ref= / ?campaign=) is
-// shown and forwarded to the server (which validates it; registration
-// never depends on it).
+// Registration screen: username + password + optional phone. Persian RTL.
+// An optional group coupon captured from the URL (?coupon= / ?ref= /
+// ?campaign=) is shown and forwarded to the server (which validates it;
+// registration never depends on it).
 export function RegisterPage() {
   const { user, register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const next = (location.state as { next?: string } | null)?.next ?? "/account";
+  const next = (location.state as { next?: string } | null)?.next ?? "/verify-phone";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [coupon, setCoupon] = useState("");
   const [errorKey, setErrorKey] = useState<FaKey | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -52,6 +53,7 @@ export function RegisterPage() {
       await register(username.trim(), password, {
         ...extra,
         ...(couponCode ? { coupon_code: couponCode } : {}),
+        ...(phone.trim() ? { phone: phone.trim() } : {}),
       });
     } catch (err) {
       setErrorKey(authErrorKey(err));
@@ -84,6 +86,18 @@ export function RegisterPage() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              className="min-h-[44px] rounded-2xl border border-stone-200 px-4 py-3 text-left text-base font-normal"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-bold text-stone-700">
+            {t("phone.number")}
+            <input
+              dir="ltr"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="09123456789"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               className="min-h-[44px] rounded-2xl border border-stone-200 px-4 py-3 text-left text-base font-normal"
             />
           </label>

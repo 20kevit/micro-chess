@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 
 class SchemaVersion(Base):
@@ -98,7 +98,10 @@ def _migrate_v2_accounts(conn) -> None:
                 User.__table__.create(bind=conn)
                 cols = "id, username, email, password_hash, display_name, is_active, created_at"
                 conn.execute(
-                    text(f"INSERT INTO users ({cols}) SELECT {cols} FROM users_legacy_v1")
+                    text(
+                        f"INSERT INTO users ({cols}, phone, phone_verified, timezone) "
+                        f"SELECT {cols}, NULL, 0, 'Asia/Tehran' FROM users_legacy_v1"
+                    )
                 )
                 conn.execute(text("DROP TABLE users_legacy_v1"))
                 rebuilt = True
@@ -450,6 +453,37 @@ def _migrate_v15_billing(conn) -> None:
     _ = conn
 
 
+def _migrate_v16_p11(conn) -> None:
+    """P11 onboarding/journey/notifications: phone columns on users.
+
+    New tables (``phone_otps``, ``onboarding_profiles``,
+    ``daily_quest_days``, ``daily_quests``, ``push_subscriptions``,
+    ``channel_links``, ``channel_link_tokens``, ``analytics_events``,
+    ``reminder_logs``) are created by ``ensure_schema`` via
+    ``Base.metadata.create_all`` on fresh and existing databases alike;
+    this step only adds the nullable ``users`` columns idempotently. No
+    backfill: pre-P11 accounts legitimately hold NULL phones and
+    default to unverified; timezone defaults to Asia/Tehran for new
+    writes (existing rows keep NULL and resolve to the same default in
+    service logic). Only portable types.
+    """
+    insp = inspect(conn)
+    tables = set(insp.get_table_names())
+    if "users" in tables:
+        user_cols = {c["name"] for c in insp.get_columns("users")}
+        if "phone" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(20)"))
+        if "phone_verified" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN phone_verified BOOLEAN"))
+            conn.execute(text("UPDATE users SET phone_verified = 0 WHERE phone_verified IS NULL"))
+        if "timezone" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN timezone VARCHAR(60)"))
+        try:
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_phone ON users (phone)"))
+        except Exception:
+            logger.warning("p11 migration: could not ensure index ix_users_phone")
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
     (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
@@ -465,6 +499,7 @@ MIGRATIONS: list[tuple[int, str, object]] = [
     (13, "p2 evidence: evidence table via create_all + nullable validation_detail column", _migrate_v13_p2),
     (14, "p6 assignment & assessment: assessments table via create_all + nullable assignment/assessment links and source/goal columns", _migrate_v14_p6),
     (15, "billing: plans, prices, subscriptions, coupons, attribution, payments via create_all", _migrate_v15_billing),
+    (16, "p11 onboarding/journey/notifications: nullable phone/phone_verified/timezone on users; new tables via create_all", _migrate_v16_p11),
 ]
 
 

@@ -932,3 +932,32 @@ def get_audit(
     if row is None:
         raise HTTPException(status_code=404, detail="audit_not_found")
     return service.audit_view(row)
+
+
+@router.get("/journey/overview")
+def get_journey_overview(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ADMIN_OVERVIEW)),
+):
+    _ = user
+    from app.modules.admin import ops as ops_service
+
+    return ops_service.journey_overview(db)
+
+
+@router.get("/system/provider-health")
+def get_provider_health(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ADMIN_OVERVIEW)),
+):
+    _ = db
+    _ = user
+    from app.modules.notify import service as notify_service
+    from app.modules.sms import ports as sms_ports
+
+    return {
+        "sms": sms_ports.provider_health(),
+        "vapid": notify_service.vapid_health(),
+        "telegram": {"configured": bool(__import__("os").environ.get("TELEGRAM_BOT_TOKEN"))},
+        "bale": {"configured": bool(__import__("os").environ.get("BALE_BOT_TOKEN"))},
+    }

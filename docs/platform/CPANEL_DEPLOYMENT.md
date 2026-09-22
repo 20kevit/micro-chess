@@ -132,7 +132,7 @@ VERIFIED FROM REPOSITORY (`backend/app/db/session.py`,
 `backend/app/db/migration.py`, `backend/.env.example`):
 
 * Schema is managed by idempotent `ensure_schema` (currently
-  `SCHEMA_VERSION = 11`); fresh databases boot to v11, older databases
+  `SCHEMA_VERSION = 16`); fresh databases boot to v16, older databases
   upgrade with data preserved; newer-than-code databases refuse to boot.
 * Models use only portable SQLAlchemy column types (a future
   PostgreSQL move stays config + `DATABASE_URL`).

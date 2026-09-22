@@ -163,7 +163,7 @@ Notes:
 
 - Portable types only; `DATABASE_URL` switch for PostgreSQL later.
 - Schema is managed by idempotent `ensure_schema`
-  (`backend/app/db/migration.py`, `SCHEMA_VERSION = 11`). The tables
+  (`backend/app/db/migration.py`, `SCHEMA_VERSION = 16`). The tables
   above are the exercise pipeline; the platform added accounts,
   ratings, gamification, relationships, adaptive, support, and
   notification tables — see `docs/platform/DATA_MODEL.md` for the

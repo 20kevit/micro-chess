@@ -41,19 +41,27 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-# Notification categories. Only categories the platform actually emits
-# exist here: support updates and mandatory account/security notices.
+# Notification categories. Support + mandatory account notices shipped
+# in Phase 11; P11 adds journey/reminder/reward/system categories.
 CATEGORY_SUPPORT = "support"
 CATEGORY_ACCOUNT = "account"
-CATEGORIES = (CATEGORY_SUPPORT, CATEGORY_ACCOUNT)
+CATEGORY_JOURNEY = "journey"
+CATEGORY_REMINDER = "reminder"
+CATEGORY_REWARD = "reward"
+CATEGORY_SYSTEM = "system"
+CATEGORIES = (CATEGORY_SUPPORT, CATEGORY_ACCOUNT, CATEGORY_JOURNEY, CATEGORY_REMINDER, CATEGORY_REWARD, CATEGORY_SYSTEM)
 
 # Mandatory categories can never be disabled by the user.
 MANDATORY_CATEGORIES = frozenset({CATEGORY_ACCOUNT})
 
-# Delivery channels. Only in-app delivery exists today; future channels
-# register a provider (see providers.py) without changing domain events.
+# Delivery channels. In-app shipped in Phase 11; P11 registers
+# web_push/telegram/bale/sms providers without changing domain events.
 CHANNEL_IN_APP = "in_app"
-CHANNELS = (CHANNEL_IN_APP,)
+CHANNEL_WEB_PUSH = "web_push"
+CHANNEL_TELEGRAM = "telegram"
+CHANNEL_BALE = "bale"
+CHANNEL_SMS = "sms"
+CHANNELS = (CHANNEL_IN_APP, CHANNEL_WEB_PUSH, CHANNEL_TELEGRAM, CHANNEL_BALE, CHANNEL_SMS)
 
 # Event types emitted by the platform. Category is derived from the type
 # prefix (``support.*`` -> support, ``account.*`` -> account).
@@ -61,11 +69,21 @@ TYPE_SUPPORT_RESPONSE = "support.response"
 TYPE_SUPPORT_CLOSED = "support.closed"
 TYPE_ACCOUNT_SUSPENDED = "account.suspended"
 TYPE_ACCOUNT_REACTIVATED = "account.reactivated"
+TYPE_JOURNEY_QUEST_COMPLETED = "journey.quest_completed"
+TYPE_JOURNEY_DAY_COMPLETED = "journey.day_completed"
+TYPE_REMINDER_DAILY = "reminder.daily"
+TYPE_REWARD_EARNED = "reward.earned"
+TYPE_SYSTEM_INFO = "system.info"
 EVENT_TYPES = (
     TYPE_SUPPORT_RESPONSE,
     TYPE_SUPPORT_CLOSED,
     TYPE_ACCOUNT_SUSPENDED,
     TYPE_ACCOUNT_REACTIVATED,
+    TYPE_JOURNEY_QUEST_COMPLETED,
+    TYPE_JOURNEY_DAY_COMPLETED,
+    TYPE_REMINDER_DAILY,
+    TYPE_REWARD_EARNED,
+    TYPE_SYSTEM_INFO,
 )
 
 # Delivery states (provider-independent).

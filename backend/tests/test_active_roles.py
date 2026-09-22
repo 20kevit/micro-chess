@@ -345,7 +345,7 @@ def _v10_database():
 def test_v10_sessions_upgrade_with_deterministic_active_role():
     engine = _v10_database()
     assert get_schema_version(engine) == 10
-    assert ensure_schema(engine) == SCHEMA_VERSION == 15
+    assert ensure_schema(engine) == SCHEMA_VERSION
 
     session = sessionmaker(bind=engine)()
     try:

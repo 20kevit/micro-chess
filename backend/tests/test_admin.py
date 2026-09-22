@@ -587,7 +587,7 @@ def test_fresh_database_boots_to_v9_with_content_tables():
     from app.db.base import Base
     from app.db.migration import SCHEMA_VERSION, ensure_schema, get_schema_version
 
-    assert SCHEMA_VERSION == 15
+    assert SCHEMA_VERSION == 16
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     assert ensure_schema(engine) == SCHEMA_VERSION
     assert get_schema_version(engine) == SCHEMA_VERSION

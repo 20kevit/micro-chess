@@ -47,6 +47,29 @@ class InAppProvider(NotificationProvider):
 _PROVIDERS: dict[str, NotificationProvider] = {InAppProvider().name: InAppProvider()}
 
 
+class _ExternalStubProvider(NotificationProvider):
+    """P11 external channels (web_push/telegram/bale/sms).
+
+    Dev-safe default: records the delivery decision without requiring
+    vendor credentials. Real fan-out (bot API calls, SMS sends, push
+    encryption) lives in the notify service which owns subscriptions,
+    links, preferences, and rate limits; this stub keeps ``emit_event``
+    vocabulary open for the new channels without coupling the
+    notification domain to any SDK.
+    """
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def send(self, notification) -> DeliveryOutcome:
+        _ = notification
+        return DeliveryOutcome(delivered=True)
+
+
+for _channel in ("web_push", "telegram", "bale", "sms"):
+    _PROVIDERS[_channel] = _ExternalStubProvider(_channel)
+
+
 def register_provider(provider: NotificationProvider) -> None:
     """Register (or replace) a channel provider. Used by future channels
     and by tests injecting stub providers (provider isolation)."""

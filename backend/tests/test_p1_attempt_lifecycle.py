@@ -559,7 +559,7 @@ def test_authenticated_rated_attempt_rates_with_snapshot():
 def test_fresh_boot_stamps_v12():
     engine = create_engine("sqlite:///:memory:")
     version = ensure_schema(engine)
-    assert version == SCHEMA_VERSION == 15
+    assert version == SCHEMA_VERSION
     assert get_schema_version(engine) == SCHEMA_VERSION
     # Idempotent re-run.
     assert ensure_schema(engine) == SCHEMA_VERSION

@@ -34,6 +34,10 @@ def db_session():
     from app.modules.piece_recognition import models as _pr1  # noqa: F401
     from app.modules.player import models as _player  # noqa: F401
     from app.modules.notifications import models as _notif  # noqa: F401
+    from app.modules.phone_verification import models as _phone  # noqa: F401
+    from app.modules.onboarding import models as _onb  # noqa: F401
+    from app.modules.daily_quests import models as _quest  # noqa: F401
+    from app.modules.notify import models as _notify  # noqa: F401
     from app.modules.progress import models as _pr  # noqa: F401
     from app.modules.puzzles import models as _pz  # noqa: F401
     from app.modules.relationships import models as _rel  # noqa: F401

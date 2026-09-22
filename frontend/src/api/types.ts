@@ -1034,3 +1034,88 @@ export interface AdminCampaign {
   content: string;
   is_active: boolean;
 }
+
+// P11 personalized onboarding, daily journey, retention & notifications.
+// Transport only; the backend owns verification, placement, quests, and
+// delivery decisions.
+export interface PhoneStatus {
+  phone: string | null;
+  verified: boolean;
+}
+
+export interface OtpSent {
+  phone: string;
+  expires_at: string;
+  sent: boolean;
+}
+
+export interface Onboarding {
+  experience: string;
+  play_frequency: string;
+  fide_rating: number | null;
+  lichess_username: string;
+  chesscom_username: string;
+  goal: string;
+  intensity: string;
+  timezone: string;
+  onboarding_completed: boolean;
+  placement_completed: boolean;
+}
+
+export interface PlacementItem {
+  exercise_slug: string;
+  puzzle_id: number;
+  reason: string;
+}
+
+export interface TrainingPlan {
+  onboarding_completed: boolean;
+  placement_completed: boolean;
+  intensity: string;
+  goal_text: string;
+  focus_exercise: string | null;
+  headline: string;
+  summary: string;
+}
+
+export interface Quest {
+  id: number;
+  slot: number;
+  kind: string;
+  title: string;
+  description: string;
+  exercise_slug: string;
+  puzzle_id: number | null;
+  target_count: number;
+  progress: number;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  local_date: string;
+}
+
+export interface TodayJourney {
+  local_date: string;
+  timezone: string;
+  completed_count: number;
+  total: number;
+  is_complete: boolean;
+  quests: Quest[];
+}
+
+export interface PushSubscription {
+  endpoint: string;
+  created_at: string | null;
+}
+
+export interface ChannelLink {
+  channel: string;
+  linked: boolean;
+}
+
+export interface LinkToken {
+  channel: string;
+  token: string;
+  deep_link: string;
+  expires_at: string;
+}

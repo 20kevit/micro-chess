@@ -437,7 +437,7 @@ def _phase1_database():
 def test_phase1_database_upgrades_without_data_loss():
     engine = _phase1_database()
     assert get_schema_version(engine) is None
-    assert ensure_schema(engine) == SCHEMA_VERSION == 15
+    assert ensure_schema(engine) == SCHEMA_VERSION
 
     session = sessionmaker(bind=engine)()
     try:

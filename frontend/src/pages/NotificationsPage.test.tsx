@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationsPage } from "./NotificationsPage";
-import { notificationsApi } from "../api/client";
+import { notificationsApi, notifyApi } from "../api/client";
+import { pushState } from "../lib/push";
 import type { NotificationItem, NotificationPreference } from "../api/types";
 import { t } from "../i18n";
 
@@ -15,7 +16,19 @@ vi.mock("../api/client", () => ({
     preferences: vi.fn(),
     updatePreference: vi.fn(),
   },
+  notifyApi: {
+    preferences: vi.fn().mockResolvedValue([]),
+    updatePreference: vi.fn(),
+    channelLinks: vi.fn().mockResolvedValue([]),
+    linkToken: vi.fn(),
+    unlink: vi.fn(),
+    track: vi.fn().mockResolvedValue(undefined),
+  },
   apiDetail: () => "",
+}));
+vi.mock("../lib/push", () => ({
+  pushState: vi.fn().mockResolvedValue("unsupported"),
+  subscribePush: vi.fn().mockResolvedValue(false),
 }));
 
 const mocked = vi.mocked(notificationsApi, true);
@@ -49,6 +62,11 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocked.list.mockResolvedValue([unread, read]);
   mocked.preferences.mockResolvedValue(prefs);
+  // resetAllMocks wipes factory implementations: re-establish P11 mocks.
+  vi.mocked(notifyApi.preferences).mockResolvedValue([]);
+  vi.mocked(notifyApi.channelLinks).mockResolvedValue([]);
+  vi.mocked(notifyApi.track).mockResolvedValue(undefined);
+  vi.mocked(pushState).mockResolvedValue("unsupported");
 });
 
 function renderPage() {
@@ -66,7 +84,7 @@ describe("notifications page", () => {
     expect(screen.getByText(t("notif.type.support.response"))).toBeTruthy();
     expect(screen.getByText(t("notif.type.account.reactivated"))).toBeTruthy();
     expect(screen.getByText(t("notif.prefsTitle"))).toBeTruthy();
-    expect(screen.getByText(t("notif.support"))).toBeTruthy();
+    expect(screen.getAllByText(t("notif.support"), { exact: false }).length).toBeGreaterThan(0);
     expect(screen.getByText(t("notif.mandatory"), { exact: false })).toBeTruthy();
   });
 

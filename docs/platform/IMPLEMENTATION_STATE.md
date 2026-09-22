@@ -41,8 +41,16 @@ completed and verified. Phase 11 (Support & Notifications)
 completed and verified. Phase 12 (Beta Readiness: active roles,
 admin bootstrap, cPanel deployment) completed and verified.
 Phase 13 (cPanel Deployment Readiness: Passenger adapter, finalized
-deployment configuration) completed and verified. No later phase
-started.
+deployment configuration) completed and verified. P11 (Personalized
+Onboarding, Daily Journey, Retention & Notifications, schema v16)
+implemented and verified: phone + OTP verification (SMS abstraction
+with test/Kavenegar providers), short onboarding + placement reusing
+the recommendation/adaptive/rating infrastructure, exactly-3 stable
+daily quests per local day, Daily Journey home, quest return path,
+extended notification channels (in_app/web_push/telegram/bale/sms)
+with secure linking + preferences + deduped reminders, PWA foundation
+(manifest + push service worker), product analytics events, and admin
+journey overview + provider health.
 
 | Area                         | Status      |
 | ---------------------------- | ----------- |
@@ -59,6 +67,7 @@ started.
 | Support & Notifications      | VERIFIED    |
 | Beta Readiness (Phase 12)    | VERIFIED    |
 | cPanel Deployment (Phase 13) | VERIFIED    |
+| P11 Onboarding & Daily Journey | VERIFIED  |
 
 Foundation primitives that later phases build on (password hashing +
 policy, JWT sessions, capability registry, token transport, audit

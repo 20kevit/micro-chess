@@ -402,9 +402,17 @@ def test_notification_preferences_defaults_and_mandatory(client, db_session):
     ).status_code == 422
     assert client.patch(
         "/api/v1/me/notification-preferences",
-        json={"category": "support", "channel": "sms", "enabled": True},
+        json={"category": "support", "channel": "carrier_pigeon", "enabled": True},
         headers=_bearer(token),
     ).status_code == 422
+    # P11: sms is a registered channel, so opting into support SMS works.
+    sms_ok = client.patch(
+        "/api/v1/me/notification-preferences",
+        json={"category": "support", "channel": "sms", "enabled": True},
+        headers=_bearer(token),
+    )
+    assert sms_ok.status_code == 200
+    assert sms_ok.json()["enabled"] is True
     assert client.get("/api/v1/me/notification-preferences").status_code == 401
 
 
@@ -604,7 +612,7 @@ def test_suspend_and_reactivate_emit_mandatory_account_notices(client, db_sessio
 
 def test_fresh_database_boots_to_v10_with_support_tables():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    assert SCHEMA_VERSION == 15
+    assert SCHEMA_VERSION == 16
     assert ensure_schema(engine) == SCHEMA_VERSION
     assert get_schema_version(engine) == SCHEMA_VERSION
     tables = inspect(engine).get_table_names()

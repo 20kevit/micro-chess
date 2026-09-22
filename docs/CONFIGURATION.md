@@ -55,8 +55,8 @@ A committed regression test
 ## Database
 
 Schema is managed by idempotent `ensure_schema`
-(`backend/app/db/migration.py`, `SCHEMA_VERSION = 11`): fresh
-databases boot to v11, older ones upgrade with data preserved,
+(`backend/app/db/migration.py`, `SCHEMA_VERSION = 16`): fresh
+databases boot to v16, older ones upgrade with data preserved,
 newer-than-code databases refuse to boot. Models use only portable
 SQLAlchemy column types. The full logical model is documented in
 `docs/platform/DATA_MODEL.md`.

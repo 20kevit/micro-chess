@@ -31,6 +31,14 @@ class User(Base):
     email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, default=None)
     password_hash: Mapped[str] = mapped_column(String(255))
     display_name: Mapped[str] = mapped_column(String(100), default="")
+    # P11: first-class verified phone attribute. Canonical E.164-ish
+    # form (e.g. +98912...); NULL until the user provides a number.
+    # Uniqueness is enforced in service logic (nullable unique varies
+    # by backend) plus a unique index below for backends that support it.
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True, default=None)
+    phone_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    # P11: IANA timezone name for user-local daily quest boundaries.
+    timezone: Mapped[str] = mapped_column(String(60), default="Asia/Tehran")
     # ACTIVE (True) vs SUSPENDED (False). Suspended accounts authenticate
     # neither via login nor via an already-issued session.
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
