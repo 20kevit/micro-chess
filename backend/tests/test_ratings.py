@@ -559,7 +559,7 @@ def test_phase3_database_upgrades_to_v6_preserving_data():
             {"u": user_id, "p": puzzle_id},
         )
 
-    assert ensure_schema(engine) == SCHEMA_VERSION == 15
+    assert ensure_schema(engine) == SCHEMA_VERSION
     assert ensure_schema(engine) == SCHEMA_VERSION  # idempotent re-run
 
     names = inspect(engine).get_table_names()
