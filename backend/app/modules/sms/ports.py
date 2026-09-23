@@ -70,16 +70,29 @@ class KavenegarProvider(SmsProvider):
 
     def send_otp(self, *, to: str, text: str) -> SmsResult:
         try:
+            import json as _json
+
             url = f"https://api.kavenegar.com/v1/{urllib.parse.quote(self._api_key, safe='')}/sms/send.json"
+            # Kavenegar accepts the E.164-ish digits without the leading "+".
+            receptor = to.lstrip("+")
             payload = urllib.parse.urlencode(
-                {"receptor": to, "sender": self._sender, "message": text}
+                {"receptor": receptor, "sender": self._sender, "message": text}
             ).encode("utf-8")
             req = urllib.request.Request(url, data=payload, method="POST")
             with urllib.request.urlopen(req, timeout=self._timeout_s) as resp:
-                status = getattr(resp, "status", 200)
+                raw = resp.read()
+            try:
+                body = _json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
+                status = int((body.get("return") or {}).get("status", 0))
+            except Exception:
+                return SmsResult(ok=False, error="bad_response")
+            # Kavenegar reports application errors with HTTP 200, so the
+            # embedded return.status is authoritative (200 = accepted).
             if status != 200:
-                return SmsResult(ok=False, error=f"http_{status}")
-            return SmsResult(ok=True)
+                return SmsResult(ok=False, error=f"kavenegar_{status}")
+            entries = (body.get("entries") or [])
+            message_id = str((entries[0] or {}).get("messageid", "")) if entries else ""
+            return SmsResult(ok=True, provider_message_id=message_id[:64])
         except Exception as exc:  # noqa: BLE001 - provider must fail safely
             logger.warning("kavenegar send failed: %s", type(exc).__name__)
             return SmsResult(ok=False, error="provider_error")
