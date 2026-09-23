@@ -27,7 +27,7 @@ router = APIRouter(tags=["verification"])
 _PAIRING_RE = re.compile(r"^\d{6}$")
 
 
-def _webhook_authorized(request: Request) -> bool:
+def _webhook_authorized(request: Request, path_secret: str | None = None) -> bool:
     shared = os.environ.get("BOT_WEBHOOK_SECRET") or ""
     if shared and (request.headers.get("x-bot-secret") or "") == shared:
         return True
@@ -35,7 +35,23 @@ def _webhook_authorized(request: Request) -> bool:
     per_bot = os.environ.get("TELEGRAM_WEBHOOK_SECRET") or ""
     if per_bot and (request.headers.get("x-telegram-bot-api-secret-token") or "") == per_bot:
         return True
+    # Bale cannot send custom headers: the operator registers the
+    # webhook URL with an unguessable path secret instead
+    # (/verification/webhook/<channel>/<secret>). This URL is
+    # operator-configured only (setWebhook call), never shown to users,
+    # never in the frontend, and excluded from access logs at the edge.
+    if shared and path_secret and secrets_compare(path_secret, shared):
+        return True
     return False
+
+
+def secrets_compare(a: str, b: str) -> bool:
+    import secrets as _secrets
+
+    try:
+        return _secrets.compare_digest(a, b)
+    except Exception:
+        return False
 
 
 @router.post("/me/verification/sessions", response_model=schemas.SessionOut)
@@ -135,10 +151,23 @@ def _handle_update(db: Session, channel: str, update: dict) -> None:
 @router.post("/verification/webhook/{channel}")
 async def bot_webhook(channel: str, request: Request, db: Session = Depends(get_db),
                       _limited: None = Depends(enforce_webhook_rate_limit)):
+    return await _bot_webhook_impl(channel=channel, request=request, db=db, path_secret=None)
+
+
+@router.post("/verification/webhook/{channel}/{path_secret}")
+async def bot_webhook_secret(channel: str, path_secret: str, request: Request,
+                             db: Session = Depends(get_db),
+                             _limited: None = Depends(enforce_webhook_rate_limit)):
+    return await _bot_webhook_impl(channel=channel, request=request, db=db,
+                                   path_secret=path_secret)
+
+
+async def _bot_webhook_impl(channel: str, request: Request, db: Session,
+                            path_secret: str | None):
     channel = (channel or "").strip().lower()
     if channel not in service.CHANNELS:
         raise HTTPException(status_code=404, detail="unknown_channel")
-    if not _webhook_authorized(request):
+    if not _webhook_authorized(request, path_secret):
         raise HTTPException(status_code=403, detail="forbidden")
     try:
         update = await request.json()

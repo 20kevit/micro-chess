@@ -62,8 +62,12 @@ Implemented. This document records repository reality.
   attempt-capped, user-bound. Logout/login/device changes preserve
   verification.
 - One phone belongs to one account (`phone_taken` is generic).
-- Webhook `POST /verification/webhook/{channel}`: shared secret
-  (`X-Bot-Secret`) and/or Telegram per-bot secret token; idempotent;
+- Webhook `POST /verification/webhook/{channel}` (+ optional
+  `/verification/webhook/{channel}/{secret}` path variant for Bale,
+  which cannot send custom headers; the URL is operator-configured
+  only, never user-facing, and excluded from access logs): shared
+  secret (`X-Bot-Secret`) and/or Telegram per-bot secret token;
+  idempotent;
   unknown/malformed updates answer 200 with no body; reply failures
   never block verification; no tokens/phones/secrets in logs.
 - Bale uses the same Telegram-compatible wire (`tapi.bale.ai`)
