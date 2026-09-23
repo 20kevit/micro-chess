@@ -43,14 +43,21 @@ admin bootstrap, cPanel deployment) completed and verified.
 Phase 13 (cPanel Deployment Readiness: Passenger adapter, finalized
 deployment configuration) completed and verified. P11 (Personalized
 Onboarding, Daily Journey, Retention & Notifications, schema v16)
-implemented and verified: phone + OTP verification (SMS abstraction
-with test/Kavenegar providers), short onboarding + placement reusing
-the recommendation/adaptive/rating infrastructure, exactly-3 stable
+implemented and verified: short onboarding + placement reusing the
+recommendation/adaptive/rating infrastructure, exactly-3 stable
 daily quests per local day, Daily Journey home, quest return path,
-extended notification channels (in_app/web_push/telegram/bale/sms)
-with secure linking + preferences + deduped reminders, PWA foundation
-(manifest + push service worker), product analytics events, and admin
-journey overview + provider health.
+extended notification channels (in_app/web_push/telegram/bale)
+with preferences + deduped reminders, PWA foundation (manifest +
+push service worker), product analytics events, and admin journey
+overview + provider health. Free/Premium accounts with daily quota
+(schema v17): username + password authentication only (no Google,
+no SMS OTP, no email auth); Free 10 and Premium 100 exercise
+attempts per user-local day enforced server-side at attempt time;
+phone verification via Telegram/Bale official contact sharing
+(one-time pairing-code sessions, stable platform ids, one phone per
+account); premium activation through the existing
+Plan/Subscription/Coupon/Payment architecture with 100%-discount
+invoice settlement and no payment gateway.
 
 | Area                         | Status      |
 | ---------------------------- | ----------- |
@@ -68,6 +75,7 @@ journey overview + provider health.
 | Beta Readiness (Phase 12)    | VERIFIED    |
 | cPanel Deployment (Phase 13) | VERIFIED    |
 | P11 Onboarding & Daily Journey | VERIFIED  |
+| Free/Premium + Verification    | VERIFIED  |
 
 Foundation primitives that later phases build on (password hashing +
 policy, JWT sessions, capability registry, token transport, audit
