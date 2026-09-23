@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { api, apiStatus } from "../../api/client";
+import { Link } from "react-router-dom";
+import { api, apiDetail, apiStatus } from "../../api/client";
 import type { AttemptMode, AttemptResponse, Puzzle } from "../../api/types";
 import type { FaKey } from "../../i18n/fa";
 import { t } from "../../i18n";
@@ -255,6 +256,7 @@ function PlayLoop({
   const [usedHints, setUsedHints] = useState<string[]>([]);
   const [startedAt, setStartedAt] = useState<string>(() => new Date().toISOString());
   const [result, setResult] = useState<AttemptResponse | null>(null);
+  const [quotaReached, setQuotaReached] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [promotion, setPromotion] = useState("q");
   const { rootRef, areaRef, orientation, size } = useGameFit();
@@ -331,6 +333,7 @@ function PlayLoop({
     if (!puzzle || submitting) return;
     setSubmitting(true);
     setError(null);
+    setQuotaReached(false);
     try {
       const res = await api.submitAttempt({
         puzzle_id: puzzle.id,
@@ -345,10 +348,16 @@ function PlayLoop({
       setResult(res);
     } catch (e) {
       // Only 401 means the session ended (login required for rated mode);
+      // 403 daily_quota_exceeded is the friendly upgrade moment;
       // network and other failures show the generic retry message instead.
-      setError(
-        apiStatus(e) === 401 && mode === "rated" ? t("play.authRequired") : t("common.error"),
-      );
+      if (apiStatus(e) === 403 && apiDetail(e) === "daily_quota_exceeded") {
+        setQuotaReached(true);
+        setError(null);
+      } else {
+        setError(
+          apiStatus(e) === 401 && mode === "rated" ? t("play.authRequired") : t("common.error"),
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -561,6 +570,15 @@ function PlayLoop({
         </Card>
       ) : null}
       {error ? <p className="mt-2 text-sm font-bold text-red-600">{error}</p> : null}
+      {quotaReached ? (
+        <Card className="mt-2 border-amber-300 bg-amber-50">
+          <p className="font-black text-amber-800">{t("quota.reachedTitle")}</p>
+          <p className="mt-1 text-sm text-amber-700">{t("quota.reachedHint")}</p>
+          <Link to="/premium" className="mt-2 block">
+            <Button className="w-full">{t("premium.cta")}</Button>
+          </Link>
+        </Card>
+      ) : null}
     </div>
   ) : null;
 

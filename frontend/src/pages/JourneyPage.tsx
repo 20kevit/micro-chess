@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { journeyApi, notifyApi } from "../api/client";
-import type { Quest, TodayJourney } from "../api/types";
+import { journeyApi, notifyApi, quotaApi } from "../api/client";
+import type { Quest, Quota, TodayJourney } from "../api/types";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -20,16 +20,18 @@ export function JourneyPage() {
   const [failed, setFailed] = useState(false);
   const [notice, setNotice] = useState("");
   const [finishing, setFinishing] = useState<number | null>(null);
+  const [quota, setQuota] = useState<Quota | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
     setFailed(false);
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    journeyApi
-      .today(tz)
-      .then((d) => {
+    Promise.all([journeyApi.today(tz), quotaApi.get().catch(() => null)])
+      .then(([d, q]) => {
         setData(d);
+        setQuota(q);
         setLoading(false);
+        if (d.quests.length > 0) notifyApi.track("daily_journey_started").catch(() => {});
       })
       .catch(() => {
         setFailed(true);
@@ -74,6 +76,7 @@ export function JourneyPage() {
         // Refresh to recompute progress server-side.
         const fresh = await journeyApi.today();
         setData(fresh);
+        quotaApi.get().then(setQuota).catch(() => {});
         if (fresh.is_complete) notifyApi.track("daily_journey_completed").catch(() => {});
       }
     } catch {
@@ -131,7 +134,22 @@ export function JourneyPage() {
             </Button>
           </div>
         ) : null}
+        {quota ? (
+          <p className="mt-2 text-center text-xs text-stone-500" aria-live="polite">
+            {t("quota.today")}: {faNum(quota.used)} {t("account.of")} {faNum(quota.limit)}
+          </p>
+        ) : null}
       </Card>
+
+      {quota && !quota.can_practice ? (
+        <Card className="mt-3 border-amber-300 bg-amber-50">
+          <p className="font-black text-amber-800">{t("quota.reachedTitle")}</p>
+          <p className="mt-1 text-sm text-amber-700">{t("quota.reachedHint")}</p>
+          <Link to="/premium" className="mt-3 block">
+            <Button className="w-full">{t("premium.cta")}</Button>
+          </Link>
+        </Card>
+      ) : null}
 
       {data.is_complete ? (
         <Card className="mt-3 border-emerald-300 bg-emerald-50">

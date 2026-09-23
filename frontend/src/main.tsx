@@ -8,7 +8,8 @@ import { HomePage } from "./pages/HomePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { JourneyPage } from "./pages/JourneyPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
-import { VerifyPhonePage } from "./pages/VerifyPhonePage";
+import { PremiumPage } from "./pages/PremiumPage";
+import { VerifyPage } from "./pages/VerifyPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { AuthProvider } from "./lib/auth-context";
@@ -74,10 +75,18 @@ const router = createBrowserRouter([
       { path: "/login", element: <LoginPage /> },
       { path: "/register", element: <RegisterPage /> },
       {
-        path: "/verify-phone",
+        path: "/verify",
         element: (
           <RequireAuth>
-            <VerifyPhonePage />
+            <VerifyPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/premium",
+        element: (
+          <RequireAuth>
+            <PremiumPage />
           </RequireAuth>
         ),
       },

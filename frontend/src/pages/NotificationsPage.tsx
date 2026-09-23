@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiDetail, notificationsApi, notifyApi } from "../api/client";
 import type { ChannelLink, NotificationItem, NotificationPreference } from "../api/types";
 import { Badge } from "../components/ui/Badge";
@@ -234,27 +235,6 @@ function JourneyNotifySection() {
     setBusy(false);
   }
 
-  async function link(channel: "telegram" | "bale") {
-    setBusy(true);
-    setMessage("");
-    try {
-      const tok = await notifyApi.linkToken(channel);
-      if (tok.deep_link) {
-        window.open(tok.deep_link, "_blank", "noopener");
-      } else {
-        setMessage(t("notif.link.hint"));
-      }
-      // Refresh link state (the bot webhook completes the link).
-      setTimeout(() => {
-        notifyApi.channelLinks().then(setLinks).catch(() => {});
-      }, 2000);
-    } catch {
-      setMessage(t("common.error"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function unlink(channel: string) {
     try {
       await notifyApi.unlink(channel);
@@ -296,9 +276,11 @@ function JourneyNotifySection() {
                 {t("notif.link.unlink")}
               </Button>
             ) : (
-              <Button variant="secondary" onClick={() => link(channel)} disabled={busy}>
-                {channel === "telegram" ? t("notif.link.telegram") : t("notif.link.bale")}
-              </Button>
+              <Link to="/verify" className="block">
+                <Button variant="secondary" className="w-full">
+                  {channel === "telegram" ? t("notif.link.telegram") : t("notif.link.bale")}
+                </Button>
+              </Link>
             )}
           </div>
         ))}

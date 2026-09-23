@@ -3,11 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { JourneyPage } from "./JourneyPage";
-import { journeyApi, notifyApi } from "../api/client";
+import { journeyApi, notifyApi, quotaApi } from "../api/client";
 import type { TodayJourney } from "../api/types";
 
 vi.mock("../api/client", () => ({
   journeyApi: { today: vi.fn(), startQuest: vi.fn(), completeQuest: vi.fn() },
+  quotaApi: { get: vi.fn().mockResolvedValue({ used: 2, limit: 10, remaining: 8, plan: "free", local_date: "2026-09-21", can_practice: true, upgrade_available: true }) },
   notifyApi: { track: vi.fn().mockResolvedValue(undefined) },
 }));
 
@@ -47,6 +48,10 @@ function journey(partial?: Partial<TodayJourney>): TodayJourney {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(notifyApi.track).mockResolvedValue(undefined);
+  vi.mocked(quotaApi.get).mockResolvedValue({
+    used: 2, limit: 10, remaining: 8, plan: "free", local_date: "2026-09-21",
+    can_practice: true, upgrade_available: true,
+  });
 });
 
 describe("daily journey", () => {

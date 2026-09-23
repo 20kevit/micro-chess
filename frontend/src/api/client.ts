@@ -35,10 +35,13 @@ import type {
   HistoryAttempt,
   NotificationItem,
   NotificationPreference,
-  OtpSent,
+  VerificationSession,
+  VerificationStatus,
+  Quota,
+  PremiumQuote,
+  PremiumActivation,
   Onboarding,
   PathStepResponse,
-  PhoneStatus,
   PlacementItem,
   PlayerAnalytics,
   PlayerComparison,
@@ -47,7 +50,6 @@ import type {
   ProgressSummary,
   PushSubscription,
   ChannelLink,
-  LinkToken,
   Quest,
   TodayJourney,
   TrainingPlan,
@@ -924,7 +926,6 @@ export const api = {
     username: string;
     password: string;
     display_name?: string;
-    phone?: string;
     coupon_code?: string;
     campaign_slug?: string;
     source?: string;
@@ -1228,8 +1229,19 @@ export const adminApi = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  puzzles: (params?: { exercise?: string; status?: string; page?: number; page_size?: number }) =>
-    request<AdminPuzzle[]>(`/api/v1/admin/puzzles${adminQuery(params)}`),
+  puzzles: (params?: {
+    exercise?: string;
+    status?: string;
+    difficulty?: number;
+    source?: string;
+    search?: string;
+    rating_min?: number;
+    rating_max?: number;
+    sort?: string;
+    order?: string;
+    page?: number;
+    page_size?: number;
+  }) => request<AdminPuzzle[]>(`/api/v1/admin/puzzles${adminQuery(params)}`),
   puzzle: (id: number) => request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}`),
   createPuzzle: (body: {
     exercise_slug: string;
@@ -1240,6 +1252,10 @@ export const adminApi = {
     prompt_fa?: string;
     explanation?: string;
     initial_rating?: number;
+    difficulty?: number | null;
+    target_rating?: number | null;
+    source?: string;
+    source_reference?: string | null;
   }) =>
     request<AdminPuzzle>("/api/v1/admin/puzzles", {
       method: "POST",
@@ -1350,6 +1366,53 @@ export const adminApi = {
     request<AdminPuzzleAnalytics>(
       `/api/v1/admin/analytics/puzzles/${id}${adminQuery(params)}`,
     ),
+  // Phase 12 content management: workspace, authoring, bulk, health.
+  createExercise: (body: {
+    slug: string;
+    title_fa: string;
+    title_en?: string;
+    description?: string;
+    is_active?: boolean;
+    sort_order?: number;
+  }) =>
+    request<AdminExerciseDetail>("/api/v1/admin/exercises", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  answerContract: (slug: string) =>
+    request<import("./types").AnswerContract>(`/api/v1/admin/exercises/${slug}/answer-contract`),
+  exerciseQuality: (slug: string) =>
+    request<import("./types").ExerciseQuality>(`/api/v1/admin/exercises/${slug}/quality`),
+  exerciseLearning: (slug: string, days?: number) =>
+    request<import("./types").ExerciseLearning>(
+      `/api/v1/admin/exercises/${slug}/learning${adminQuery(days ? { days } : undefined)}`,
+    ),
+  exerciseGenerators: (slug: string) =>
+    request<Generator[]>(`/api/v1/admin/exercises/${slug}/generators`),
+  contentHealth: () => request<import("./types").ContentHealth>("/api/v1/admin/content-health"),
+  previewValidate: (body: {
+    exercise_slug: string;
+    fen?: string | null;
+    position_json?: Record<string, unknown>;
+    answer_json?: Record<string, unknown>;
+    difficulty?: number | null;
+    target_rating?: number | null;
+    initial_rating?: number | null;
+    prompt_fa?: string;
+    explanation?: string;
+    exclude_puzzle_id?: number;
+  }) =>
+    request<import("./types").PreviewValidation>("/api/v1/admin/puzzles/preview-validate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  bulkPuzzles: (body: { puzzle_ids: number[]; action: string; reason?: string }) =>
+    request<import("./types").BulkResult>("/api/v1/admin/puzzles/bulk", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  puzzleUsage: (id: number) =>
+    request<import("./types").PuzzleUsage>(`/api/v1/admin/puzzles/${id}/usage`),
 };
 
 // Billing transport. UX only — plans display, coupon quotes come from
@@ -1440,22 +1503,34 @@ export const adminBillingApi = {
     }),
 };
 
-// P11 journey transport: phone verification, onboarding/placement/plan,
-// daily quests, push subscriptions, channel links, extended preferences,
-// analytics events. Backend remains authoritative on every endpoint.
-export const phoneApi = {
-  status: () => request<PhoneStatus>("/api/v1/me/phone"),
-  start: (phone: string) =>
-    request<OtpSent>("/api/v1/me/phone/start", {
+// Verification transport: Telegram/Bale contact-sharing sessions.
+// The backend owns sessions, codes, contacts, and decisions; the bot
+// token never leaves the server and no secret travels in URLs.
+export const verificationApi = {
+  status: () => request<VerificationStatus>("/api/v1/me/verification/status"),
+  createSession: (channel: string) =>
+    request<VerificationSession>("/api/v1/me/verification/sessions", {
       method: "POST",
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify({ channel }),
     }),
-  resend: () =>
-    request<OtpSent>("/api/v1/me/phone/resend", { method: "POST" }),
-  verify: (code: string) =>
-    request<PhoneStatus>("/api/v1/me/phone/verify", {
+};
+
+// Daily quota transport (server-authoritative Free 10 / Premium 100).
+export const quotaApi = {
+  get: () => request<Quota>("/api/v1/me/quota"),
+};
+
+// Premium activation transport: invoice quote + zero-amount activation.
+// The backend validates coupons and settles; no gateway is involved.
+export const premiumApi = {
+  quote: (coupon_code?: string) =>
+    request<PremiumQuote>(
+      `/api/v1/billing/me/premium/quote${coupon_code ? `?coupon_code=${encodeURIComponent(coupon_code)}` : ""}`,
+    ),
+  activate: (coupon_code: string) =>
+    request<PremiumActivation>("/api/v1/billing/me/premium/activate", {
       method: "POST",
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ coupon_code }),
     }),
 };
 
@@ -1498,10 +1573,6 @@ export const notifyApi = {
       body: JSON.stringify({ endpoint }),
     }),
   channelLinks: () => request<ChannelLink[]>("/api/v1/me/channel-links"),
-  linkToken: (channel: string) =>
-    request<LinkToken>(`/api/v1/me/channel-links/${channel}/token`, {
-      method: "POST",
-    }),
   unlink: (channel: string) =>
     request<void>(`/api/v1/me/channel-links/${channel}`, { method: "DELETE" }),
   preferences: () => request<NotificationPreference[]>("/api/v1/me/notify-preferences"),

@@ -367,6 +367,108 @@ export interface PuzzleHistory {
   }>;
 }
 
+// Phase 12 content management: answer contracts, quality, learning,
+// bulk operations, and content health (mirrors backend admin/content.py).
+export interface AnswerContract {
+  exercise_slug: string;
+  answer_type: string;
+  answer_fields: Array<{
+    name: string;
+    kind: string;
+    description: string;
+    item_hint?: string;
+    options?: string[];
+  }>;
+  attempt_field: string;
+  fen_derived: boolean;
+  needs_board: boolean;
+  position_fields: Array<{ name: string; kind: string; description: string }>;
+  notes: string;
+  validator_registered: boolean;
+  generator_available: boolean;
+  generator_codes: string[];
+}
+
+export interface PreviewValidation {
+  ok: boolean;
+  errors: Array<{ code: string; detail?: string; duplicate_of?: number }>;
+  content_hash: string;
+}
+
+export interface BulkResult {
+  action: string;
+  succeeded: number[];
+  failed: Array<{ id: number; error: string }>;
+}
+
+export interface PuzzleUsage {
+  puzzle_id: number;
+  attempts: number;
+  by_result: Record<string, number>;
+  success_rate: number | null;
+  avg_duration_ms: number | null;
+  recent_attempts: number;
+}
+
+export interface ExerciseQuality {
+  exercise_slug: string;
+  supply_by_status: Array<{ status: string; count: number }>;
+  published: number;
+  review_backlog: number;
+  quarantined: number;
+  difficulty_distribution: Array<{ difficulty: number | null; count: number }>;
+  difficulty_levels_covered: number[];
+  validation_failures: number;
+  high_failure_puzzles: Array<{ puzzle_id: number; attempts: number; failure_rate: number }>;
+  attempts: number;
+  success_rate: number | null;
+  avg_duration_ms: number | null;
+  supply_state: string;
+  attention_reasons: string[];
+}
+
+export interface ExerciseLearning {
+  exercise_slug: string;
+  window_days: number;
+  usage: {
+    attempts: number;
+    correct: number;
+    success_rate: number | null;
+    active_users: number;
+    avg_duration_ms: number | null;
+    by_result: Array<{ result: string; count: number }>;
+  };
+  mistakes: Array<{ mistake: string; count: number }>;
+  skills: {
+    primary: string | null;
+    secondary: Array<{ skill: string; link: string }>;
+    evidence: Array<{ skill_key: string; direction: string; count: number }>;
+  };
+  recommendations: Array<{ status: string; count: number }>;
+}
+
+export interface ContentHealthRow {
+  slug: string;
+  title_fa: string;
+  is_active: boolean;
+  published: number;
+  total: number;
+  needs_review: number;
+  quarantined: number;
+  attempts: number;
+  success_rate: number | null;
+  generator_available: boolean;
+  generator_codes: string[];
+  supply_state: string;
+  reasons: string[];
+}
+
+export interface ContentHealth {
+  low_supply_threshold: number;
+  exercises: ContentHealthRow[];
+  attention_count: number;
+}
+
 // Content generators (mirrors backend modules/generators). Display
 // and transport shapes only; generation always runs server-side.
 export interface Generator {
@@ -1035,18 +1137,50 @@ export interface AdminCampaign {
   is_active: boolean;
 }
 
-// P11 personalized onboarding, daily journey, retention & notifications.
-// Transport only; the backend owns verification, placement, quests, and
-// delivery decisions.
-export interface PhoneStatus {
-  phone: string | null;
-  verified: boolean;
+// Phone verification (Telegram/Bale contact sharing) and daily quota.
+// Transport only; the backend owns sessions, contacts, decisions, and
+// entitlement resolution.
+export interface VerificationSession {
+  channel: string;
+  pairing_code: string;
+  bot_username: string;
+  bot_url: string;
+  expires_at: string;
 }
 
-export interface OtpSent {
-  phone: string;
-  expires_at: string;
-  sent: boolean;
+export interface VerificationStatus {
+  verified: boolean;
+  phone_masked: string;
+  channel: string | null;
+}
+
+export interface Quota {
+  used: number;
+  limit: number;
+  remaining: number;
+  plan: string;
+  local_date: string;
+  can_practice: boolean;
+  upgrade_available: boolean;
+}
+
+export interface PremiumQuote {
+  plan_code: string;
+  plan_name_fa: string;
+  price_amount_minor: number;
+  currency: string;
+  discount_minor: number;
+  final_amount_minor: number;
+  coupon_code: string | null;
+  gateway_required: boolean;
+}
+
+export interface PremiumActivation {
+  subscription_id: number;
+  plan_code: string;
+  status: string;
+  final_amount_minor: number;
+  already: boolean;
 }
 
 export interface Onboarding {
@@ -1113,9 +1247,3 @@ export interface ChannelLink {
   linked: boolean;
 }
 
-export interface LinkToken {
-  channel: string;
-  token: string;
-  deep_link: string;
-  expires_at: string;
-}

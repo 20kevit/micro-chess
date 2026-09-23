@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { billingApi } from "../api/client";
-import type { Subscription } from "../api/types";
+import { billingApi, quotaApi, verificationApi } from "../api/client";
+import type { Quota, Subscription, VerificationStatus } from "../api/types";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -9,6 +9,7 @@ import { t } from "../i18n";
 import type { FaKey } from "../i18n/fa";
 import { useAuth } from "../lib/auth-context";
 import { authErrorKey } from "../lib/auth-errors";
+import { faNum } from "../lib/playerDisplay";
 
 // Minimal account screen: server-owned identity only. Quick links follow
 // the session's active role so admin/coach/parent/player dashboards never
@@ -21,6 +22,8 @@ export function AccountPage() {
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<FaKey | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [quota, setQuota] = useState<Quota | null>(null);
+  const [verification, setVerification] = useState<VerificationStatus | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -29,6 +32,18 @@ export function AccountPage() {
         .subscription()
         .then((s) => {
           if (alive) setSubscription(s);
+        })
+        .catch(() => {});
+      quotaApi
+        .get()
+        .then((q) => {
+          if (alive) setQuota(q);
+        })
+        .catch(() => {});
+      verificationApi
+        .status()
+        .then((v) => {
+          if (alive) setVerification(v);
         })
         .catch(() => {});
     }
@@ -102,22 +117,53 @@ export function AccountPage() {
         <div className="mt-4 flex flex-col gap-2">
           <div className="rounded-2xl bg-violet-50 px-4 py-3 text-center">
             <p className="text-sm font-bold text-stone-700">
-              {t("account.subscriptionTitle")}:{" "}
+              {t("account.plan")}:{" "}
               {subscription
                 ? subscription.plan_code === "premium"
-                  ? t("account.plan.premium")
+                  ? `${t("account.plan.premium")} ✓`
                   : t("account.plan.free")
                 : t("common.loading")}
               {subscription ? ` (${t(`pricing.status.${subscription.status}` as FaKey)})` : null}
             </p>
+            {quota ? (
+              <p className="mt-1 text-sm font-bold text-stone-700">
+                {t("account.todayUsage")}: {faNum(quota.used)} {t("account.of")} {faNum(quota.limit)}
+              </p>
+            ) : null}
             {subscription && subscription.plan_code === "free" ? (
               <p className="mt-1 text-xs text-stone-500">{t("account.freeNote")}</p>
+            ) : null}
+            {verification ? (
+              <p className="mt-1 text-sm font-bold text-stone-700">
+                {t("account.phone")}:{" "}
+                {verification.verified
+                  ? `${t("account.verified")} ✓`
+                  : t("account.unverified")}
+              </p>
+            ) : null}
+            {verification && verification.verified && verification.channel ? (
+              <p className="mt-1 text-xs text-stone-500">
+                {t("account.verifyChannel")}:{" "}
+                {verification.channel === "telegram" ? t("verify.telegram") : t("verify.bale")}
+              </p>
             ) : null}
             <Link to="/pricing" className="mt-2 block">
               <Button variant="secondary" className="w-full">
                 {t("account.viewPricing")}
               </Button>
             </Link>
+            {subscription && subscription.plan_code === "free" ? (
+              <Link to="/premium" className="mt-2 block">
+                <Button className="w-full">{t("premium.cta")}</Button>
+              </Link>
+            ) : null}
+            {verification && !verification.verified ? (
+              <Link to="/verify" className="mt-2 block">
+                <Button variant="secondary" className="w-full">
+                  {t("account.verifyCta")}
+                </Button>
+              </Link>
+            ) : null}
           </div>
           {activeRole === "ADMIN" ? (
             <Link to="/admin" className="block">

@@ -199,6 +199,13 @@ export function PricingPage() {
             {t("pricing.soon")}
           </Button>
           <p className="mt-2 text-xs leading-6 text-stone-500">{t("pricing.soonNote")}</p>
+          {user ? (
+            <Link to="/premium" className="mt-2 block">
+              <Button variant="secondary" className="w-full">
+                {t("premium.cta")}
+              </Button>
+            </Link>
+          ) : null}
         </Card>
       </div>
       {user ? (

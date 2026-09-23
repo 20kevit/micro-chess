@@ -10,7 +10,6 @@ export interface RegisterExtra {
   coupon_code?: string;
   campaign_slug?: string;
   landing_path?: string;
-  phone?: string;
 }
 
 export interface AuthState {

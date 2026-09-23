@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HomePage } from "./HomePage";
 import { AppShell } from "../components/ui/AppShell";
 import { useAuth } from "../lib/auth-context";
-import { journeyApi, notificationsApi, onboardingApi, phoneApi } from "../api/client";
+import { journeyApi, notificationsApi, onboardingApi, quotaApi } from "../api/client";
 
 vi.mock("../lib/auth-context", () => ({ useAuth: vi.fn() }));
 vi.mock("../api/client", () => ({
@@ -13,9 +13,6 @@ vi.mock("../api/client", () => ({
     progress: vi.fn(),
     trainingAttempts: vi.fn(),
   },
-  phoneApi: {
-    status: vi.fn(),
-  },
   onboardingApi: {
     get: vi.fn(),
   },
@@ -23,6 +20,9 @@ vi.mock("../api/client", () => ({
     today: vi.fn(),
     startQuest: vi.fn(),
     completeQuest: vi.fn(),
+  },
+  quotaApi: {
+    get: vi.fn(),
   },
   notifyApi: {
     track: vi.fn().mockResolvedValue(undefined),
@@ -58,6 +58,10 @@ beforeEach(() => {
   vi.resetAllMocks();
   // AppShell reads the unread badge through this transport.
   vi.mocked(notificationsApi.unreadCount).mockResolvedValue({ unread_count: 0 });
+  vi.mocked(quotaApi.get).mockResolvedValue({
+    used: 0, limit: 10, remaining: 10, plan: "free", local_date: "",
+    can_practice: true, upgrade_available: true,
+  });
 });
 
 describe("player home", () => {
@@ -87,9 +91,8 @@ describe("player home", () => {
     for (const login of logins) expect(login.getAttribute("href")).toBe("/login");
   });
 
-  it("shows the daily journey to onboarded players with verified phones", async () => {
+  it("shows the daily journey to onboarded players (verification never gates free use)", async () => {
     authState(true);
-    vi.mocked(phoneApi.status).mockResolvedValue({ phone: "+9891", verified: true });
     vi.mocked(onboardingApi.get).mockResolvedValue({
       experience: "beginner",
       play_frequency: "weekly",
@@ -116,35 +119,11 @@ describe("player home", () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getByText("امروز ۳ مأموریت برایت آماده کرده‌ایم.")).toBeTruthy());
-    expect(phoneApi.status).toHaveBeenCalled();
-  });
-
-  it("gates unverified phones to the verification screen", async () => {
-    authState(true);
-    vi.mocked(phoneApi.status).mockResolvedValue({ phone: "+9891", verified: false });
-    vi.mocked(onboardingApi.get).mockResolvedValue({
-      experience: "",
-      play_frequency: "",
-      fide_rating: null,
-      lichess_username: "",
-      chesscom_username: "",
-      goal: "",
-      intensity: "standard",
-      timezone: "Asia/Tehran",
-      onboarding_completed: false,
-      placement_completed: false,
-    });
-    render(
-      <MemoryRouter>
-        <HomePage />
-      </MemoryRouter>,
-    );
-    await waitFor(() => expect(screen.getByText("تأیید شماره موبایل")).toBeTruthy());
+    expect(onboardingApi.get).toHaveBeenCalled();
   });
 
   it("gates incomplete onboarding to the onboarding flow", async () => {
     authState(true);
-    vi.mocked(phoneApi.status).mockResolvedValue({ phone: "+9891", verified: true });
     vi.mocked(onboardingApi.get).mockResolvedValue({
       experience: "",
       play_frequency: "",

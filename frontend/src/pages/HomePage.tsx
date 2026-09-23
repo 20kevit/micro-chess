@@ -7,30 +7,30 @@ import { AdminDashboardPage } from "./AdminDashboardPage";
 import { DashboardPage } from "./DashboardPage";
 import { JourneyPage } from "./JourneyPage";
 import { OnboardingPage } from "./OnboardingPage";
-import { VerifyPhonePage } from "./VerifyPhonePage";
 import { CoachStudentsPage, ParentChildrenPage } from "./MentorStudentsPage";
-import { onboardingApi, phoneApi } from "../api/client";
+import { onboardingApi } from "../api/client";
 
 // Home: role-separated landing. Anonymous visitors get the parent-focused
 // marketing landing; each authenticated session lands on its own
-// active-role view. PLAYER accounts flow through the P11 journey gate:
-// phone verification -> onboarding -> Daily Journey (never a dead-end
-// generic dashboard).
+// active-role view. PLAYER accounts flow through onboarding into the
+// Daily Journey. Phone verification (Telegram/Bale) is optional for
+// Free use and never gates the journey: it is offered at the daily
+// limit, on the account page, and in the premium flow.
 export function HomePage() {
   const { user, loading } = useAuth();
-  const [gate, setGate] = useState<"loading" | "phone" | "onboarding" | "journey">("loading");
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!user) return;
     let alive = true;
-    Promise.all([phoneApi.status().catch(() => null), onboardingApi.get().catch(() => null)]).then(
-      ([phone, onboarding]) => {
-        if (!alive) return;
-        if (phone && !phone.verified) setGate("phone");
-        else if (onboarding && !onboarding.onboarding_completed) setGate("onboarding");
-        else setGate("journey");
-      },
-    );
+    onboardingApi
+      .get()
+      .then((o) => {
+        if (alive) setOnboarded(o.onboarding_completed);
+      })
+      .catch(() => {
+        if (alive) setOnboarded(true);
+      });
     return () => {
       alive = false;
     };
@@ -42,9 +42,8 @@ export function HomePage() {
   if (active === "ADMIN") return <AdminDashboardPage />;
   if (active === "COACH") return <CoachStudentsPage />;
   if (active === "PARENT") return <ParentChildrenPage />;
-  if (gate === "loading") return <p className="py-8 text-center text-stone-500">{t("common.loading")}</p>;
-  if (gate === "phone") return <VerifyPhonePage />;
-  if (gate === "onboarding") return <OnboardingPage />;
+  if (onboarded === null) return <p className="py-8 text-center text-stone-500">{t("common.loading")}</p>;
+  if (!onboarded) return <OnboardingPage />;
   return <JourneyPage />;
 }
 

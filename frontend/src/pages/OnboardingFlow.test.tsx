@@ -3,12 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OnboardingPage } from "./OnboardingPage";
-import { VerifyPhonePage } from "./VerifyPhonePage";
-import { onboardingApi, phoneApi, notifyApi } from "../api/client";
+import { VerifyPage } from "./VerifyPage";
+import { onboardingApi, verificationApi, notifyApi } from "../api/client";
 
 vi.mock("../api/client", () => ({
   onboardingApi: { get: vi.fn(), save: vi.fn(), placement: vi.fn(), completePlacement: vi.fn(), plan: vi.fn() },
-  phoneApi: { status: vi.fn(), start: vi.fn(), resend: vi.fn(), verify: vi.fn() },
+  verificationApi: { status: vi.fn(), createSession: vi.fn() },
   journeyApi: { today: vi.fn() },
   notifyApi: { track: vi.fn().mockResolvedValue(undefined) },
   apiDetail: () => "",
@@ -69,38 +69,40 @@ describe("onboarding flow", () => {
   });
 });
 
-describe("phone verification", () => {
-  it("sends an OTP then verifies the code", async () => {
+describe("channel verification", () => {
+  it("offers Telegram/Bale, shows the pairing code, no phone typing", async () => {
     const user = userEvent.setup();
-    vi.mocked(phoneApi.status).mockResolvedValue({ phone: null, verified: false });
-    vi.mocked(phoneApi.start).mockResolvedValue({ phone: "+98912", expires_at: "", sent: true });
-    vi.mocked(phoneApi.verify).mockResolvedValue({ phone: "+98912", verified: true });
+    vi.mocked(verificationApi.createSession).mockResolvedValue({
+      channel: "telegram", pairing_code: "123456", bot_username: "testbot",
+      bot_url: "https://t.me/testbot", expires_at: "",
+    });
     render(
       <MemoryRouter>
-        <VerifyPhonePage />
+        <VerifyPage />
       </MemoryRouter>,
     );
-    await user.type(screen.getByPlaceholderText("مثلاً 09123456789"), "09123456789");
-    await user.click(screen.getByRole("button", { name: "ارسال کد تأیید" }));
-    await waitFor(() => expect(phoneApi.start).toHaveBeenCalled());
-    await user.type(await screen.findByLabelText(/کد تأیید/), "123456");
-    await user.click(screen.getByRole("button", { name: "تأیید" }));
-    await waitFor(() => expect(phoneApi.verify).toHaveBeenCalledWith("123456"));
+    expect(screen.queryByPlaceholderText(/09/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "تأیید با تلگرام" }));
+    await waitFor(() => expect(verificationApi.createSession).toHaveBeenCalledWith("telegram"));
+    await waitFor(() => expect(screen.getByText("123456")).toBeTruthy());
   });
 
-  it("accepts only digits in the OTP field", async () => {
+  it("shows the success state with premium CTA after verification", async () => {
     const user = userEvent.setup();
-    vi.mocked(phoneApi.status).mockResolvedValue({ phone: null, verified: false });
-    vi.mocked(phoneApi.start).mockResolvedValue({ phone: "+98912", expires_at: "", sent: true });
+    vi.mocked(verificationApi.createSession).mockResolvedValue({
+      channel: "bale", pairing_code: "654321", bot_username: "", bot_url: "",
+      expires_at: "",
+    });
+    vi.mocked(verificationApi.status).mockResolvedValue({
+      verified: true, phone_masked: "+98912***6789", channel: "bale",
+    });
     render(
       <MemoryRouter>
-        <VerifyPhonePage />
+        <VerifyPage />
       </MemoryRouter>,
     );
-    await user.type(screen.getByPlaceholderText("مثلاً 09123456789"), "09123456789");
-    await user.click(screen.getByRole("button", { name: "ارسال کد تأیید" }));
-    const code = await screen.findByLabelText(/کد تأیید/);
-    await user.type(code, "12ab34");
-    expect((code as HTMLInputElement).value).toBe("1234");
+    await user.click(screen.getByRole("button", { name: "تأیید با بله" }));
+    await waitFor(() => expect(screen.getByText("شماره‌ات تأیید شد")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "دریافت حساب ویژه" })).toBeTruthy();
   });
 });
