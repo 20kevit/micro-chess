@@ -22,7 +22,7 @@ def _utcnow() -> datetime:
 
 
 # Canonical external chess providers (see USER_PROFILES.md section 3).
-PROVIDERS = ("fide", "lichess", "chess_com")
+PROVIDERS = ("fide", "lichess", "chess_com", "telegram", "bale")
 
 
 class PlayerProfile(Base):
@@ -42,11 +42,17 @@ class PlayerProfile(Base):
 class PlayerExternalIdentity(Base):
     __tablename__ = "player_external_identities"
     __table_args__ = (
-        CheckConstraint("provider IN ('fide','lichess','chess_com')", name="ck_external_identity_provider"),
+        CheckConstraint(
+            "provider IN ('fide','lichess','chess_com','telegram','bale')",
+            name="ck_external_identity_provider",
+        ),
         # One identity per provider per player (a player links each provider once).
         UniqueConstraint("user_id", "provider", name="uq_external_identity_owner_provider"),
         # A provider account links to at most one MicroChess account.
         UniqueConstraint("provider", "external_username", name="uq_external_identity_provider_account"),
+        # Stable platform ids (Telegram/Bale) are globally unique per
+        # provider and are the anti-takeover key (usernames never are).
+        UniqueConstraint("provider", "provider_user_id", name="uq_external_identity_provider_uid"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -57,8 +63,12 @@ class PlayerExternalIdentity(Base):
     # Self-reported rating; informational, never a MicroChess rating.
     rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
     rating_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    # Server-controlled verification state. No verification mechanism
-    # exists yet, so this stays False (never client-settable).
+    # Stable platform user id for telegram/bale (server-verified via
+    # contact sharing; never a username). NULL for self-reported rows.
+    provider_user_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Display name reported by the provider (informational only).
+    display_name: Mapped[str] = mapped_column(String(100), default="")
+    # Server-controlled verification state (never client-settable).
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)

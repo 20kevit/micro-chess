@@ -56,6 +56,13 @@ class ChannelLinkToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Phone-verification session fields (Telegram/Bale pairing flow):
+    # user-typed 6-digit code (unique among live sessions, enforced in
+    # service with retry), attempt counter, and the provider chat bound
+    # after the code is claimed. NULL for legacy pure link tokens.
+    pairing_code: Mapped[str | None] = mapped_column(String(12), nullable=True, index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    chat_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 

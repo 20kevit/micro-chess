@@ -44,10 +44,11 @@ from app.modules.recommendations.router import router as recommendations_router
 from app.modules.trapped_pieces.router import router as trapped_pieces_router
 from app.modules.undefended_pieces.router import router as undefended_pieces_router
 from app.modules.users.router import router as users_router
-from app.modules.phone_verification.router import router as phone_router
 from app.modules.onboarding.router import router as onboarding_router
 from app.modules.daily_quests.router import router as journey_router
 from app.modules.notify.router import router as notify_router
+from app.modules.quota.router import router as quota_router
+from app.modules.verification.router import router as verification_router
 
 # Register exercise validators (no core-flow changes needed per exercise).
 import app.modules.blindfold_square_vision as _blindfold_square_vision  # noqa: F401
@@ -135,10 +136,11 @@ app.include_router(attempts_router, prefix=API_V1_PREFIX)
 app.include_router(recommendations_router, prefix=API_V1_PREFIX)
 app.include_router(trapped_pieces_router, prefix=API_V1_PREFIX)
 app.include_router(undefended_pieces_router, prefix=API_V1_PREFIX)
-app.include_router(phone_router, prefix=API_V1_PREFIX)
 app.include_router(onboarding_router, prefix=API_V1_PREFIX)
 app.include_router(journey_router, prefix=API_V1_PREFIX)
 app.include_router(notify_router, prefix=API_V1_PREFIX)
+app.include_router(quota_router, prefix=API_V1_PREFIX)
+app.include_router(verification_router, prefix=API_V1_PREFIX)
 
 # Last: serve the prebuilt frontend (Vite dist/ deployed as
 # backend/static/) with SPA fallback. No-op when the bundle is absent

@@ -31,7 +31,7 @@ from app.db.base import Base
 
 logger = logging.getLogger("microchess.db")
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 
 class SchemaVersion(Base):
@@ -484,6 +484,79 @@ def _migrate_v16_p11(conn) -> None:
             logger.warning("p11 migration: could not ensure index ix_users_phone")
 
 
+def _migrate_v17_verification_quota(conn) -> None:
+    """Phone verification via Telegram/Bale + daily quota usage.
+
+    * ``daily_usage`` is created by ``ensure_schema`` via
+      ``Base.metadata.create_all`` (fresh and existing DBs alike).
+    * ``channel_link_tokens`` gains nullable ``pairing_code``,
+      ``attempts``, ``chat_id`` columns idempotently (verification
+      sessions reuse this table; legacy pure link tokens keep NULLs).
+    * ``player_external_identities`` gains nullable
+      ``provider_user_id``/``display_name`` and admits
+      ``telegram``/``bale`` providers. SQLite cannot ALTER a CHECK
+      constraint, so the table is rebuilt on SQLite (data preserved,
+      new columns defaulted); other backends get idempotent ADD
+      COLUMNs plus a constraint replacement. Pre-existing
+      fide/lichess/chess_com rows are copied verbatim.
+    Only portable types. No backfill is fabricated.
+    """
+    insp = inspect(conn)
+    tables = set(insp.get_table_names())
+    if "channel_link_tokens" in tables:
+        token_cols = {c["name"] for c in insp.get_columns("channel_link_tokens")}
+        if "pairing_code" not in token_cols:
+            conn.execute(text("ALTER TABLE channel_link_tokens ADD COLUMN pairing_code VARCHAR(12)"))
+        if "attempts" not in token_cols:
+            conn.execute(text("ALTER TABLE channel_link_tokens ADD COLUMN attempts INTEGER"))
+            conn.execute(
+                text("UPDATE channel_link_tokens SET attempts = 0 WHERE attempts IS NULL")
+            )
+        if "chat_id" not in token_cols:
+            conn.execute(text("ALTER TABLE channel_link_tokens ADD COLUMN chat_id VARCHAR(100)"))
+        try:
+            conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_channel_link_tokens_pairing_code "
+                     "ON channel_link_tokens (pairing_code)")
+            )
+        except Exception:
+            logger.warning("v17 migration: could not ensure pairing_code index")
+    if "player_external_identities" in tables:
+        identity_cols = {c["name"] for c in insp.get_columns("player_external_identities")}
+        if conn.dialect.name == "sqlite":
+            if "provider_user_id" not in identity_cols:
+                from app.modules.player.models import PlayerExternalIdentity
+
+                conn.execute(text("ALTER TABLE player_external_identities RENAME TO identities_legacy_v16"))
+                PlayerExternalIdentity.__table__.create(bind=conn)
+                cols = ("id, user_id, provider, external_username, rating, rating_type, "
+                        "is_verified, verified_at, created_at, updated_at")
+                conn.execute(
+                    text(
+                        f"INSERT INTO player_external_identities ({cols}) "
+                        f"SELECT {cols} FROM identities_legacy_v16"
+                    )
+                )
+                conn.execute(text("DROP TABLE identities_legacy_v16"))
+        else:
+            if "provider_user_id" not in identity_cols:
+                conn.execute(
+                    text("ALTER TABLE player_external_identities ADD COLUMN provider_user_id VARCHAR(100)")
+                )
+            if "display_name" not in identity_cols:
+                conn.execute(
+                    text("ALTER TABLE player_external_identities ADD COLUMN display_name VARCHAR(100)")
+                )
+            try:
+                conn.execute(text("ALTER TABLE player_external_identities "
+                                  "DROP CONSTRAINT ck_external_identity_provider"))
+            except Exception:
+                logger.warning("v17 migration: could not drop legacy provider check")
+            # The model CHECK ships via create_all on fresh boots; upgraded
+            # PostgreSQL databases rely on service-layer provider validation
+            # (single canonical allowlist) rather than a re-added CHECK.
+
+
 MIGRATIONS: list[tuple[int, str, object]] = [
     (2, "phase-02 accounts: username identity, roles, sessions, guests", _migrate_v2_accounts),
     (3, "phase-03 player platform: profiles, external identities", _migrate_v3_player),
@@ -500,6 +573,7 @@ MIGRATIONS: list[tuple[int, str, object]] = [
     (14, "p6 assignment & assessment: assessments table via create_all + nullable assignment/assessment links and source/goal columns", _migrate_v14_p6),
     (15, "billing: plans, prices, subscriptions, coupons, attribution, payments via create_all", _migrate_v15_billing),
     (16, "p11 onboarding/journey/notifications: nullable phone/phone_verified/timezone on users; new tables via create_all", _migrate_v16_p11),
+    (17, "verification via telegram/bale + daily quota: token session columns, identity providers/uid columns, daily_usage via create_all", _migrate_v17_verification_quota),
 ]
 
 
