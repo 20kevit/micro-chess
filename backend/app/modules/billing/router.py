@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.capabilities import Capability, require_capability
 from app.core.deps import get_current_session_optional, get_current_user_optional, get_db
+from app.core.rate_limit import enforce_billing_rate_limit
 from app.modules.auth.models import AuthSession
 from app.modules.billing import schemas, service
 from app.modules.billing.entitlements import ALL_FEATURES
@@ -125,6 +126,7 @@ def validate_coupon(
     body: schemas.CouponValidateIn,
     db: Session = Depends(get_db),
     user: User = Depends(_require_user),
+    _limited: None = Depends(enforce_billing_rate_limit),
 ):
     try:
         quote = service.validate_coupon(
@@ -152,6 +154,7 @@ def redeem_coupon(
     body: schemas.CouponRedeemIn,
     db: Session = Depends(get_db),
     user: User = Depends(_require_user),
+    _limited: None = Depends(enforce_billing_rate_limit),
 ):
     try:
         outcome = service.redeem_coupon(
@@ -190,6 +193,143 @@ def cancel_my_subscription(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return _sub_out(sub)
+
+
+@router.get("/billing/me/premium/quote", response_model=schemas.PremiumQuoteOut)
+def premium_quote(
+    coupon_code: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(_require_user),
+):
+    """Invoice preview: price / discount / payable for premium activation.
+
+    Phone verification is required before any activation step. Without
+    a coupon the full price is shown with ``gateway_required`` honest
+    about paid checkout being unavailable in this phase.
+    """
+    _ = user
+    service.ensure_premium_price(db)
+    premium = service.get_plan_by_code(db, service.PREMIUM_PLAN_CODE)
+    price = service.get_active_price(db, premium.id) if premium else None
+    amount = price.amount_minor if price else 0
+    currency = price.currency if price else "IRR"
+    if not coupon_code:
+        return schemas.PremiumQuoteOut(
+            plan_code=service.PREMIUM_PLAN_CODE,
+            plan_name_fa=premium.name_fa if premium else "",
+            price_amount_minor=amount,
+            currency=currency,
+            discount_minor=0,
+            final_amount_minor=amount,
+            coupon_code=None,
+            gateway_required=amount > 0,
+        )
+    try:
+        quote = service.validate_coupon(
+            db, code=coupon_code, user_id=user.id, plan_code=service.PREMIUM_PLAN_CODE
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=_COUPON_ERRORS.get(str(exc), 400), detail=str(exc)
+        )
+    final = quote["final_amount_minor"] or 0
+    return schemas.PremiumQuoteOut(
+        plan_code=quote["plan_code"],
+        plan_name_fa=premium.name_fa if premium else "",
+        price_amount_minor=quote["price_amount_minor"] or 0,
+        currency=quote["currency"],
+        discount_minor=quote["discount_minor"],
+        final_amount_minor=final,
+        coupon_code=service.normalize_coupon_code(coupon_code),
+        gateway_required=final > 0,
+    )
+
+
+@router.post("/billing/me/premium/activate", response_model=schemas.PremiumActivateOut)
+def premium_activate(
+    body: schemas.PremiumActivateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(_require_user),
+    _limited: None = Depends(enforce_billing_rate_limit),
+):
+    """Activate premium with a coupon (no gateway when payable is zero).
+
+    Requires a verified phone (Telegram/Bale). The coupon is redeemed
+    through the standard engine; a zero final amount settles without
+    any payment redirect. Non-zero payables are honestly rejected:
+    paid checkout does not exist in this phase.
+    """
+    if not user.phone_verified:
+        raise HTTPException(status_code=403, detail="phone_not_verified")
+    service.ensure_premium_price(db)
+    try:
+        outcome = service.redeem_coupon(
+            db, user_id=user.id, code=body.coupon_code,
+            plan_code=service.PREMIUM_PLAN_CODE,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=_COUPON_ERRORS.get(str(exc), 400), detail=str(exc)
+        )
+    redemption = outcome["redemption"]
+    if outcome["already"] and redemption.subscription_id:
+        sub = db.get(service.BillingSubscription, redemption.subscription_id)
+        if sub is not None and sub.status in ("trialing", "active"):
+            return schemas.PremiumActivateOut(
+                subscription_id=sub.id, plan_code=sub.plan_code,
+                status=sub.status, final_amount_minor=0, already=True,
+            )
+    coupon = db.get(service.BillingCoupon, redemption.coupon_id)
+    if coupon is not None and coupon.discount_type == "free_trial":
+        sub = db.get(service.BillingSubscription, redemption.subscription_id)
+        if sub is None:
+            raise HTTPException(status_code=409, detail="activation_failed")
+        return schemas.PremiumActivateOut(
+            subscription_id=sub.id, plan_code=sub.plan_code,
+            status=sub.status, final_amount_minor=0,
+            already=bool(outcome["already"]),
+        )
+    payment = (
+        db.query(service.BillingPayment)
+        .filter(
+            service.BillingPayment.user_id == user.id,
+            service.BillingPayment.subscription_id == redemption.subscription_id,
+            service.BillingPayment.status == "pending",
+        )
+        .order_by(service.BillingPayment.id.desc())
+        .first()
+    )
+    if payment is None:
+        # Idempotent replay: an already-settled payment links the sub.
+        settled = (
+            db.query(service.BillingPayment)
+            .filter(
+                service.BillingPayment.user_id == user.id,
+                service.BillingPayment.coupon_code == service.normalize_coupon_code(body.coupon_code),
+                service.BillingPayment.status == "verified",
+            )
+            .order_by(service.BillingPayment.id.desc())
+            .first()
+        )
+        if settled is not None and settled.subscription_id:
+            return schemas.PremiumActivateOut(
+                subscription_id=settled.subscription_id, plan_code=settled.plan_code,
+                status="active", final_amount_minor=settled.final_amount_minor or 0,
+                already=True,
+            )
+        raise HTTPException(status_code=409, detail="activation_failed")
+    if (payment.final_amount_minor or 0) != 0:
+        raise HTTPException(status_code=422, detail="payment_required")
+    try:
+        result = service.activate_zero_payment(db, user_id=user.id, payment_id=payment.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    sub = result["subscription"]
+    return schemas.PremiumActivateOut(
+        subscription_id=sub.id, plan_code=sub.plan_code, status=sub.status,
+        final_amount_minor=payment.final_amount_minor or 0,
+        already=bool(result["already"]),
+    )
 
 
 @router.get("/billing/me/advanced-overview")

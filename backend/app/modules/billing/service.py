@@ -903,6 +903,155 @@ def redeem_coupon(
     return {"redemption": redemption, "already": False, "subscription_id": subscription_id}
 
 
+# --- premium price & zero-amount activation -----------------------------------
+
+# Fallback premium price (minor units, IRR) used only until the operator
+# configures a real price version via the admin API. Displayed honestly
+# as the plan price; a 100% coupon brings the payable amount to zero.
+DEFAULT_PREMIUM_PRICE_MINOR = 990000
+PREMIUM_PERIOD_DAYS = 30
+
+
+def premium_price_minor_default() -> int:
+    """Operator-configurable default premium price (env, minor units)."""
+    import os as _os
+
+    try:
+        value = int((_os.environ.get("PREMIUM_PRICE_MINOR") or "").strip() or 0)
+    except (TypeError, ValueError):
+        value = 0
+    return value if value > 0 else DEFAULT_PREMIUM_PRICE_MINOR
+
+
+def ensure_premium_price(db: Session) -> BillingPlanPrice | None:
+    """Guarantee the premium plan has an active price (idempotent).
+
+    Percent/fixed coupons need a price to quote against; without one
+    the invoice cannot show «price / discount / payable». Never edits
+    existing versions: a new version is minted only when no active
+    price exists.
+    """
+    ensure_default_plans(db)
+    premium = get_plan_by_code(db, PREMIUM_PLAN_CODE)
+    assert premium is not None
+    price = get_active_price(db, premium.id)
+    if price is not None:
+        return price
+    existing = (
+        db.query(BillingPlanPrice)
+        .filter(BillingPlanPrice.plan_id == premium.id)
+        .order_by(BillingPlanPrice.version.desc())
+        .first()
+    )
+    version = (existing.version + 1) if existing else 1
+    price = BillingPlanPrice(
+        plan_id=premium.id,
+        version=version,
+        amount_minor=premium_price_minor_default(),
+        currency="IRR",
+        billing_interval=premium.billing_interval,
+        is_active=True,
+        effective_from=_utcnow_naive(),
+    )
+    db.add(price)
+    db.commit()
+    db.refresh(price)
+    audit_event(action="billing.price_activated", actor=None,
+                target_type="plan_price", target_id=price.id,
+                extra={"plan": premium.code, "version": price.version})
+    return price
+
+
+def activate_zero_payment(db: Session, *, user_id: int, payment_id: int) -> dict:
+    """Settle a zero-payable coupon payment without any gateway.
+
+    Preconditions (all server-checked): the payment belongs to the
+    user, is ``pending`` with ``provider == "none"``, its final amount
+    is 0, and an ``applied`` coupon redemption backs it. The payment is
+    marked ``verified`` with explicit zero-settlement metadata (no
+    money is claimed to have moved: ``final_amount_minor`` stays 0)
+    and a premium/active ``coupon``-source subscription is created.
+    Idempotent: replays return the existing subscription.
+    """
+    payment = db.get(BillingPayment, int(payment_id))
+    if payment is None or payment.user_id != int(user_id):
+        raise ValueError("payment_not_found")
+    if payment.status == "verified" and payment.subscription_id is not None:
+        sub = db.get(BillingSubscription, payment.subscription_id)
+        if sub is not None and sub.user_id == int(user_id):
+            return {"subscription": sub, "payment": payment, "already": True}
+    if payment.status != "pending":
+        raise ValueError("payment_not_activatable")
+    if payment.provider != "none" or (payment.final_amount_minor or 0) != 0:
+        raise ValueError("payment_not_activatable")
+    redemption = (
+        db.query(BillingCouponRedemption)
+        .filter(
+            BillingCouponRedemption.user_id == int(user_id),
+            BillingCouponRedemption.coupon_id.in_(
+                db.query(BillingCoupon.id).filter(
+                    BillingCoupon.code == (payment.coupon_code or "")
+                )
+            ),
+            BillingCouponRedemption.status == "applied",
+        )
+        .first()
+    )
+    if redemption is None and payment.coupon_code:
+        raise ValueError("coupon_not_redeemed")
+    payment.status = "verified"
+    payment.verification_meta = {
+        "settled": "zero_amount_coupon",
+        "gateway": "skipped",
+        "coupon_code": payment.coupon_code,
+    }
+    ensure_default_plans(db)
+    premium = get_plan_by_code(db, PREMIUM_PLAN_CODE)
+    assert premium is not None
+    price = get_active_price(db, premium.id)
+    now = _utcnow_naive()
+    sub = BillingSubscription(
+        user_id=int(user_id),
+        plan_id=premium.id,
+        price_id=price.id if price else None,
+        status="active",
+        source="coupon",
+        trial_ends_at=None,
+        current_period_start=now,
+        current_period_end=now + timedelta(days=PREMIUM_PERIOD_DAYS),
+        cancelled_at=None,
+        plan_code=premium.code,
+        price_amount_minor=payment.price_amount_minor,
+        price_currency=payment.currency,
+        price_interval=premium.billing_interval,
+        coupon_code=payment.coupon_code,
+    )
+    db.add(sub)
+    db.flush()
+    db.add(
+        BillingSubscriptionEvent(
+            subscription_id=sub.id, from_status="", to_status="active",
+            reason=f"zero_payment_activated:{payment.coupon_code or ''}",
+        )
+    )
+    payment.subscription_id = sub.id
+    db.flush()
+    db.commit()
+    db.refresh(sub)
+    db.refresh(payment)
+    audit_event(action="billing.subscription_active", actor=int(user_id),
+                target_type="subscription", target_id=sub.id,
+                extra={"source": "coupon", "payment_id": payment.id})
+    try:
+        from app.modules.notify import service as notify_service
+
+        notify_service.track(db, user_id=int(user_id), type="premium_activated",
+                             props={"plan": premium.code})
+    except Exception:
+        pass
+    return {"subscription": sub, "payment": payment, "already": False}
+
+
 # --- attribution --------------------------------------------------------------
 
 

@@ -86,6 +86,31 @@ class RedemptionOut(BaseModel):
     already: bool
 
 
+class PremiumQuoteOut(BaseModel):
+    """Invoice preview for premium activation (display only)."""
+
+    plan_code: str
+    plan_name_fa: str
+    price_amount_minor: int
+    currency: str
+    discount_minor: int
+    final_amount_minor: int
+    coupon_code: str | None = None
+    gateway_required: bool = False
+
+
+class PremiumActivateIn(BaseModel):
+    coupon_code: str = Field(min_length=1, max_length=64)
+
+
+class PremiumActivateOut(BaseModel):
+    subscription_id: int
+    plan_code: str
+    status: str
+    final_amount_minor: int
+    already: bool
+
+
 class CampaignOut(BaseModel):
     slug: str
     name_fa: str
