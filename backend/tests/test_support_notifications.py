@@ -612,7 +612,7 @@ def test_suspend_and_reactivate_emit_mandatory_account_notices(client, db_sessio
 
 def test_fresh_database_boots_to_v10_with_support_tables():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    assert SCHEMA_VERSION == 16
+    assert SCHEMA_VERSION == 17
     assert ensure_schema(engine) == SCHEMA_VERSION
     assert get_schema_version(engine) == SCHEMA_VERSION
     tables = inspect(engine).get_table_names()

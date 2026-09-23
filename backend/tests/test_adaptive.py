@@ -278,7 +278,12 @@ def test_observed_difficulty_flows_into_selection(client, db_session):
 
 
 def test_weak_exercise_detected_from_accuracy(client, db_session):
+    from app.modules.billing import service as billing_service
+
     token = _token(client, "weak_player")
+    # This signal test needs 23 attempts in one day, beyond the free
+    # daily quota: grant a premium trial so the quota under test is 100.
+    billing_service.grant_trial(db_session, user_id=_user_id(client, token), days=30)
     puzzle = _puzzle(db_session, rating=1200.0)
     other = _puzzle(db_session, rating=1200.0)
     # Old failures keep overall accuracy low while the recent window is
@@ -648,7 +653,7 @@ def test_fresh_database_boots_to_v9_with_adaptive_table():
     from app.db.base import Base
     from app.db.migration import SCHEMA_VERSION, ensure_schema, get_schema_version
 
-    assert SCHEMA_VERSION == 16
+    assert SCHEMA_VERSION == 17
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     assert ensure_schema(engine) == SCHEMA_VERSION
     assert get_schema_version(engine) == SCHEMA_VERSION

@@ -1,22 +1,20 @@
 """P11 personalized onboarding, daily journey, retention & notifications.
 
-Covers: registration with phone, OTP lifecycle (create/verify/invalid/
-expired/replay/cooldown/attempts), normalization, verified state,
-preferences, quest generation/stability/local-day/timezone, completion
-idempotency, ownership/IDOR, recommendation integration, reminders,
-provider failure, telegram linking security, push ownership, admin
-visibility.
+Covers: onboarding/placement/plan, quest generation/stability/
+local-day/timezone, completion idempotency, ownership/IDOR,
+recommendation integration, preferences, push ownership, reminders,
+analytics validation, admin visibility. Phone verification moved to
+Telegram/Bale contact sharing (see test_verification.py); SMS OTP was
+removed from the product.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
 
-def _register(client: TestClient, username: str, phone: str | None = None) -> dict:
+def _register(client: TestClient, username: str) -> dict:
     body = {"username": username, "password": "password123", "display_name": username}
-    if phone is not None:
-        body["phone"] = phone
     res = client.post("/api/v1/auth/register", json=body)
     assert res.status_code == 201, res.text
     return res.json()
@@ -36,153 +34,9 @@ def _seed_content(db_session) -> None:
     cap_seed.seed_db(db_session)
 
 
-# --- registration with phone -------------------------------------------------
-
-def test_register_with_phone_normalizes(client, db_session):
-    from app.modules.users.models import User
-
-    data = _register(client, "p11_phone_a", "0912 345 6789")
-    token = data["access_token"]
-    me = client.get("/api/v1/users/me", headers=_bearer(token)).json()
-    user = db_session.query(User).filter(User.username == "p11_phone_a").first()
-    assert user.phone == "+989123456789"
-    assert user.phone_verified is False
-    assert me["username"] == "p11_phone_a"
-
-
-def test_register_duplicate_phone_rejected(client):
-    _register(client, "p11_phone_b", "+989100000001")
-    res = client.post(
-        "/api/v1/auth/register",
-        json={"username": "p11_phone_c", "password": "password123", "phone": "09100000001"},
-    )
-    assert res.status_code == 409
-    assert res.json()["detail"] == "phone_taken"
-
-
-def test_register_invalid_phone_rejected(client):
-    res = client.post(
-        "/api/v1/auth/register",
-        json={"username": "p11_phone_d", "password": "password123", "phone": "not-a-number"},
-    )
-    assert res.status_code == 422
-
-
-def test_phone_normalization_variants():
-    from app.modules.phone_verification.service import normalize_phone
-
-    assert normalize_phone("09123456789") == "+989123456789"
-    assert normalize_phone("+989123456789") == "+989123456789"
-    assert normalize_phone("989123456789") == "+989123456789"
-    assert normalize_phone("۰۹۱۲۳۴۵۶۷۸۹") == "+989123456789"
-    assert normalize_phone("+1 415 555 2671") == "+14155552671"
-    for bad in ("", "123", "09abc", "0", None, 123):
-        try:
-            normalize_phone(bad)
-        except ValueError:
-            continue
-        raise AssertionError(f"should reject {bad!r}")
-
-
-# --- OTP lifecycle -----------------------------------------------------------
-
-def test_otp_full_cycle(client):
-    data = _register(client, "p11_otp_a", "09120000001")
-    h = _bearer(data["access_token"])
-    started = client.post("/api/v1/me/phone/start", json={"phone": "09120000001"}, headers=h).json()
-    assert started["phone"] == "+989120000001"
-    assert started["sent"] is True
-
-    from app.modules.phone_verification.models import PhoneOtp
-    from app.modules.users.models import User
-    from app.db.base import Base  # noqa: F401 (ensure models imported)
-
-    # OTP value never appears in responses or stored rows.
-    assert "code" not in started
-    me_row = client.get("/api/v1/me/phone", headers=h).json()
-    assert me_row["verified"] is False
-
-    # Wrong code is rejected generically.
-    bad = client.post("/api/v1/me/phone/verify", json={"code": "000000"}, headers=h)
-    assert bad.status_code == 422
-    assert bad.json()["detail"] == "code_invalid"
-
-    # Resend cooldown enforced (same minute).
-    cool = client.post("/api/v1/me/phone/resend", headers=h)
-    assert cool.status_code == 422
-    assert cool.json()["detail"] == "resend_cooldown"
-
-
-def test_otp_verify_success_marks_verified(client, db_session):
-    import app.modules.sms.ports as sms_ports
-
-    data = _register(client, "p11_otp_b", "09120000002")
-    h = _bearer(data["access_token"])
-    client.post("/api/v1/me/phone/start", json={"phone": "09120000002"}, headers=h)
-    outbox = sms_ports.test_provider().outbox
-    assert outbox, "test SMS provider must record the OTP send"
-    assert "+989120000002" in outbox[-1]["to"]
-    # The code itself is only in the SMS text (never in API responses).
-    import re
-
-    text = outbox[-1]["text"]
-    match = re.search(r"[0-9]{6}", text)
-    assert match, f"OTP digits missing from SMS text: {text!r}"
-    code = match.group(0)
-    res = client.post("/api/v1/me/phone/verify", json={"code": code}, headers=h)
-    assert res.status_code == 200, res.text
-    assert res.json() == {"phone": "+989120000002", "verified": True}
-    # Replay of the same code fails (single-use).
-    replay = client.post("/api/v1/me/phone/verify", json={"code": code}, headers=h)
-    assert replay.status_code == 422
-
-
-def test_otp_attempt_limit_consumes_challenge(client):
-    data = _register(client, "p11_otp_c", "09120000003")
-    h = _bearer(data["access_token"])
-    client.post("/api/v1/me/phone/start", json={"phone": "09120000003"}, headers=h)
-    for _ in range(5):
-        res = client.post("/api/v1/me/phone/verify", json={"code": "999999"}, headers=h)
-        assert res.status_code == 422
-    # Challenge consumed: even the right code now fails as invalid.
-    assert client.post("/api/v1/me/phone/verify", json={"code": "999999"}, headers=h).status_code == 422
-
-
-def test_otp_expiry(client, db_session):
-    from app.modules.phone_verification.models import PhoneOtp
-
-    data = _register(client, "p11_otp_d", "09120000004")
-    h = _bearer(data["access_token"])
-    client.post("/api/v1/me/phone/start", json={"phone": "09120000004"}, headers=h)
-    row = db_session.query(PhoneOtp).order_by(PhoneOtp.id.desc()).first()
-    row.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=1)
-    db_session.commit()
-    res = client.post("/api/v1/me/phone/verify", json={"code": "123456"}, headers=h)
-    assert res.status_code == 422
-    assert res.json()["detail"] == "code_expired"
-
-
-def test_otp_change_phone_before_verify(client):
-    data = _register(client, "p11_otp_e", "09120000005")
-    h = _bearer(data["access_token"])
-    client.post("/api/v1/me/phone/start", json={"phone": "09120000005"}, headers=h)
-    moved = client.post("/api/v1/me/phone/start", json={"phone": "09120000006"}, headers=h)
-    assert moved.status_code == 200
-    assert moved.json()["phone"] == "+989120000006"
-    status = client.get("/api/v1/me/phone", headers=h).json()
-    assert status == {"phone": "+989120000006", "verified": False}
-
-
-def test_otp_requires_auth(client):
-    assert client.post("/api/v1/me/phone/start", json={"phone": "09120000007"}).status_code == 401
-    assert client.get("/api/v1/me/phone").status_code == 401
-
-
-# --- onboarding + placement + plan -------------------------------------------
-
 def test_onboarding_save_and_plan(client, db_session):
     _seed_content(db_session)
-    data = _register(client, "p11_onb_a", "09120000010")
+    data = _register(client, "p11_onb_a")
     h = _bearer(data["access_token"])
     body = {
         "experience": "beginner",
@@ -221,11 +75,9 @@ def test_onboarding_optional_signals(client):
     assert bad.status_code == 422
 
 
-# --- daily quests ------------------------------------------------------------
-
 def test_quest_generation_three_stable(client, db_session):
     _seed_content(db_session)
-    data = _register(client, "p11_q_a", "09120000020")
+    data = _register(client, "p11_q_a")
     h = _bearer(data["access_token"])
     client.put("/api/v1/me/onboarding", json={"experience": "beginner"}, headers=h)
     first = client.get("/api/v1/me/journey/today", headers=h).json()
@@ -241,7 +93,7 @@ def test_quest_completion_requires_progress_and_is_idempotent(client, db_session
     from app.modules.piece_recognition.validator import SLUG as PIECE_SLUG
 
     _seed_content(db_session)
-    data = _register(client, "p11_q_b", "09120000021")
+    data = _register(client, "p11_q_b")
     h = _bearer(data["access_token"])
     client.put("/api/v1/me/onboarding", json={"experience": "beginner", "intensity": "light"}, headers=h)
     today = client.get("/api/v1/me/journey/today", headers=h).json()
@@ -284,8 +136,8 @@ def test_quest_completion_requires_progress_and_is_idempotent(client, db_session
 
 def test_quest_idor(client, db_session):
     _seed_content(db_session)
-    alice = _register(client, "p11_q_c", "09120000022")
-    bob = _register(client, "p11_q_d", "09120000023")
+    alice = _register(client, "p11_q_c")
+    bob = _register(client, "p11_q_d")
     ha, hb = _bearer(alice["access_token"]), _bearer(bob["access_token"])
     client.put("/api/v1/me/onboarding", json={"experience": "beginner"}, headers=ha)
     quest_id = client.get("/api/v1/me/journey/today", headers=ha).json()["quests"][0]["id"]
@@ -302,8 +154,6 @@ def test_quest_timezone_day_boundary():
     assert local_today("Asia/Tehran", late_utc) == "2026-09-22"
     assert local_today("America/New_York", noon_utc) == "2026-09-21"
 
-
-# --- notify: prefs, push, links, reminders, analytics ------------------------
 
 def test_p11_preferences_matrix_and_update(client):
     data = _register(client, "p11_n_a")
@@ -338,45 +188,11 @@ def test_push_subscription_ownership(client):
     ).status_code == 422
 
 
-def test_telegram_link_token_security(client, db_session):
-    import os
-
-    os.environ["BOT_WEBHOOK_SECRET"] = "test-secret"
-    alice = _register(client, "p11_n_d")
-    ha = _bearer(alice["access_token"])
-    tok = client.post("/api/v1/me/channel-links/telegram/token", headers=ha).json()
-    assert tok["token"] and tok["channel"] == "telegram"
-    # Wrong webhook secret is rejected.
-    bad = client.post(
-        "/api/v1/notify/bot/link",
-        json={"token": tok["token"], "channel": "telegram", "external_id": "111"},
-        headers={"x-bot-secret": "wrong"},
-    )
-    assert bad.status_code == 403
-    # Correct secret links; token is one-time (replay fails).
-    ok = client.post(
-        "/api/v1/notify/bot/link",
-        json={"token": tok["token"], "channel": "telegram", "external_id": "111"},
-        headers={"x-bot-secret": "test-secret"},
-    )
-    assert ok.status_code == 200
-    replay = client.post(
-        "/api/v1/notify/bot/link",
-        json={"token": tok["token"], "channel": "telegram", "external_id": "222"},
-        headers={"x-bot-secret": "test-secret"},
-    )
-    assert replay.status_code == 422
-    links = client.get("/api/v1/me/channel-links", headers=ha).json()
-    assert {"channel": "telegram", "linked": True} in [
-        {"channel": link["channel"], "linked": link["linked"]} for link in links
-    ]
-
-
 def test_reminder_respects_completion_and_opt_out(client, db_session):
     from app.modules.notify import service as notify_service
 
     _seed_content(db_session)
-    data = _register(client, "p11_n_e", "09120000030")
+    data = _register(client, "p11_n_e")
     h = _bearer(data["access_token"])
     client.put("/api/v1/me/onboarding", json={"experience": "beginner"}, headers=h)
     client.get("/api/v1/me/journey/today", headers=h)
@@ -406,24 +222,6 @@ def test_reminder_respects_completion_and_opt_out(client, db_session):
     assert [r for r in notify_service.due_reminders(db_session) if r["user_id"] == me.id] == []
 
 
-def test_sms_provider_failure_is_safe(client, monkeypatch):
-    import app.modules.sms.ports as sms_ports
-    from app.modules.sms.ports import SmsResult
-
-    class FailingProvider(sms_ports.SmsProvider):
-        name = "test"
-
-        def send_otp(self, *, to: str, text: str) -> SmsResult:
-            return SmsResult(ok=False, error="provider_error")
-
-    monkeypatch.setattr(sms_ports, "get_provider", lambda: FailingProvider())
-    data = _register(client, "p11_n_f", "09120000031")
-    h = _bearer(data["access_token"])
-    res = client.post("/api/v1/me/phone/start", json={"phone": "09120000031"}, headers=h)
-    assert res.status_code == 200
-    assert res.json()["sent"] is False
-
-
 def test_analytics_events_validated(client):
     data = _register(client, "p11_n_g")
     h = _bearer(data["access_token"])
@@ -435,7 +233,7 @@ def test_admin_journey_overview_without_secrets(client, db_session):
     from tests.conftest import make_auth_headers  # noqa: F401 (documents helper path)
 
     _seed_content(db_session)
-    data = _register(client, "p11_adm_a", "09120000040")
+    data = _register(client, "p11_adm_a")
     h = _bearer(data["access_token"])
     client.put("/api/v1/me/onboarding", json={"experience": "beginner"}, headers=h)
     client.get("/api/v1/me/journey/today", headers=h)
@@ -453,8 +251,7 @@ def test_admin_journey_overview_without_secrets(client, db_session):
     assert overview["onboarding_completed"] >= 1
     assert overview["quest_days"] >= 1
     assert "events" in overview
-    body = str(overview)
-    assert "09120000040" not in body  # no phone numbers leak
     health = client.get("/api/v1/admin/system/provider-health", headers=_bearer(admin_token)).json()
-    assert health["sms"]["provider"] in ("test", "kavenegar")
+    assert "sms" not in health
+    assert "telegram" in health and "bale" in health
     assert "API_KEY" not in str(health) and "api_key" not in str(health).lower()
