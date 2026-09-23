@@ -822,11 +822,14 @@ def dashboard_extended(db: Session) -> dict:
 
 
 def journey_overview(db: Session) -> dict:
-    """P11 funnel metrics (all real counts; no OTP/phone values exposed)."""
+    """Free/Premium funnel metrics (all real counts; no OTP/phone values exposed)."""
+    from app.modules.billing.models import BillingCouponRedemption, BillingSubscription
     from app.modules.daily_quests.models import DailyQuest, DailyQuestDay
     from app.modules.notifications.models import NotificationDelivery
     from app.modules.notify.models import AnalyticsEvent, ChannelLink, PushSubscription
     from app.modules.onboarding.models import OnboardingProfile
+    from app.modules.player.models import PlayerExternalIdentity
+    from app.modules.quota.models import DailyUsage
 
     def _c(q):
         try:
@@ -839,6 +842,21 @@ def journey_overview(db: Session) -> dict:
     placement = _c(db.query(func.count(OnboardingProfile.id)).filter(
         OnboardingProfile.placement_completed.is_(True)))
     verified = _c(db.query(func.count(User.id)).filter(User.phone_verified.is_(True)))
+    telegram_verified = _c(db.query(func.count(PlayerExternalIdentity.id)).filter(
+        PlayerExternalIdentity.provider == "telegram",
+        PlayerExternalIdentity.is_verified.is_(True)))
+    bale_verified = _c(db.query(func.count(PlayerExternalIdentity.id)).filter(
+        PlayerExternalIdentity.provider == "bale",
+        PlayerExternalIdentity.is_verified.is_(True)))
+    free_users = _c(db.query(func.count(BillingSubscription.id)).filter(
+        BillingSubscription.plan_code == "free", BillingSubscription.status == "active"))
+    premium_users = _c(db.query(func.count(BillingSubscription.id)).filter(
+        BillingSubscription.plan_code == "premium",
+        BillingSubscription.status.in_(["trialing", "active", "past_due"])))
+    activations = _c(db.query(func.count(BillingSubscription.id)).filter(
+        BillingSubscription.plan_code == "premium", BillingSubscription.source == "coupon"))
+    redemptions = _c(db.query(func.count(BillingCouponRedemption.id)).filter(
+        BillingCouponRedemption.status == "applied"))
     quest_days = _c(db.query(func.count(DailyQuestDay.id)))
     quests_done = _c(db.query(func.count(DailyQuest.id)).filter(
         DailyQuest.status == "completed"))
@@ -848,6 +866,9 @@ def journey_overview(db: Session) -> dict:
     bale = _c(db.query(func.count(ChannelLink.id)).filter(ChannelLink.channel == "bale"))
     notif_failed = _c(db.query(func.count(NotificationDelivery.id)).filter(
         NotificationDelivery.status == "failed"))
+    users_at_limit = _c(
+        db.query(func.count(func.distinct(DailyUsage.user_id))).filter(DailyUsage.count >= 10)
+    )
     events = {
         str(t): int(c) for t, c in
         db.query(AnalyticsEvent.type, func.count(AnalyticsEvent.id))
@@ -857,6 +878,13 @@ def journey_overview(db: Session) -> dict:
         "onboarding_completed": onboarded,
         "placement_completed": placement,
         "phones_verified": verified,
+        "telegram_verified": telegram_verified,
+        "bale_verified": bale_verified,
+        "free_users": free_users,
+        "premium_users": premium_users,
+        "premium_activations": activations,
+        "coupon_redemptions": redemptions,
+        "users_at_daily_limit": users_at_limit,
         "quest_days": quest_days,
         "quests_completed": quests_done,
         "quests_total": quests_total,

@@ -20,22 +20,9 @@ class PushSubscriptionOut(BaseModel):
     created_at: datetime | None = None
 
 
-class LinkTokenOut(BaseModel):
-    channel: str
-    token: str
-    deep_link: str
-    expires_at: datetime
-
-
 class ChannelLinkOut(BaseModel):
     channel: str
     linked: bool
-
-
-class BotVerifyIn(BaseModel):
-    token: str = Field(min_length=1)
-    channel: str = Field(min_length=1)
-    external_id: str = Field(min_length=1, max_length=100)
 
 
 class PreferenceOut(BaseModel):

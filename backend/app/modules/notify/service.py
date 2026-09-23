@@ -9,13 +9,11 @@ tokens from the environment and fail safely without credentials.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
-import secrets
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -23,7 +21,6 @@ from app.modules.daily_quests.models import STATUS_COMPLETED, DailyQuest, DailyQ
 from app.modules.notify.models import (
     AnalyticsEvent,
     ChannelLink,
-    ChannelLinkToken,
     PushSubscription,
     ReminderLog,
 )
@@ -38,10 +35,11 @@ ALLOWED_EVENT_TYPES = frozenset({
     "notification_permission_denied", "notification_sent", "notification_delivered",
     "notification_failed", "notification_opened", "telegram_linked", "bale_linked",
     "push_subscribed", "push_unsubscribed", "return_session",
+    "registration_completed", "daily_journey_started", "daily_limit_reached",
+    "premium_upgrade_started", "verification_channel_selected",
+    "verification_started", "verification_completed", "verification_failed",
+    "coupon_entered", "coupon_redeemed", "premium_activated",
 })
-
-LINK_TTL = timedelta(minutes=15)
-
 
 def _utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -119,60 +117,11 @@ def vapid_health() -> dict[str, object]:
     return {"configured": pub and priv, "public_key_available": pub}
 
 
-# --- telegram / bale linking -------------------------------------------------
-
-def _new_link_token() -> str:
-    return secrets.token_urlsafe(24)
-
-
-def create_link_token(db: Session, user_id: int, channel: str) -> dict:
-    channel = (channel or "").strip().lower()
-    if channel not in ("telegram", "bale"):
-        raise ValueError("unknown_channel")
-    token = _new_link_token()
-    digest = hashlib.sha256(token.encode()).hexdigest()
-    db.add(ChannelLinkToken(user_id=user_id, channel=channel, token_hash=digest,
-                            expires_at=_utcnow() + LINK_TTL))
-    db.commit()
-    bot = os.environ.get("TELEGRAM_BOT_USERNAME" if channel == "telegram" else "BALE_BOT_USERNAME") or ""
-    deep_link = f"https://t.me/{bot}?start={token}" if bot and channel == "telegram" else ""
-    return {"token": token, "expires_at": _utcnow() + LINK_TTL, "deep_link": deep_link, "channel": channel}
-
-
-def verify_link_token(db: Session, *, token: str, channel: str, external_id: str) -> dict:
-    """Bot-webhook path: token + channel + provider chat id -> link.
-
-    No arbitrary chat-id submission: the token must be a live one-time
-    token owned by the linking user; the external id comes from the
-    verified bot update (webhook secret checked by the router).
-    """
-    channel = (channel or "").strip().lower()
-    external_id = (external_id or "").strip()[:100]
-    if channel not in ("telegram", "bale") or not external_id:
-        raise ValueError("link_invalid")
-    digest = hashlib.sha256((token or "").encode()).hexdigest()
-    row = db.query(ChannelLinkToken).filter(ChannelLinkToken.token_hash == digest).first()
-    now = _utcnow()
-    if row is None or row.used_at is not None or row.expires_at <= now or row.channel != channel:
-        raise ValueError("link_invalid")
-    row.used_at = now
-    link = (
-        db.query(ChannelLink)
-        .filter(ChannelLink.user_id == row.user_id, ChannelLink.channel == channel)
-        .first()
-    )
-    if link is None:
-        link = ChannelLink(user_id=row.user_id, channel=channel, external_id=external_id)
-        db.add(link)
-    else:
-        link.external_id = external_id
-    db.commit()
-    try:
-        track(db, user_id=row.user_id,
-              type="telegram_linked" if channel == "telegram" else "bale_linked")
-    except Exception:
-        pass
-    return {"user_id": row.user_id, "channel": channel, "linked": True}
+# --- telegram / bale channel addresses ---------------------------------------
+#
+# ChannelLink rows are notification addresses (where reminders may be
+# sent). Account verification itself lives in the verification module,
+# which writes these rows only after a contact-sharing proof.
 
 
 def unlink(db: Session, user_id: int, channel: str) -> bool:
@@ -212,7 +161,7 @@ def _send_bot_message(channel: str, chat_id: str, text: str) -> bool:
 # --- preferences (extended matrix) -------------------------------------------
 
 P11_CATEGORIES = ("journey", "reminder", "reward", "system")
-P11_CHANNELS = ("in_app", "web_push", "telegram", "bale", "sms")
+P11_CHANNELS = ("in_app", "web_push", "telegram", "bale")
 
 
 def preferences_matrix(db: Session, user_id: int) -> list[dict]:
@@ -304,7 +253,7 @@ def due_reminders(db: Session, *, limit: int = 100) -> list[dict]:
             continue
         if _today_complete(db, day.user_id, day.local_date):
             continue
-        for channel in ("web_push", "telegram", "bale", "sms"):
+        for channel in ("web_push", "telegram", "bale"):
             if not _p11_enabled(db, day.user_id, "reminder", channel):
                 continue
             logged = (
@@ -336,8 +285,6 @@ def send_due_reminders(db: Session, *, limit: int = 100) -> dict:
 
 
 def _deliver_reminder(db: Session, item: dict) -> bool:
-    from app.modules.sms import ports as sms_ports
-
     text = "میکروچس: مأموریت‌های امروزت هنوز کامل نشده؛ با یک تمرین کوتاه ادامه بده."
     channel = item["channel"]
     ok = False
@@ -353,13 +300,6 @@ def _deliver_reminder(db: Session, item: dict) -> bool:
             .first()
         )
         ok = _send_bot_message(channel, link.external_id, text) if link else False
-    elif channel == "sms":
-        from app.modules.users.models import User
-
-        user = db.get(User, item["user_id"])
-        if user is not None and getattr(user, "phone_verified", False) and user.phone:
-            result = sms_ports.get_provider().send_otp(to=user.phone, text=text)
-            ok = bool(result.ok)
     try:
         db.add(ReminderLog(user_id=item["user_id"], local_date=item["local_date"], channel=channel))
         db.commit()

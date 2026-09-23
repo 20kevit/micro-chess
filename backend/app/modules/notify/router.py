@@ -1,8 +1,6 @@
 """Notify routes: thin wiring (push, channel links, prefs, reminders, analytics)."""
 
-import os
-
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.capabilities import Capability, require_capability
@@ -53,18 +51,6 @@ def list_links(
     return service.list_links(db, user.id)
 
 
-@router.post("/me/channel-links/{channel}/token", response_model=schemas.LinkTokenOut)
-def create_link_token(
-    channel: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_capability(Capability.USERS_READ)),
-):
-    try:
-        return service.create_link_token(db, user.id, channel)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
-
-
 @router.delete("/me/channel-links/{channel}", status_code=204)
 def delete_link(
     channel: str,
@@ -73,20 +59,6 @@ def delete_link(
 ):
     service.unlink(db, user.id, channel)
     return None
-
-
-@router.post("/notify/bot/link")
-def bot_link(body: schemas.BotVerifyIn, request: Request, db: Session = Depends(get_db)):
-    """Bot webhook: verifies shared secret, then links the token owner."""
-    secret = os.environ.get("BOT_WEBHOOK_SECRET") or ""
-    provided = request.headers.get("x-bot-secret") or ""
-    if not secret or provided != secret:
-        raise HTTPException(status_code=403, detail="forbidden")
-    try:
-        return service.verify_link_token(db, token=body.token, channel=body.channel,
-                                         external_id=body.external_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.get("/me/notify-preferences", response_model=list[schemas.PreferenceOut])

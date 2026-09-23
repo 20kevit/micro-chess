@@ -46,6 +46,12 @@ auth_limiter = RateLimiter(per_minute=settings.auth_rate_limit_per_minute)
 # Phase 11: user-triggered support writes (ticket + message creation).
 support_limiter = RateLimiter(per_minute=settings.support_rate_limit_per_minute)
 
+# Free/Premium verification + coupon abuse protection (same in-memory
+# fixed-window mechanism, per-endpoint budgets from Settings).
+verification_limiter = RateLimiter(per_minute=settings.verification_rate_limit_per_minute)
+billing_limiter = RateLimiter(per_minute=settings.billing_rate_limit_per_minute)
+webhook_limiter = RateLimiter(per_minute=settings.webhook_rate_limit_per_minute)
+
 
 def _client_key(request: Request) -> str:
     if request.client is not None:
@@ -65,3 +71,24 @@ def enforce_support_rate_limit(request: Request) -> None:
     if not settings.rate_limit_enabled:
         return
     support_limiter.check(_client_key(request))
+
+
+def enforce_verification_rate_limit(request: Request) -> None:
+    """Dependency for verification-session creation (code farming)."""
+    if not settings.rate_limit_enabled:
+        return
+    verification_limiter.check(_client_key(request))
+
+
+def enforce_billing_rate_limit(request: Request) -> None:
+    """Dependency for coupon validation/redemption/activation."""
+    if not settings.rate_limit_enabled:
+        return
+    billing_limiter.check(_client_key(request))
+
+
+def enforce_webhook_rate_limit(request: Request) -> None:
+    """Dependency for bot webhooks (pairing-code guessing)."""
+    if not settings.rate_limit_enabled:
+        return
+    webhook_limiter.check(_client_key(request))

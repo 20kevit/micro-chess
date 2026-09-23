@@ -135,30 +135,23 @@ def revoke_session(db: Session, session: AuthSession) -> None:
     db.commit()
 
 
-def register_user(db: Session, username: str, password: str, display_name: str, phone: str | None = None) -> tuple[User, str]:
-    """Validate → create account → assign PLAYER → open an authenticated session."""
+def register_user(db: Session, username: str, password: str, display_name: str) -> tuple[User, str]:
+    """Validate → create account → assign PLAYER → open an authenticated session.
+
+    Registration is username + password only. Phone verification is a
+    separate entitlement flow (Telegram/Bale contact sharing) and never
+    blocks account creation.
+    """
     validate_password(password)
     name = validate_username(username)
     if db.query(User).filter(User.username == name).first():
         raise ValueError("username_taken")
     clean_display = (display_name or "").strip()[:100]
-    canonical_phone: str | None = None
-    if phone:
-        from app.modules.phone_verification.service import normalize_phone as _normalize_phone
-
-        try:
-            canonical_phone = _normalize_phone(phone)
-        except ValueError:
-            raise ValueError("phone_invalid")
-        if db.query(User).filter(User.phone == canonical_phone).first():
-            raise ValueError("phone_taken")
     user = User(
         username=name,
         email=None,
         password_hash=hash_password(password),
         display_name=clean_display or name,
-        phone=canonical_phone,
-        phone_verified=False,
     )
     db.add(user)
     db.flush()

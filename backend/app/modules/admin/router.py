@@ -953,10 +953,8 @@ def get_provider_health(
     _ = db
     _ = user
     from app.modules.notify import service as notify_service
-    from app.modules.sms import ports as sms_ports
 
     return {
-        "sms": sms_ports.provider_health(),
         "vapid": notify_service.vapid_health(),
         "telegram": {"configured": bool(__import__("os").environ.get("TELEGRAM_BOT_TOKEN"))},
         "bale": {"configured": bool(__import__("os").environ.get("BALE_BOT_TOKEN"))},

@@ -28,13 +28,11 @@ def register(
     _limited: None = Depends(enforce_auth_rate_limit),
 ):
     try:
-        user, token = service.register_user(db, body.username, body.password, body.display_name, body.phone)
+        user, token = service.register_user(db, body.username, body.password, body.display_name)
     except ValueError as exc:
         audit_event(action="auth.register", result="failed")
         if str(exc) == "username_taken":
             raise HTTPException(status_code=400, detail="username_taken")
-        if str(exc) == "phone_taken":
-            raise HTTPException(status_code=409, detail="phone_taken")
         raise HTTPException(status_code=422, detail=str(exc))
     audit_event(action="auth.register", actor=user.id)
     # Billing hook (best-effort, never breaks registration): persist

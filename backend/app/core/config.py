@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     auth_rate_limit_per_minute: int = 30
     # Phase 11 support abuse protection (spam ticket/message creation).
     support_rate_limit_per_minute: int = 20
+    # Free/Premium verification + coupon abuse protection.
+    verification_rate_limit_per_minute: int = 20
+    billing_rate_limit_per_minute: int = 30
+    webhook_rate_limit_per_minute: int = 120
     # Server-side session lifetimes (single place; never scattered).
     guest_session_expire_days: int = 30
 
