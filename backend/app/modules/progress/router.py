@@ -35,6 +35,8 @@ def create_attempt(
     except ValueError as exc:
         if str(exc) == "auth_required":
             raise HTTPException(status_code=401, detail="auth_required")
+        if str(exc) == "daily_quota_exceeded":
+            raise HTTPException(status_code=403, detail="daily_quota_exceeded")
         if str(exc) == "attempt_owner_conflict":
             raise HTTPException(status_code=400, detail="attempt_owner_conflict")
         if str(exc) == "exercise_not_available":

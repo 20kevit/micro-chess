@@ -129,6 +129,16 @@ def submit_attempt(
         assessment_service.resolve_for_attempt(
             db, user_id=user_id, assessment_id=assessment_id
         )
+    # Daily quota (Free 10 / Premium 100 per user-local day): only
+    # validated correct/partial/wrong attempts consume it, and only
+    # after every other rejection gate above has passed. Terminal
+    # client states and rejected submissions never reach this call, so
+    # existing attempt semantics are preserved exactly. The check runs
+    # before the attempt row is written, inside this same transaction.
+    if result.value in ("correct", "partial", "wrong"):
+        from app.modules.quota import service as quota_service
+
+        quota_service.check_and_consume(db, user_id)
     attempt = Attempt(
         user_id=user_id,
         guest_session_id=guest_session_id,
