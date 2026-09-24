@@ -164,6 +164,15 @@ def check_and_consume(db: Session, user_id: int) -> dict:
     row = _get_or_create_row(db, user_id, local_date, tz, start_utc, end_utc)
     overlap = _overlapping_row(db, user_id, now_utc)
     target = overlap if overlap is not None else row
+    if target.id != row.id:
+        # Lock the overlapping row for Postgres concurrency; SQLite
+        # serializes writers by itself (the clause is a no-op there).
+        target = (
+            db.query(DailyUsage)
+            .filter(DailyUsage.id == target.id)
+            .with_for_update()
+            .first()
+        ) or target
     used = int(target.count or 0)
     if used >= limit:
         try:

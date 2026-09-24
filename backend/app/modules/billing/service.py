@@ -1009,6 +1009,8 @@ def activate_zero_payment(db: Session, *, user_id: int, payment_id: int) -> dict
     premium = get_plan_by_code(db, PREMIUM_PLAN_CODE)
     assert premium is not None
     price = get_active_price(db, premium.id)
+    if price is None:
+        price = ensure_premium_price(db)
     now = _utcnow_naive()
     sub = BillingSubscription(
         user_id=int(user_id),
