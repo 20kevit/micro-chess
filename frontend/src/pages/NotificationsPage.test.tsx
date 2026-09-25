@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationsPage } from "./NotificationsPage";
-import { notificationsApi, notifyApi } from "../api/client";
+import { notificationsApi, notifyApi, verificationApi } from "../api/client";
 import { pushState } from "../lib/push";
 import type { NotificationItem, NotificationPreference } from "../api/types";
 import { t } from "../i18n";
@@ -24,6 +24,7 @@ vi.mock("../api/client", () => ({
     unlink: vi.fn(),
     track: vi.fn().mockResolvedValue(undefined),
   },
+  verificationApi: { status: vi.fn() },
   apiDetail: () => "",
 }));
 vi.mock("../lib/push", () => ({
@@ -65,6 +66,9 @@ beforeEach(() => {
   // resetAllMocks wipes factory implementations: re-establish P11 mocks.
   vi.mocked(notifyApi.preferences).mockResolvedValue([]);
   vi.mocked(notifyApi.channelLinks).mockResolvedValue([]);
+  vi.mocked(verificationApi.status).mockResolvedValue({
+    verified: false, phone_masked: "", channel: null, available_channels: ["bale"],
+  });
   vi.mocked(notifyApi.track).mockResolvedValue(undefined);
   vi.mocked(pushState).mockResolvedValue("unsupported");
 });

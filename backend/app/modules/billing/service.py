@@ -1226,3 +1226,78 @@ def campaign_report(db: Session) -> list[dict]:
             }
         )
     return out
+
+
+def list_admin_redemptions(
+    db: Session,
+    *,
+    status: str | None = None,
+    coupon_code: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> tuple[list[BillingCouponRedemption], int]:
+    query = db.query(BillingCouponRedemption)
+    if status:
+        query = query.filter(BillingCouponRedemption.status == status)
+    if coupon_code:
+        coupon = get_coupon_by_code(db, coupon_code)
+        if coupon is None:
+            return [], 0
+        query = query.filter(BillingCouponRedemption.coupon_id == coupon.id)
+    total = query.count()
+    page = max(int(page), 1)
+    page_size = min(max(int(page_size), 1), 200)
+    rows = (
+        query.order_by(BillingCouponRedemption.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return rows, total
+
+
+def list_admin_subscriptions(
+    db: Session,
+    *,
+    user_id: int | None = None,
+    status: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> tuple[list[BillingSubscription], int]:
+    query = db.query(BillingSubscription)
+    if user_id is not None:
+        query = query.filter(BillingSubscription.user_id == user_id)
+    if status:
+        query = query.filter(BillingSubscription.status == status)
+    total = query.count()
+    page = max(int(page), 1)
+    page_size = min(max(int(page_size), 1), 200)
+    rows = (
+        query.order_by(BillingSubscription.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return rows, total
+
+
+def list_admin_payments(
+    db: Session,
+    *,
+    status: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> tuple[list[BillingPayment], int]:
+    query = db.query(BillingPayment)
+    if status:
+        query = query.filter(BillingPayment.status == status)
+    total = query.count()
+    page = max(int(page), 1)
+    page_size = min(max(int(page_size), 1), 200)
+    rows = (
+        query.order_by(BillingPayment.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return rows, total

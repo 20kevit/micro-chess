@@ -6,7 +6,7 @@ import pytest
 from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult, ValidationResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_staged_puzzles
 from app.modules.trapped_pieces import generator as gen_mod
 from app.modules.trapped_pieces import seed as seed_mod
 from app.modules.trapped_pieces.detector import (
@@ -238,9 +238,10 @@ def test_question_for_fen_exactly_one():
 
 
 def test_curated_fens_all_valid():
-    for fen in gen_mod.CURATED_FENS:
-        data = gen_mod.question_for_fen(fen)
-        assert 1 <= len(data["squares"]) <= 3
+    assert len(gen_mod.CURATED_FENS) == len(set(gen_mod.CURATED_FENS)) == 30
+    answers = [gen_mod.question_for_fen(fen)["squares"] for fen in gen_mod.CURATED_FENS]
+    assert sum(len(squares) == 1 for squares in answers) == 24
+    assert sum(len(squares) > 1 for squares in answers) == 6
 
 
 def test_generate_from_real_source():
@@ -277,7 +278,8 @@ def test_seed_count_and_answer_match(db_session):
             single_count += 1
         for sq in expected:
             kinds.add(chess.Board(puzzle.fen).piece_at(chess.parse_square(sq)).symbol().lower())
-        assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
+        assert puzzle.prompt_fa and puzzle.explanation
+        assert not puzzle.is_published and puzzle.status == "validated"
         assert puzzle.position_json["mode"] == "standard"
     assert "p" not in kinds  # pawns never answers
     assert multi_count >= 1
@@ -343,6 +345,7 @@ def _seeded(db_session) -> Puzzle:
     import random
 
     seed_mod.seed_db(db_session, random.Random(18))
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).order_by(Puzzle.id).first()
     assert puzzle is not None
     return puzzle
@@ -390,6 +393,7 @@ def test_api_next_practice_and_speed_flow(client, db_session):
     import random
 
     seed_mod.seed_db(db_session, random.Random(18))
+    publish_staged_puzzles(db_session, SLUG)
     nxt = client.post("/api/v1/trapped-pieces/next", json={"exclude_ids": []})
     assert nxt.status_code == 200
     assert "answer_json" not in nxt.json()

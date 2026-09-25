@@ -6,7 +6,7 @@ gates are enforced server-side via ``require_entitlement`` — frontend
 hiding is UX only. Paid activation has no browser-triggered path.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.capabilities import Capability, require_capability
@@ -359,14 +359,18 @@ def _coupon_admin_view(db: Session, coupon) -> schemas.CouponAdminOut:
         id=coupon.id,
         code=coupon.code,
         campaign_slug=campaign.slug if campaign else None,
+        description=coupon.description,
         discount_type=coupon.discount_type,
         discount_value=coupon.discount_value,
         trial_days=coupon.trial_days,
+        currency=coupon.currency,
         is_active=coupon.is_active,
         valid_from=coupon.valid_from,
         valid_until=coupon.valid_until,
         max_redemptions=coupon.max_redemptions,
         max_per_user=coupon.max_per_user,
+        first_time_only=coupon.first_time_only,
+        min_amount_minor=coupon.min_amount_minor,
         total_redemptions=total,
         applicable_plan_codes=service._coupon_plan_codes(db, coupon.id),
     )
@@ -551,6 +555,7 @@ def patch_price(
 
 @admin_router.get("/redemptions")
 def list_redemptions(
+    response: Response,
     status: str | None = None,
     coupon_code: str | None = None,
     page: int = 1,
@@ -559,18 +564,10 @@ def list_redemptions(
     user: User = Depends(require_capability(Capability.BILLING_READ)),
 ):
     _ = user
-    page_size = min(max(page_size, 1), 200)
-    query = db.query(service.BillingCouponRedemption).order_by(
-        service.BillingCouponRedemption.id.desc()
+    rows, total = service.list_admin_redemptions(
+        db, status=status, coupon_code=coupon_code, page=page, page_size=page_size
     )
-    if status:
-        query = query.filter(service.BillingCouponRedemption.status == status)
-    if coupon_code:
-        coupon = service.get_coupon_by_code(db, coupon_code)
-        if coupon is None:
-            return []
-        query = query.filter(service.BillingCouponRedemption.coupon_id == coupon.id)
-    rows = query.offset((page - 1) * page_size).limit(page_size).all()
+    response.headers["X-Total-Count"] = str(total)
     out = []
     for row in rows:
         coupon = db.get(service.BillingCoupon, row.coupon_id)
@@ -591,6 +588,7 @@ def list_redemptions(
 
 @admin_router.get("/subscriptions")
 def list_subscriptions(
+    response: Response,
     user_id: int | None = None,
     status: str | None = None,
     page: int = 1,
@@ -599,13 +597,10 @@ def list_subscriptions(
     user: User = Depends(require_capability(Capability.BILLING_READ)),
 ):
     _ = user
-    page_size = min(max(page_size, 1), 200)
-    query = db.query(service.BillingSubscription).order_by(service.BillingSubscription.id.desc())
-    if user_id is not None:
-        query = query.filter(service.BillingSubscription.user_id == user_id)
-    if status:
-        query = query.filter(service.BillingSubscription.status == status)
-    rows = query.offset((page - 1) * page_size).limit(page_size).all()
+    rows, total = service.list_admin_subscriptions(
+        db, user_id=user_id, status=status, page=page, page_size=page_size
+    )
+    response.headers["X-Total-Count"] = str(total)
     out = []
     for row in rows:
         payload = _sub_out(row).model_dump()
@@ -618,6 +613,7 @@ def list_subscriptions(
 
 @admin_router.get("/payments")
 def list_payments(
+    response: Response,
     status: str | None = None,
     page: int = 1,
     page_size: int = 50,
@@ -625,11 +621,10 @@ def list_payments(
     user: User = Depends(require_capability(Capability.BILLING_READ)),
 ):
     _ = user
-    page_size = min(max(page_size, 1), 200)
-    query = db.query(service.BillingPayment).order_by(service.BillingPayment.id.desc())
-    if status:
-        query = query.filter(service.BillingPayment.status == status)
-    rows = query.offset((page - 1) * page_size).limit(page_size).all()
+    rows, total = service.list_admin_payments(
+        db, status=status, page=page, page_size=page_size
+    )
+    response.headers["X-Total-Count"] = str(total)
     return [
         {
             "id": row.id,

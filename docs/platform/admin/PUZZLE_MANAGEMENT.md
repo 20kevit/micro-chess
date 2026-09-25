@@ -193,7 +193,39 @@ Audit data should identify actor, action, target, timestamp, and relevant result
 
 ---
 
-## 14. Definition of Done
+## 14. Phase 13 operator controls
+
+The Admin library is a server-filtered table with exercise, lifecycle,
+difficulty, source, search, rating, sorting, pagination, and bulk-action
+controls. Rows show a server-derived attempt count; the frontend does
+not infer usage from player-visible data.
+
+The puzzle editor is contract-driven. It renders the registered
+exercise's answer fields and position fields, supports the board editor
+where the contract requires a board, and keeps FEN-derived answers
+read-only. `source_reference`, hint data, and position metadata are
+persisted through the Admin API and included in audit history when
+changed.
+
+A draft may be hard-deleted only when all of the following are true:
+
+```text
+source = manual
+status = draft
+not published and not archived
+no generator run
+no lifecycle history
+no validation/review rows
+no attempts
+```
+
+Every other puzzle is retained and handled through the normal lifecycle.
+The delete endpoint records an audit event and never exposes the answer
+to player-facing routes.
+
+---
+
+## 15. Definition of Done
 
 Puzzle management is complete when:
 

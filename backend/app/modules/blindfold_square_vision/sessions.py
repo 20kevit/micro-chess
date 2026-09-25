@@ -24,7 +24,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.modules.blindfold_square_vision import generator
+from app.modules.puzzles import service as puzzle_service
 from app.modules.blindfold_square_vision.models import BlindfoldSquareVisionSpeedSession
 from app.modules.blindfold_square_vision.validator import SLUG, normalize_choice, normalize_square
 from app.modules.progress import service as attempt_service
@@ -154,7 +154,7 @@ def _attach_puzzles(
     made: list[Puzzle] = []
     excluded = set(session.puzzle_ids or [])
     for _ in range(max(0, count)):
-        puzzle = generator.create_puzzle(db, rng, exclude_ids=excluded)
+        puzzle = puzzle_service.player_puzzle(db, SLUG, exclude_ids=excluded)
         excluded.add(puzzle.id)
         made.append(puzzle)
     ids = list(session.puzzle_ids or []) + [p.id for p in made]
@@ -183,7 +183,7 @@ def issue_puzzle(
     rng: random.Random | None = None,
 ) -> Puzzle:
     session = _require_preparable(db, session_id)
-    puzzle = generator.create_puzzle(db, rng)
+    puzzle = puzzle_service.player_puzzle(db, SLUG)
     ids = list(session.puzzle_ids or [])
     ids.append(puzzle.id)
     session.puzzle_ids = ids
@@ -217,9 +217,10 @@ def submit(
     session = _require_active(db, session_id)
     if puzzle_id not in (session.puzzle_ids or []):
         raise PuzzleNotInSessionError("puzzle_not_in_session")
-    puzzle = db.get(Puzzle, puzzle_id)
-    if puzzle is None or not puzzle.is_published or puzzle.is_archived:
-        raise PuzzleNotInSessionError("puzzle_not_available")
+    try:
+        puzzle = puzzle_service.require_visible_puzzle(db, puzzle_id, SLUG)
+    except puzzle_service.PlayerPuzzleUnavailableError as exc:
+        raise PuzzleNotInSessionError(str(exc)) from exc
     # Client-supplied colors/scores are ignored: validation always runs
     # against the stored server-side answer_json.
     safe_answer = _safe_answer(answer)

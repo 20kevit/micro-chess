@@ -3,6 +3,64 @@
 Deployment and platform changes. Product behavior is documented
 per phase in `docs/platform/IMPLEMENTATION_STATE.md`.
 
+## 2026-09-25 — P13/P13.1 admin and content lifecycle hardening
+
+* Completed the Admin control center across content, exercises, review,
+  users, commerce, analytics, audit, support, and system health.
+* Exercise-local generators and seeds now persist validated, unpublished
+  candidates with provenance and lifecycle history; player issuance fails
+  closed until an administrator explicitly publishes reviewed content.
+* Direct construction with `is_published=true` no longer auto-enters the
+  published lifecycle state.
+
+### Verification
+
+* Backend: `1501 passed, 1 skipped`.
+* Frontend: `npm ci`, `npm run typecheck`, `npm test -- --run`
+  (60 files / 430 tests), and `npm run build` pass on Node 22.23.3.
+
+## 2026-09-23 — Exercise & Content Management System (Phase 12)
+
+Admin is now a professional content-management surface; no database
+access, SQL, or code changes are needed for normal content operations.
+No migration, no new tables, no new capabilities.
+
+### Added (backend, thin routes over `admin/content.py`)
+
+* Typed answer contracts for all 19 exercise validators
+  (`GET /admin/exercises/{slug}/answer-contract`).
+* Authoritative unsaved-content validation
+  (`POST /admin/puzzles/preview-validate`, never writes).
+* Lifecycle-safe bulk ops (`POST /admin/puzzles/bulk`, max 50,
+  per-item gates, reason required for destructive actions).
+* Exercise creation gated on a registered validator
+  (`POST /admin/exercises`, capability `exercises.create`).
+* Per-exercise quality, learning, and generator endpoints;
+  global content health (`GET /admin/content-health`);
+  per-puzzle usage (`GET /admin/puzzles/{id}/usage`).
+* Richer puzzle listing: difficulty/source/search/rating filters
+  plus sorting.
+* Editing meaning of validated/reviewed/approved content applies
+  the edit and demotes to draft (`content_edited`, audited);
+  published/retired/rejected/quarantined stay immutable.
+
+### Added (frontend, Persian RTL)
+
+* Exercise Workspace (`/admin/exercises/:slug`, 9 tabs), Puzzle
+  Library (`/admin/puzzles`, server-side paging/filtering/bulk),
+  Puzzle Detail (`/admin/puzzles/:id`), Puzzle Editor
+  (`/admin/puzzles/new`, `/admin/puzzles/:id/edit`) with a
+  professional Board Editor and typed Answer Editors, Content
+  Health (`/admin/content-health`), exercise creation form,
+  review-queue deep links, and product-insight workspace links.
+
+### Tests
+
+* `backend/tests/test_phase12_content.py` (22 cases); full backend
+  suite: 1501 passed, 1 skipped.
+* Frontend: `tsc`, production build, and full vitest suite
+  (60 files / 430 tests) pass.
+
 ## 2026-09-14 — Passenger fork-safety fix (`1816bdc`)
 
 Live symptom on microchess.ir: requests reached the WSGI layer but

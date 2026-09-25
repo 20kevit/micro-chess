@@ -1,5 +1,7 @@
 """Shared pytest fixtures: isolated in-memory DB + test client."""
 
+import random
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -99,6 +101,59 @@ def client(db_session):
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+def publish_staged_puzzles(db_session, exercise_slug=None):
+    from app.modules.puzzles import service
+    from app.modules.puzzles.models import STATUS_VALIDATED, Puzzle
+
+    query = db_session.query(Puzzle).filter(
+        Puzzle.status == STATUS_VALIDATED,
+        Puzzle.is_archived == False,  # noqa: E712
+    )
+    if exercise_slug is not None:
+        query = query.filter(Puzzle.exercise_slug == exercise_slug)
+    rows = query.order_by(Puzzle.id).all()
+    for row in rows:
+        service.publish(db_session, row)
+    return rows
+
+
+def publish_generated_pool(
+    db_session,
+    exercise_slug,
+    create_puzzle,
+    *,
+    count=20,
+    seed=0,
+):
+    from app.modules.puzzles.models import Puzzle
+    from app.modules.puzzles.service import DuplicatePuzzleCandidateError
+
+    puzzle_ids = {
+        value
+        for value, in db_session.query(Puzzle.id)
+        .filter(
+            Puzzle.exercise_slug == exercise_slug,
+            Puzzle.is_archived == False,  # noqa: E712
+        )
+        .all()
+    }
+    for offset in range(max(count * 10, count)):
+        if len(puzzle_ids) >= count:
+            break
+        try:
+            puzzle = create_puzzle(
+                db_session,
+                random.Random(seed + offset),
+                exclude_ids=puzzle_ids,
+            )
+        except DuplicatePuzzleCandidateError:
+            continue
+        puzzle_ids.add(puzzle.id)
+    assert len(puzzle_ids) >= count
+    publish_staged_puzzles(db_session, exercise_slug)
+    return sorted(puzzle_ids)
 
 
 _auth_user_counter = 0

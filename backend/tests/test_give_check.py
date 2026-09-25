@@ -33,9 +33,10 @@ from app.modules.give_check.validator import (
     normalize_move_uci,
     validate,
 )
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_GENERATED, Puzzle
+from app.modules.puzzles.service import stage_validated_puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_generated_pool
 
 
 def moveset(fen: str) -> set[str]:
@@ -456,12 +457,54 @@ def test_create_puzzle_persists_answer(db_session):
     rng = random.Random(11)
     puzzle = gen.create_puzzle(db_session, rng)
     assert puzzle.exercise_slug == SLUG
-    assert puzzle.is_published and not puzzle.is_archived
+    assert not puzzle.is_published and not puzzle.is_archived
+    assert puzzle.status == "validated"
     assert puzzle.answer_json["moves"] == checking_moves(puzzle.fen)
     assert "moves" not in puzzle.position_json
 
 
 # --- API flow ---
+
+
+@pytest.fixture
+def published_pool(db_session):
+    puzzle_ids = set(publish_generated_pool(db_session, SLUG, gen.create_puzzle, count=12))
+    if len(puzzle_ids) < 20:
+        for piece_type in (chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN):
+            for square in chess.SQUARES:
+                if len(puzzle_ids) >= 20:
+                    break
+                if square in (chess.E1, chess.E8):
+                    continue
+                board = chess.Board.empty()
+                board.set_piece_at(chess.E1, chess.Piece(chess.KING, chess.WHITE))
+                board.set_piece_at(chess.E8, chess.Piece(chess.KING, chess.BLACK))
+                board.set_piece_at(square, chess.Piece(piece_type, chess.WHITE))
+                try:
+                    data = gen.question_for_fen(board.fen())
+                except ValueError:
+                    continue
+                stage_validated_puzzle(
+                    db_session,
+                    {
+                        "exercise_slug": SLUG,
+                        "fen": data["fen"],
+                        "position_json": {"fen": data["fen"]},
+                        "answer_json": {"moves": data["moves"]},
+                        "hint_json": data["hint_json"],
+                        "prompt_fa": data["prompt_fa"],
+                        "explanation": data["explanation"],
+                        "initial_rating": 800.0,
+                    },
+                    source=SOURCE_GENERATED,
+                    source_reference=f"generator:{SLUG}",
+                )
+                db_session.commit()
+                puzzle_ids.add(db_session.query(Puzzle).filter(Puzzle.fen == data["fen"]).one().id)
+            if len(puzzle_ids) >= 20:
+                break
+    assert len(puzzle_ids) >= 20
+    publish_generated_pool(db_session, SLUG, gen.create_puzzle, count=20, seed=1000)
 
 
 def _practice_puzzle(client) -> dict:
@@ -472,7 +515,7 @@ def _practice_puzzle(client) -> dict:
     return body
 
 
-def test_api_next_and_submit(client, db_session):
+def test_api_next_and_submit(client, db_session, published_pool):
     headers = make_auth_headers(db_session)
     body = _practice_puzzle(client)
     expected = checking_moves(body["fen"])
@@ -497,7 +540,7 @@ def test_api_next_and_submit(client, db_session):
     assert bad.json()["rating_delta"] is None
 
 
-def test_api_practice_submit_ignores_client_fen(client, db_session):
+def test_api_practice_submit_ignores_client_fen(client, db_session, published_pool):
     body = _practice_puzzle(client)
     res = client.post(
         "/api/v1/attempts",
@@ -513,14 +556,14 @@ def test_api_practice_submit_ignores_client_fen(client, db_session):
     assert res.json()["result"] == ("correct" if not checking_moves(body["fen"]) else "wrong")
 
 
-def test_api_puzzle_detail_hides_answer(client):
+def test_api_puzzle_detail_hides_answer(client, db_session, published_pool):
     body = _practice_puzzle(client)
     res = client.get(f"/api/v1/puzzles/{body['id']}")
     assert res.status_code == 200
     assert "answer_json" not in res.json()
 
 
-def test_speed_lifecycle(client, db_session):
+def test_speed_lifecycle(client, db_session, published_pool):
     headers = make_auth_headers(db_session)
     opened = client.post("/api/v1/giving-check/sessions", json={})
     assert opened.status_code == 200

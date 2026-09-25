@@ -17,7 +17,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(notifyApi.track).mockResolvedValue(undefined);
   vi.mocked(verificationApi.status).mockResolvedValue({
-    verified: true, phone_masked: "+98912***6789", channel: "telegram",
+     verified: true, phone_masked: "+98912***6789", channel: "telegram", available_channels: ["telegram", "bale"],
   });
 });
 
@@ -32,7 +32,7 @@ function quoteOf(final: number, code = "PREM100") {
 describe("premium activation", () => {
   it("asks verification first when the phone is unverified", async () => {
     vi.mocked(verificationApi.status).mockResolvedValue({
-      verified: false, phone_masked: "", channel: null,
+       verified: false, phone_masked: "", channel: null, available_channels: ["bale"],
     });
     render(
       <MemoryRouter>

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
+from app.modules.admin.models import AuditLog
 from app.modules.adaptive.models import AdaptiveRecommendation
 from app.modules.billing.models import (
     BillingAttribution,
@@ -24,8 +25,9 @@ from app.modules.billing.models import (
 from app.modules.evidence.models import Evidence
 from app.modules.exercises.models import Exercise
 from app.modules.gamification_engine.models import PlayerGamificationState, PlayerStreak
+from app.modules.generators.models import GeneratorRun
 from app.modules.progress.models import Attempt
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import Puzzle, PuzzleValidation
 from app.modules.support.models import SupportTicket
 from app.modules.users.models import User, UserRole
 
@@ -72,13 +74,7 @@ def review_queue(
     page: int = 1,
     page_size: int = 50,
 ) -> tuple[list[dict], int]:
-    """Prioritized puzzles needing human review.
-
-    Priority: quarantined > validation-failed candidates (validated with
-    high failure) > newly validated > reviewed > approved awaiting publish.
-    Abnormal performance (high failure with sufficient sample) is flagged
-    with reasons; sorting is deterministic (severity, age).
-    """
+    """Prioritized puzzles needing human review."""
     if status is not None and status not in (
         "draft", "validated", "reviewed", "approved", "published",
         "quarantined", "rejected", "retired",
@@ -92,53 +88,164 @@ def review_queue(
     else:
         query = query.filter(Puzzle.status.in_(REVIEW_STATUSES))
     total = query.count()
-    rows = (
-        query.order_by(Puzzle.created_at.desc(), Puzzle.id.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
+    candidates = query.order_by(Puzzle.created_at.desc(), Puzzle.id.desc()).all()
     stats = _puzzle_attempt_stats(db)
-    severity_rank = {"quarantined": 0, "validated": 1, "reviewed": 2, "approved": 3}
+    puzzle_ids = [puzzle.id for puzzle in candidates]
+    latest_validation: dict[int, str] = {}
+    if puzzle_ids:
+        for puzzle_id, validation_status in (
+            db.query(PuzzleValidation.puzzle_id, PuzzleValidation.status)
+            .filter(PuzzleValidation.puzzle_id.in_(puzzle_ids))
+            .order_by(
+                PuzzleValidation.puzzle_id,
+                PuzzleValidation.created_at.desc(),
+                PuzzleValidation.id.desc(),
+            )
+            .all()
+        ):
+            latest_validation.setdefault(int(puzzle_id), validation_status)
+
+    audit_by_puzzle: dict[int, int | None] = {}
+    if puzzle_ids:
+        target_ids = [str(puzzle_id) for puzzle_id in puzzle_ids]
+        for row in (
+            db.query(AuditLog)
+            .filter(
+                AuditLog.action == "puzzles.create",
+                AuditLog.target_type == "puzzle",
+                AuditLog.target_id.in_(target_ids),
+            )
+            .order_by(AuditLog.id.asc())
+            .all()
+        ):
+            try:
+                audit_by_puzzle[int(row.target_id)] = row.actor_user_id
+            except (TypeError, ValueError):
+                continue
+
+    generator_by_id: dict[int, GeneratorRun] = {}
+    generator_ids = [
+        puzzle.generator_run_id for puzzle in candidates if puzzle.generator_run_id
+    ]
+    if generator_ids:
+        generator_by_id = {
+            row.id: row
+            for row in db.query(GeneratorRun).filter(GeneratorRun.id.in_(generator_ids)).all()
+        }
+
+    creator_ids = {
+        int(user_id)
+        for user_id in (
+            list(audit_by_puzzle.values())
+            + [run.requested_by_user_id for run in generator_by_id.values()]
+        )
+        if user_id is not None
+    }
+    user_by_id: dict[int, tuple[str | None, str | None]] = {}
+    if creator_ids:
+        user_by_id = {
+            int(user_id): (username, display_name)
+            for user_id, username, display_name in (
+                db.query(User.id, User.username, User.display_name)
+                .filter(User.id.in_(creator_ids))
+                .all()
+            )
+        }
+
+    severity_rank = {"high": 0, "medium": 1, "normal": 2}
+    status_rank = {"quarantined": 0, "validated": 1, "reviewed": 2, "approved": 3}
     items: list[dict] = []
-    for puzzle in rows:
+    for puzzle in candidates:
         stat = stats.get(puzzle.id, {"attempts": 0, "correct": 0, "failure_rate": None})
         attempts = stat["attempts"]
         failure_rate = stat["failure_rate"]
+        validation_status = latest_validation.get(puzzle.id)
         reasons: list[str] = []
         severity = "normal"
         if puzzle.status == "quarantined":
             severity = "high"
             reasons.append("quarantined")
-        if attempts >= MIN_ATTEMPTS_FOR_SIGNAL and failure_rate is not None and failure_rate >= HIGH_FAILURE_THRESHOLD:
-            severity = "high" if severity != "high" else severity
-            if severity != "high":
-                severity = "medium"
+        if (
+            attempts >= MIN_ATTEMPTS_FOR_SIGNAL
+            and failure_rate is not None
+            and failure_rate >= HIGH_FAILURE_THRESHOLD
+        ):
+            severity = "high"
             reasons.append("high_failure_rate")
+        if validation_status == "fail":
+            severity = "high"
+            reasons.append("validation_failed")
         if attempts < MIN_ATTEMPTS_FOR_SIGNAL:
             reasons.append("insufficient_data")
         if puzzle.status in ("validated", "reviewed"):
             reasons.append("awaiting_review")
         if puzzle.status == "approved":
             reasons.append("awaiting_publish")
+
+        run = generator_by_id.get(puzzle.generator_run_id)
+        creator_id = None
+        if run is not None:
+            creator_id = run.requested_by_user_id
+        if creator_id is None:
+            creator_id = audit_by_puzzle.get(puzzle.id)
+        creator = None
+        creator_username = None
+        creator_display_name = None
+        if creator_id is not None:
+            creator_username, creator_display_name = user_by_id.get(
+                int(creator_id), (None, None)
+            )
+            creator = {
+                "user_id": int(creator_id),
+                "username": creator_username or "",
+                "display_name": creator_display_name or "",
+            }
+
         items.append(
             {
                 "id": puzzle.id,
                 "exercise_slug": puzzle.exercise_slug,
                 "status": puzzle.status,
-                "source": puzzle.source,
+                "source": puzzle.source or "manual",
                 "difficulty": puzzle.difficulty,
                 "initial_rating": puzzle.initial_rating,
                 "created_at": puzzle.created_at,
                 "attempts": attempts,
+                "usage_attempts": attempts,
                 "failure_rate": failure_rate,
                 "severity": severity,
                 "reasons": reasons,
-                "rank": severity_rank.get(puzzle.status, 9),
+                "rank": status_rank.get(puzzle.status, 9),
+                "fen": puzzle.fen,
+                "position_json": puzzle.position_json or {},
+                "answer_json": puzzle.answer_json or {},
+                "prompt_fa": puzzle.prompt_fa or "",
+                "explanation": puzzle.explanation or "",
+                "source_reference": puzzle.source_reference,
+                "generator_run_id": puzzle.generator_run_id,
+                "validation_status": validation_status,
+                "latest_validation_status": validation_status,
+                "creator": creator,
+                "creator_user_id": int(creator_id) if creator_id is not None else None,
+                "creator_username": creator_username,
+                "creator_display_name": creator_display_name,
             }
         )
-    items.sort(key=lambda item: (item["rank"], item["created_at"] or datetime.min))
-    return items, total
+
+    def _sort_key(item: dict) -> tuple:
+        created_at = item["created_at"]
+        if created_at is not None and created_at.tzinfo is not None:
+            created_at = created_at.replace(tzinfo=None)
+        return (
+            severity_rank.get(item["severity"], 9),
+            status_rank.get(item["status"], 9),
+            created_at or datetime.max,
+            item["id"],
+        )
+
+    items.sort(key=_sort_key)
+    start = (page - 1) * page_size
+    return items[start:start + page_size], total
 
 
 def retention(db: Session, *, cohort_days: int = 14, max_offset: int = 30) -> dict:
@@ -334,10 +441,12 @@ def user_profile_full(db: Session, user_id: int) -> dict | None:
     """
     from app.modules.mastery import service as mastery_service
     from app.modules.skill_state import service as skill_state_service
+    from app.modules.verification import service as verification_service
 
     user = db.get(User, user_id)
     if user is None:
         return None
+    verification = verification_service.verification_state(db, user)
     roles = (
         db.query(UserRole.role).filter(UserRole.user_id == user.id).order_by(UserRole.role).all()
     )
@@ -482,7 +591,12 @@ def user_profile_full(db: Session, user_id: int) -> dict | None:
             "created_at": user.created_at,
             "last_active_at": last_active_at,
             "attempts_total": int(attempts_total),
+            "phone_verified": bool(user.phone_verified),
+            "verification_channel": verification.get("channel"),
+            "phone_masked": verification.get("phone_masked", ""),
+            "verification": verification,
         },
+        "verification": verification,
         "learning": {
             "attempts_by_exercise": [
                 {"exercise_slug": slug, "attempts": int(attempts), "correct": int(correct or 0)}
@@ -656,6 +770,65 @@ def product_insights(db: Session) -> list[dict]:
     return insights
 
 
+def provider_health(db: Session) -> dict:
+    import os
+
+    from app.core.config import settings
+    from app.modules.billing.providers import get_provider
+    from app.modules.notify import service as notify_service
+    from app.modules.notify.models import ChannelLink, PushSubscription
+
+    vapid = notify_service.vapid_health()
+    telegram_configured = bool(os.environ.get("TELEGRAM_BOT_TOKEN"))
+    bale_configured = bool(os.environ.get("BALE_BOT_TOKEN"))
+    telegram_verification_available = bool(settings.verification_telegram_enabled and telegram_configured)
+
+    def _count(model, *filters) -> int:
+        try:
+            query = db.query(model)
+            for condition in filters:
+                query = query.filter(condition)
+            return int(query.count() or 0)
+        except Exception:
+            return 0
+
+    channels = {
+        "in_app": {"available": True},
+        "web_push": {
+            "available": bool(vapid.get("configured")),
+            "subscriptions": _count(PushSubscription),
+        },
+        "telegram": {
+            "available": telegram_configured,
+            "configured": telegram_configured,
+            "linked_users": _count(ChannelLink, ChannelLink.channel == "telegram"),
+        },
+        "bale": {
+            "available": bale_configured,
+            "configured": bale_configured,
+            "linked_users": _count(ChannelLink, ChannelLink.channel == "bale"),
+        },
+    }
+    payment_provider = get_provider()
+    return {
+        "vapid": {
+            **vapid,
+            "available": bool(vapid.get("configured")),
+        },
+        "telegram": {"configured": telegram_configured, "available": telegram_configured},
+        "bale": {"configured": bale_configured, "available": bale_configured},
+        "channels": channels,
+        "billing": {
+            "provider": payment_provider.code,
+            "available": payment_provider.code != "none",
+        },
+        "verification": {
+            "telegram_available": telegram_verification_available,
+            "bale_available": True,
+        },
+    }
+
+
 def system_health(db: Session) -> dict:
     """Graceful health snapshot; unavailable metrics report as unknown."""
     try:
@@ -677,11 +850,14 @@ def system_health(db: Session) -> dict:
     puzzles_published = (
         db.query(func.count(Puzzle.id)).filter(Puzzle.status == "published").scalar() or 0
     )
+    providers = provider_health(db)
     return {
         "ok": bool(db_ok and schema.get("ok")),
         "database": {"reachable": bool(db_ok)},
         "schema_status": schema,
         "puzzles": {"total": int(puzzles_total), "published": int(puzzles_published)},
+        "providers": providers,
+        "channels": providers["channels"],
     }
 
 

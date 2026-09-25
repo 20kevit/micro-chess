@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal, init_db
 from app.modules.pathfinding import generator as gen
 from app.modules.pathfinding.validator import SLUG
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_IMPORTED, Puzzle
 
 SEED_COUNT = 15
 
@@ -28,7 +28,12 @@ def seed_db(db: Session) -> int:
     rng = random.Random(6006)
     created = 0
     for _ in range(SEED_COUNT):
-        gen.create_puzzle(db, rng)
+        gen.create_puzzle(
+            db,
+            rng,
+            source=SOURCE_IMPORTED,
+            source_reference=f"seed:{SLUG}",
+        )
         created += 1
     return created
 

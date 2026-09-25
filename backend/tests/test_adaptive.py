@@ -15,7 +15,7 @@ from app.modules.adaptive.models import AdaptiveRecommendation
 from app.modules.exercises.models import Exercise
 from app.modules.gamification_engine.models import PlayerGamificationState, XpEvent
 from app.modules.progress.models import Attempt
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import Puzzle, STATUS_DRAFT, STATUS_PUBLISHED, STATUS_RETIRED
 from app.modules.rating_engine.models import PlayerRating, RatingEvent
 from app.modules.users.models import User, UserRole
 
@@ -71,6 +71,13 @@ def _puzzle(db_session, slug=SLUG, rating=1200.0, published=True, archived=False
         initial_rating=rating,
         is_published=published,
         is_archived=archived,
+        status=(
+            STATUS_RETIRED
+            if archived
+            else STATUS_PUBLISHED
+            if published
+            else STATUS_DRAFT
+        ),
     )
     db_session.add(puzzle)
     db_session.commit()

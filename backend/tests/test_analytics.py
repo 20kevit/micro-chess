@@ -51,8 +51,10 @@ def _admin_token(client, db_session, username="analytics_admin"):
 def _seeded_piece_puzzle(db_session):
     from app.modules.piece_recognition import seed as seed_mod
     from app.modules.piece_recognition.validator import SLUG
+    from tests.conftest import publish_staged_puzzles
 
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = (
         db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).order_by(Puzzle.id).first()
     )

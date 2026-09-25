@@ -98,8 +98,10 @@ def test_newer_database_refuses_to_boot():
 def test_puzzle_list_is_bounded(client, db_session):
     from app.modules.piece_recognition import seed as seed_mod
     from app.modules.piece_recognition.validator import SLUG
+    from tests.conftest import publish_staged_puzzles
 
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     page1 = client.get(f"/api/v1/puzzles?exercise={SLUG}&page=1&page_size=5")
     assert page1.status_code == 200
     assert len(page1.json()) == 5

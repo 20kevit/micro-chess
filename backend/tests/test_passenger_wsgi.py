@@ -71,12 +71,34 @@ def test_health_reachable_through_adapter():
     assert json.loads(body.decode()) == {"status": "ok"}
 
 
-def test_api_routes_reachable_through_adapter():
-    captured, body = _wsgi_get("/api/v1/exercises")
+def test_api_routes_reachable_through_adapter(db_session):
+    from app.core.deps import get_db
+    from app.modules.exercises.models import Exercise
+
+    db_session.add(
+        Exercise(
+            slug="adapter-test",
+            title_fa="آزمون",
+            title_en="Adapter Test",
+            description="",
+            is_active=True,
+            sort_order=999,
+        )
+    )
+    db_session.commit()
+
+    def override_get_db():
+        yield db_session
+
+    fastapi_app.dependency_overrides[get_db] = override_get_db
+    try:
+        captured, body = _wsgi_get("/api/v1/exercises")
+    finally:
+        fastapi_app.dependency_overrides.clear()
     assert captured["status"].startswith("200")
     payload = json.loads(body.decode())
     assert isinstance(payload, list)
-    assert payload, "exercise catalog must stay reachable through the adapter"
+    assert payload
 
 
 def test_auth_boundary_intact_through_adapter():

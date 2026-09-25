@@ -189,7 +189,27 @@ These rules follow the platform's canonical security model.
 
 ---
 
-## 12. Definition of Done
+## 12. Phase 13 details and verification
+
+The Admin user list links each row to one canonical detail view rather
+than maintaining a second inline profile. It shows safe aggregates for
+account status, plan/subscription state, verification status and
+channel, activity, attempts, and coupon usage.
+
+The detail view combines overview, learning, commercial history, and a
+durable timeline. Phone values are masked; provider tokens, pairing
+codes, full phone numbers, password hashes, and session secrets are not
+returned. Verification channels are obtained from the backend status
+endpoint, so disabling Telegram in configuration removes it from the
+player flow without removing its implementation.
+
+Support remains a single ticket system. Authorized staff can explicitly
+reopen a closed ticket; the reopen is audited and preserves the original
+conversation.
+
+---
+
+## 13. Definition of Done
 
 User management is complete when:
 

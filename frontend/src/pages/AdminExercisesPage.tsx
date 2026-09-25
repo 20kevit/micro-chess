@@ -22,6 +22,8 @@ export function AdminExercisesPage() {
   const [activeFilter, setActiveFilter] = useState("");
   const [lowSupplyOnly, setLowSupplyOnly] = useState(false);
   const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
+  const [newSlug, setNewSlug] = useState("");
+  const [newTitle, setNewTitle] = useState("");
 
   async function load() {
     setLoading(true);
@@ -97,13 +99,32 @@ export function AdminExercisesPage() {
     }
   }
 
+  async function onCreateExercise() {
+    if (!newSlug.trim() || !newTitle.trim()) {
+      setNotice(t("common.error"));
+      return;
+    }
+    setBusy(true);
+    setNotice("");
+    try {
+      await adminApi.createExercise({ slug: newSlug.trim(), title_fa: newTitle.trim() });
+      setNewSlug("");
+      setNewTitle("");
+      await load();
+    } catch {
+      setNotice(t("admin.exerciseNotImplemented"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader title={t("admin.exercises")} subtitle={t("admin.subtitle")} />
       <Card>
         <div className="flex flex-col gap-2 md:flex-row">
           <select
-            aria-label={t("admin.supportFilter")}
+            aria-label={t("admin.filterActive")}
             value={activeFilter}
             onChange={(e) => setActiveFilter(e.target.value)}
             className="min-h-[44px] rounded-xl border border-stone-200 bg-white px-3 text-sm"
@@ -201,6 +222,28 @@ export function AdminExercisesPage() {
           </div>
         </Card>
       ) : null}
+      <Card className="mt-3">
+        <h2 className="font-black">{t("admin.exerciseCreate")}</h2>
+        <p className="mt-1 text-xs text-stone-500">{t("admin.exerciseNotImplemented")}</p>
+        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
+          <input
+            value={newSlug}
+            onChange={(e) => setNewSlug(e.target.value)}
+            placeholder={t("admin.exerciseSlug")}
+            className="min-h-[44px] rounded-xl border border-stone-200 bg-white px-3 text-sm"
+            dir="ltr"
+          />
+          <input
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            placeholder={t("admin.exercises")}
+            className="min-h-[44px] rounded-xl border border-stone-200 bg-white px-3 text-sm"
+          />
+          <Button disabled={busy} onClick={() => void onCreateExercise()}>
+            {t("admin.exerciseCreate")}
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }

@@ -16,6 +16,11 @@ vi.mock("../api/client", () => ({
     exercises: vi.fn(),
     exercise: vi.fn(),
     exerciseAnalyticsDetail: vi.fn(),
+    exerciseQuality: vi.fn(),
+    exerciseLearning: vi.fn(),
+    exerciseGenerators: vi.fn(),
+    puzzles: vi.fn(),
+    bulkPuzzles: vi.fn(),
     reviewQueue: vi.fn(),
     publishPuzzle: vi.fn(),
     quarantinePuzzle: vi.fn(),
@@ -44,6 +49,7 @@ vi.mock("../api/client", () => ({
     redemptions: vi.fn(),
   },
   apiDetail: () => "",
+  apiCode: () => "",
 }));
 
 const mockedAdmin = vi.mocked(adminApi, true);
@@ -69,8 +75,12 @@ describe("admin ops pages", () => {
     mockedAdmin.reviewQueue.mockResolvedValue([
       {
         id: 9, exercise_slug: "pin", status: "quarantined", source: "generated",
-        difficulty: 2, initial_rating: 1200, created_at: "", attempts: 8,
-        failure_rate: 0.875, severity: "high", reasons: ["quarantined", "high_failure_rate"],
+         difficulty: 2, initial_rating: 1200, created_at: "", attempts: 8,
+         usage_attempts: 8, failure_rate: 0.875, severity: "high", reasons: ["quarantined", "high_failure_rate"],
+         fen: null, position_json: {}, answer_json: {}, prompt_fa: "", explanation: "",
+         source_reference: null, generator_run_id: null, validation_status: null,
+         latest_validation_status: null, creator: null, creator_user_id: null,
+         creator_username: null, creator_display_name: null,
       },
     ]);
     render(
@@ -78,8 +88,7 @@ describe("admin ops pages", () => {
         <AdminReviewQueuePage />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(screen.getByText("قرنطینه")).toBeTruthy());
-    expect(screen.getByText("بازیابی")).toBeTruthy();
+     await waitFor(() => expect(screen.getByRole("button", { name: "آزادسازی" })).toBeTruthy());
   });
 
   it("sales page renders revenue and campaign rows", async () => {
@@ -128,7 +137,7 @@ describe("admin ops pages", () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getAllByText("فروش").length).toBeGreaterThanOrEqual(1));
-    await user.click(screen.getByRole("button", { name: "طرح‌ها" }));
+     await user.click(screen.getByRole("tab", { name: "طرح‌ها" }));
     await waitFor(() => expect(screen.getByText("باشگاهی")).toBeTruthy());
     expect(screen.getByText("تاریخچه قیمت‌ها")).toBeTruthy();
     await user.click(screen.getAllByRole("button", { name: "غیرفعال کردن" })[1]);
@@ -147,9 +156,9 @@ describe("admin ops pages", () => {
     mockedBilling.report.mockResolvedValue([]);
     mockedBilling.coupons.mockResolvedValue([
       {
-        id: 5, code: "SHOP10", campaign_slug: "camp", discount_type: "percent", discount_value: 10,
-        trial_days: 0, is_active: true, valid_from: null, valid_until: null, max_redemptions: 100,
-        max_per_user: 1, total_redemptions: 4, applicable_plan_codes: ["premium"],
+         id: 5, code: "SHOP10", campaign_slug: "camp", description: "تخفیف آزمایشی", discount_type: "percent", discount_value: 10,
+         trial_days: 0, currency: "IRR", is_active: true, valid_from: null, valid_until: null, max_redemptions: 100,
+         max_per_user: 1, first_time_only: false, min_amount_minor: 0, total_redemptions: 4, applicable_plan_codes: ["premium"],
       },
     ]);
     mockedBilling.redemptions.mockResolvedValue([]);
@@ -159,7 +168,7 @@ describe("admin ops pages", () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getAllByText("فروش").length).toBeGreaterThanOrEqual(1));
-    await user.click(screen.getByRole("button", { name: "کوپن‌ها" }));
+     await user.click(screen.getByRole("tab", { name: "کوپن‌ها" }));
     await waitFor(() => expect(screen.getByText("SHOP10")).toBeTruthy());
     await user.click(screen.getByText("SHOP10"));
     await waitFor(() => expect(mockedBilling.redemptions).toHaveBeenCalledWith(
@@ -183,8 +192,10 @@ describe("admin ops pages", () => {
       ok: true,
       database: { reachable: true },
       schema_status: { expected: 15, stored: 15, ok: true },
-      puzzles: { total: 10, published: 6 },
-    });
+       puzzles: { total: 10, published: 6 },
+       providers: { telegram: { configured: false, available: false }, bale: { configured: true, available: true } },
+       channels: { bale: { available: true, configured: true } },
+     });
     render(
       <MemoryRouter>
         <AdminSystemPage />
@@ -204,9 +215,10 @@ describe("admin ops pages", () => {
     expect(screen.getByText("هنوز رویداد مدیریتی ثبت نشده است.")).toBeTruthy();
   });
 
-  it("exercise detail renders supply, difficulty, mistakes, and recommendations", async () => {
+  it("exercise workspace renders overview tabs and analytics sections", async () => {
     const { AdminExerciseDetailPage } = await import("./AdminExerciseDetailPage");
     const { Route, Routes } = await import("react-router-dom");
+    const user = (await import("@testing-library/user-event")).default.setup();
     mockedAdmin.exercise.mockResolvedValue({
       slug: "pin", title_fa: "آچمز", title_en: "Pin", description: "", is_active: true,
       sort_order: 1, puzzle_count: 10, published_count: 6, needs_review_count: 2,
@@ -221,9 +233,28 @@ describe("admin ops pages", () => {
       by_mode: [], daily: [],
       supply_by_status: [{ status: "published", count: 6 }, { status: "validated", count: 2 }],
       difficulty_distribution: [{ difficulty: 2, count: 6 }],
-      mistake_distribution: [{ mistake: "wrong_target", count: 9 }],
+      mistake_distribution: [{ mistake: "wrong-target", count: 9 }],
       recommendation_outcomes: [{ status: "completed", count: 3 }],
     });
+    mockedAdmin.exerciseQuality.mockResolvedValue({
+      exercise_slug: "pin",
+      supply_by_status: [{ status: "published", count: 6 }],
+      published: 6, review_backlog: 2, quarantined: 0,
+      difficulty_distribution: [{ difficulty: 2, count: 6 }],
+      difficulty_levels_covered: [2], validation_failures: 0,
+      high_failure_puzzles: [], attempts: 50, success_rate: 0.6,
+      avg_duration_ms: null, supply_state: "healthy", attention_reasons: [],
+    });
+    mockedAdmin.exerciseLearning.mockResolvedValue({
+      exercise_slug: "pin", window_days: 30,
+      usage: { attempts: 50, correct: 30, success_rate: 0.6, active_users: 8, avg_duration_ms: null, by_result: [] },
+      mistakes: [{ mistake: "wrong-target", count: 9 }],
+      skills: { primary: "pin-recognition", secondary: [], evidence: [] },
+      recommendations: [],
+    });
+    mockedAdmin.exerciseGenerators.mockResolvedValue([]);
+    mockedAdmin.puzzles.mockResolvedValue([]);
+    mockedAdmin.reviewQueue.mockResolvedValue([]);
     render(
       <MemoryRouter initialEntries={["/admin/exercises/pin"]}>
         <Routes>
@@ -231,12 +262,17 @@ describe("admin ops pages", () => {
         </Routes>
       </MemoryRouter>,
     );
-    await waitFor(() => expect(screen.getByText("جزئیات تمرین")).toBeTruthy());
-    expect(screen.getByText("موجودی معما بر اساس وضعیت")).toBeTruthy();
+    // Workspace header plus tab navigation render from real aggregates.
+     await waitFor(() => expect(screen.getAllByText(/میزکار تمرین/)[0].textContent).toMatch(/آچمز/));
+    expect(screen.getAllByText("معماها").length).toBeGreaterThanOrEqual(1);
+    // Analytics tab keeps the legacy sections: supply, difficulty,
+    // mistakes, and recommendation outcomes.
+    await user.click(screen.getByText("تحلیل"));
+    await waitFor(() => expect(screen.getByText("موجودی معما بر اساس وضعیت")).toBeTruthy());
     expect(screen.getByText("توزیع دشواری")).toBeTruthy();
     expect(screen.getByText("توزیع خطاها")).toBeTruthy();
     expect(screen.getByText("سرانجام پیشنهادها")).toBeTruthy();
-    expect(screen.getByText("wrong_target")).toBeTruthy();
+     expect(screen.getAllByText("خطاها").length).toBeGreaterThanOrEqual(1);
   });
 
   it("user detail renders 360 tabs with timeline", async () => {
@@ -246,9 +282,12 @@ describe("admin ops pages", () => {
     mockedAdmin.userProfile.mockResolvedValue({
       overview: {
         id: 7, username: "kid", display_name: "kid", roles: ["PLAYER"], is_active: true,
-        created_at: "2026-09-01T00:00:00", last_active_at: "2026-09-10T00:00:00", attempts_total: 12,
-      },
-      learning: {
+         created_at: "2026-09-01T00:00:00", last_active_at: "2026-09-10T00:00:00", attempts_total: 12,
+         phone_verified: false, verification_channel: null, phone_masked: "",
+         verification: { verified: false, phone_masked: "", channel: null, available_channels: ["bale"] },
+       },
+       verification: { verified: false, phone_masked: "", channel: null, available_channels: ["bale"] },
+       learning: {
         attempts_by_exercise: [{ exercise_slug: "pin", attempts: 12, correct: 8 }],
         skills: [{ skill: "pin", level: "emerging", confidence: "medium", evidence_count: 4 }],
         overall_level: "emerging",
@@ -284,7 +323,7 @@ describe("admin ops pages", () => {
     await waitFor(() => expect(screen.getByText("مهارت‌های دیده‌شده")).toBeTruthy());
     await user.click(screen.getByRole("button", { name: "خط زمانی" }));
     await waitFor(() => expect(screen.getByText("نخستین تلاش")).toBeTruthy());
-    expect(screen.getByText("ثبت‌نام")).toBeTruthy();
+     expect(screen.getAllByText("ثبت‌نام").length).toBeGreaterThanOrEqual(1);
   });
 
   it("dashboard renders extended revenue, attribution, and exercise success", async () => {

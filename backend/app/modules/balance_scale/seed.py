@@ -19,7 +19,8 @@ from app.modules.balance_scale import generator as gen
 from app.modules.balance_scale import solver
 from app.modules.balance_scale.generator import PROMPT_FA
 from app.modules.balance_scale.validator import SLUG, normalize_piece, total_value
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_IMPORTED, Puzzle
+from app.modules.puzzles.service import stage_validated_puzzle
 
 # Hand-designed left pans of rising difficulty, covering the required
 # edge cases (targets 4/6/8/9-family/10/18/90) and multi-solution cases
@@ -81,23 +82,25 @@ def seed_db(db: Session) -> int:
     created = 0
     for left in lefts:
         target, optimal = verify_left(left)
-        puzzle = Puzzle(
-            exercise_slug=SLUG,
-            fen=None,
-            position_json={"left": left},
-            answer_json={"left": left, "target": target, "optimal_count": optimal},
-            hint_json={
-                "hints": [
-                    {"id": "h1", "text_fa": "اول ارزش همه مهره‌های سیاه را جمع بزن.", "rating_cost": 5},
-                ]
+        stage_validated_puzzle(
+            db,
+            {
+                "exercise_slug": SLUG,
+                "fen": None,
+                "position_json": {"left": left},
+                "answer_json": {"left": left, "target": target, "optimal_count": optimal},
+                "hint_json": {
+                    "hints": [
+                        {"id": "h1", "text_fa": "اول ارزش همه مهره‌های سیاه را جمع بزن.", "rating_cost": 5},
+                    ]
+                },
+                "prompt_fa": PROMPT_FA,
+                "explanation": f"مجموع کفه سیاه {target} است؛ با کمترین مهره به همین عدد برس.",
+                "initial_rating": float(max(700.0, min(1350.0, 750.0 + target * 6.0 + optimal * 10.0))),
             },
-            prompt_fa=PROMPT_FA,
-            explanation=f"مجموع کفه سیاه {target} است؛ با کمترین مهره به همین عدد برس.",
-            initial_rating=float(max(700.0, min(1350.0, 750.0 + target * 6.0 + optimal * 10.0))),
-            is_published=True,
-            is_archived=False,
+            source=SOURCE_IMPORTED,
+            source_reference=f"seed:{SLUG}",
         )
-        db.add(puzzle)
         created += 1
     db.commit()
     return created

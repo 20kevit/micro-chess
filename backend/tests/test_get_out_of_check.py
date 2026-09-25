@@ -34,7 +34,7 @@ from app.modules.get_out_of_check.validator import (
 )
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_generated_pool
 
 
 def answer_for(fen: str) -> dict:
@@ -469,7 +469,8 @@ def test_seed_count_and_examples_valid(db_session):
         # Full-set submission validates CORRECT through the registry path.
         out = registry.validate_answer(SLUG, puzzle.answer_json, full_answer(puzzle.fen))
         assert out.result == AttemptResult.CORRECT, puzzle.fen
-        assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
+        assert puzzle.prompt_fa and puzzle.explanation
+        assert not puzzle.is_published and puzzle.status == "validated"
     assert len({p.initial_rating for p in puzzles}) >= 5
 
 
@@ -541,7 +542,8 @@ def test_create_puzzle_persists_derivable_answer(db_session):
     rng = random.Random(11)
     puzzle = gen.create_puzzle(db_session, rng)
     assert puzzle.exercise_slug == SLUG
-    assert puzzle.is_published and not puzzle.is_archived
+    assert not puzzle.is_published and not puzzle.is_archived
+    assert puzzle.status == "validated"
     assert puzzle.answer_json == {"fen": puzzle.fen}
     assert "moves" not in puzzle.position_json
     out = validate(puzzle.answer_json, full_answer(puzzle.fen))
@@ -549,6 +551,12 @@ def test_create_puzzle_persists_derivable_answer(db_session):
 
 
 # --- API flow ---
+
+
+@pytest.fixture
+def published_pool(db_session):
+    seed_mod.seed_db(db_session)
+    publish_generated_pool(db_session, SLUG, gen.create_puzzle)
 
 
 def _practice_puzzle(client) -> dict:
@@ -559,7 +567,7 @@ def _practice_puzzle(client) -> dict:
     return body
 
 
-def test_api_next_and_submit(client, db_session):
+def test_api_next_and_submit(client, db_session, published_pool):
     headers = make_auth_headers(db_session)
     body = _practice_puzzle(client)
     expected = escaping_moves(body["fen"])
@@ -585,7 +593,7 @@ def test_api_next_and_submit(client, db_session):
     assert bad.json()["rating_delta"] is None
 
 
-def test_api_next_never_leaks_answer_count(client):
+def test_api_next_never_leaks_answer_count(client, db_session, published_pool):
     seen_prompts = set()
     for _ in range(5):
         body = _practice_puzzle(client)
@@ -595,7 +603,7 @@ def test_api_next_never_leaks_answer_count(client):
     assert len(seen_prompts) >= 1
 
 
-def test_api_practice_submit_ignores_client_fen(client, db_session):
+def test_api_practice_submit_ignores_client_fen(client, db_session, published_pool):
     body = _practice_puzzle(client)
     res = client.post(
         "/api/v1/attempts",
@@ -611,14 +619,14 @@ def test_api_practice_submit_ignores_client_fen(client, db_session):
     assert res.json()["result"] == "wrong"
 
 
-def test_api_puzzle_detail_hides_answer(client):
+def test_api_puzzle_detail_hides_answer(client, db_session, published_pool):
     body = _practice_puzzle(client)
     res = client.get(f"/api/v1/puzzles/{body['id']}")
     assert res.status_code == 200
     assert "answer_json" not in res.json()
 
 
-def test_speed_lifecycle(client, db_session):
+def test_speed_lifecycle(client, db_session, published_pool):
     headers = make_auth_headers(db_session)
     opened = client.post("/api/v1/get-out-of-check/sessions", json={})
     assert opened.status_code == 200
@@ -672,7 +680,7 @@ def test_speed_unknown_session_404(client):
     assert client.get("/api/v1/get-out-of-check/sessions/nope").status_code == 404
 
 
-def test_speed_submit_rejects_foreign_puzzle(client, db_session):
+def test_speed_submit_rejects_foreign_puzzle(client, db_session, published_pool):
     opened = client.post("/api/v1/get-out-of-check/sessions", json={}).json()
     sid = opened["session_id"]
     client.post(f"/api/v1/get-out-of-check/sessions/{sid}/puzzles", json={"count": 20})

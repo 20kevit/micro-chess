@@ -22,6 +22,7 @@ from app.modules.pathfinding_obstacles.sessions import (
 )
 from app.modules.pathfinding_obstacles.validator import SLUG, apply_step, mover_kind
 from app.modules.progress.schemas import AttemptOut
+from app.modules.puzzles import service as puzzle_service
 from app.modules.puzzles.models import Puzzle
 from app.modules.puzzles.schemas import PuzzleOut
 from app.modules.rule_engine.base import normalize_square
@@ -79,14 +80,10 @@ def _reject(fen: str, selected_at: str) -> schemas.StepOut:
 
 @router.post("/step", response_model=schemas.StepOut)
 def validate_step(body: schemas.StepIn, db: Session = Depends(get_db)):
-    puzzle: Puzzle | None = db.get(Puzzle, body.puzzle_id)
-    if (
-        puzzle is None
-        or not puzzle.is_published
-        or puzzle.is_archived
-        or puzzle.exercise_slug != SLUG
-    ):
-        raise HTTPException(status_code=404, detail="puzzle_not_available")
+    try:
+        puzzle = puzzle_service.require_visible_puzzle(db, body.puzzle_id, SLUG)
+    except puzzle_service.PlayerPuzzleUnavailableError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     answer = puzzle.answer_json if isinstance(puzzle.answer_json, dict) else {}
     target = normalize_square(answer.get("target"))
@@ -123,10 +120,11 @@ def next_practice_puzzle(
     body: schemas.NextPracticeIn | None = None, db: Session = Depends(get_db)
 ):
     """Issue one fresh solved puzzle for untimed Practice Mode."""
-    from app.modules.pathfinding_obstacles import generator
-
     exclude = set(body.exclude_ids) if body else set()
-    return generator.create_puzzle(db, exclude_ids=exclude)
+    try:
+        return puzzle_service.player_puzzle(db, SLUG, exclude_ids=exclude)
+    except puzzle_service.PlayerPuzzleUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.post("/sessions", response_model=schemas.SessionOut)
@@ -155,6 +153,8 @@ def get_speed_session(session_id: str, db: Session = Depends(get_db)):
 def next_speed_puzzle(session_id: str, db: Session = Depends(get_db)):
     try:
         return sessions.issue_puzzle(db, session_id)
+    except puzzle_service.PlayerPuzzleUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except SessionNotFoundError:
         raise HTTPException(status_code=404, detail="session_not_found")
     except (SessionExpiredError, SessionNotActiveError) as exc:
@@ -174,6 +174,8 @@ def prepare_speed_puzzles(
         return sessions.prepare_puzzles(
             db, session_id, count=body.count if body else sessions.MIN_START_BUFFER
         )
+    except puzzle_service.PlayerPuzzleUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except SessionNotFoundError:
         raise HTTPException(status_code=404, detail="session_not_found")
     except SessionExpiredError:

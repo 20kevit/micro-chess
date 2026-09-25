@@ -89,6 +89,7 @@ def validate_puzzle_fields(
     prompt_fa: str = "",
     explanation: str = "",
     exclude_puzzle_id: int | None = None,
+    strict_contract: bool = False,
 ) -> ContentValidationOutcome:
     """Run all Phase 07 content checks. Never mutates the database."""
     from app.modules.puzzles.models import Puzzle
@@ -107,6 +108,21 @@ def validate_puzzle_fields(
         errors.append({"code": "answer_missing", "detail": "answer_json must be a non-empty object"})
     elif len(json.dumps(answer, sort_keys=True, ensure_ascii=False)) > 8000:
         errors.append({"code": "answer_too_large", "detail": "answer payload exceeds the size bound"})
+
+    contract = None
+    if strict_contract and slug:
+        from app.modules.exercises.answer_contracts import answer_contract_for, validate_contract_shape
+
+        contract = answer_contract_for(slug)
+        if contract is not None and isinstance(answer, dict) and answer:
+            errors.extend(
+                validate_contract_shape(
+                    contract,
+                    answer=answer,
+                    position=position,
+                    fen=fen,
+                )
+            )
 
     # 3. Chess legality of the position representation.
     if fen:
@@ -137,6 +153,24 @@ def validate_puzzle_fields(
             {"code": "answer_leakage", "detail": "position_json must not duplicate answer_json"}
         )
 
+    if contract is not None and not any(
+        str(error.get("code", "")).startswith("answer_field_") for error in errors
+    ):
+        from app.modules.exercises.answer_contracts import canonical_attempt
+        from app.modules.exercises.registry import validate_answer
+        from app.modules.rule_engine.base import AttemptResult
+
+        attempt = canonical_attempt(contract, answer)
+        if attempt is not None:
+            result = validate_answer(slug, answer, attempt)
+            if result.result != AttemptResult.CORRECT:
+                errors.append(
+                    {
+                        "code": "answer_validator_rejected",
+                        "detail": "stored answer is not accepted by its exercise validator",
+                    }
+                )
+
     # 6. Exercise-specific structural invariants (pluggable, no slug chain).
     hook = get_content_validator(slug) if slug else None
     if hook is not None and answer:
@@ -163,6 +197,7 @@ def validate_puzzle_fields(
     if answer and slug:
         dup_query = db.query(Puzzle).filter(
             Puzzle.content_hash == content_hash,
+            Puzzle.is_archived == False,  # noqa: E712
             Puzzle.status.in_(["validated", "reviewed", "approved", "published"]),
         )
         if exclude_puzzle_id is not None:

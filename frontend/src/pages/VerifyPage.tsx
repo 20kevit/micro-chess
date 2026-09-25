@@ -15,9 +15,11 @@ import { t } from "../i18n";
 export function VerifyPage() {
   const navigate = useNavigate();
   const [channel, setChannel] = useState<"telegram" | "bale" | null>(null);
+  const [availableChannels, setAvailableChannels] = useState<Array<"telegram" | "bale">>([]);
   const [session, setSession] = useState<VerificationSession | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loadingChannels, setLoadingChannels] = useState(true);
   const [done, setDone] = useState(false);
   const timer = useRef<number | null>(null);
 
@@ -29,6 +31,24 @@ export function VerifyPage() {
   }, []);
 
   useEffect(() => stopPolling, [stopPolling]);
+
+  useEffect(() => {
+    verificationApi
+      .status()
+      .then((status) => {
+        if (status.verified) {
+          setDone(true);
+          return;
+        }
+        setAvailableChannels(
+          status.available_channels.filter(
+            (value): value is "telegram" | "bale" => value === "telegram" || value === "bale",
+          ),
+        );
+      })
+      .catch(() => setError(t("common.error")))
+      .finally(() => setLoadingChannels(false));
+  }, []);
 
   async function start(next: "telegram" | "bale") {
     setBusy(true);
@@ -65,8 +85,10 @@ export function VerifyPage() {
       const detail = apiDetail(e);
       if (detail === "already_verified") {
         setDone(true);
+      } else if (detail === "verification_channel_unavailable") {
+        setError(t("verify.channelUnavailable"));
       } else {
-        setError(detail || t("common.error"));
+        setError(t("common.error"));
       }
     } finally {
       setBusy(false);
@@ -80,10 +102,11 @@ export function VerifyPage() {
         <Card>
           <div className="flex flex-col gap-2">
             <Button onClick={() => navigate("/premium")}>{t("premium.cta")}</Button>
-            <Link to="/" className="block">
-              <Button variant="secondary" className="w-full">
-                {t("journey.goQuests")}
-              </Button>
+            <Link
+              to="/"
+              className="flex min-h-[44px] items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-700"
+            >
+              {t("journey.goQuests")}
             </Link>
           </div>
         </Card>
@@ -98,12 +121,29 @@ export function VerifyPage() {
         {session === null ? (
           <div className="flex flex-col gap-2">
             <p className="text-sm text-stone-500">{t("verify.channelHint")}</p>
-            <Button onClick={() => start("telegram")} disabled={busy}>
-              {busy && channel === null ? t("common.loading") : t("verify.telegram")}
-            </Button>
-            <Button onClick={() => start("bale")} disabled={busy} variant="secondary">
-              {busy ? t("common.loading") : t("verify.bale")}
-            </Button>
+            {loadingChannels ? (
+              <p className="py-3 text-center text-sm text-stone-500">{t("common.loading")}</p>
+            ) : (
+              availableChannels.map((available) => (
+                <Button
+                  key={available}
+                  onClick={() => start(available)}
+                  disabled={busy}
+                  variant={available === "bale" ? "secondary" : "primary"}
+                >
+                  {busy && channel === null
+                    ? t("common.loading")
+                    : available === "telegram"
+                      ? t("verify.telegram")
+                      : t("verify.bale")}
+                </Button>
+              ))
+            )}
+            {!loadingChannels && availableChannels.length === 0 ? (
+              <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
+                {t("verify.channelUnavailable")}
+              </p>
+            ) : null}
             {error ? (
               <p role="alert" className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
                 {error}
@@ -121,15 +161,26 @@ export function VerifyPage() {
               {session.pairing_code}
             </p>
             {session.bot_url ? (
-              <a href={session.bot_url} target="_blank" rel="noreferrer" className="block">
-                <Button className="w-full">
-                  {channel === "telegram" ? t("verify.openTelegram") : t("verify.openBale")}
-                </Button>
+              <a
+                href={session.bot_url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex min-h-[44px] items-center justify-center rounded-xl bg-violet-700 px-4 text-sm font-bold text-white"
+              >
+                {channel === "telegram" ? t("verify.openTelegram") : t("verify.openBale")}
               </a>
             ) : null}
             <p className="text-sm text-stone-500">{t("verify.waiting")}</p>
             <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => start(channel ?? "telegram")} disabled={busy} className="flex-1">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const next = channel ?? availableChannels[0];
+                  if (next) void start(next);
+                }}
+                disabled={busy || !channel && availableChannels.length === 0}
+                className="flex-1"
+              >
                 {t("verify.newCode")}
               </Button>
               <Button

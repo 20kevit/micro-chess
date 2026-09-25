@@ -453,9 +453,18 @@ def test_admin_puzzle_lifecycle(client, db_session):
     assert validated.status_code == 200
     assert validated.json()["status"] == "validated"
 
-    # Meaning locks once validated: corrections need request_changes.
-    assert client.patch(f"/api/v1/admin/puzzles/{pid}", json={"answer_json": {"moves": ["x"]}}, headers=headers).status_code == 409
+    # Phase 12: editing meaning of validated content is allowed but
+    # invalidates the review standing — the puzzle returns to draft
+    # (audited, with history) so gates are re-passed; no step is skipped.
+    edited = client.patch(f"/api/v1/admin/puzzles/{pid}", json={"answer_json": {"moves": ["x"]}}, headers=headers)
+    assert edited.status_code == 200
+    assert edited.json()["status"] == "draft"
+    assert edited.json()["answer_json"] == {"moves": ["x"]}
     assert client.post(f"/api/v1/admin/puzzles/{pid}/publish", headers=headers).status_code == 409
+    # Re-validate the edited content to continue the pipeline.
+    revalidated = client.post(f"/api/v1/admin/puzzles/{pid}/validate", headers=headers)
+    assert revalidated.status_code == 200
+    assert revalidated.json()["status"] == "validated"
 
     reviewed = client.post(f"/api/v1/admin/puzzles/{pid}/review", json={"decision": "approve"}, headers=headers)
     assert reviewed.status_code == 200
@@ -465,10 +474,13 @@ def test_admin_puzzle_lifecycle(client, db_session):
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
 
-    # Lifecycle trail is inspectable by admins.
+    # Lifecycle trail is inspectable by admins (includes the Phase 12
+    # content_edited demotion back to draft plus re-validation).
     history = client.get(f"/api/v1/admin/puzzles/{pid}/history", headers=headers)
     assert history.status_code == 200
-    assert [t["to_status"] for t in history.json()["transitions"]] == ["validated", "reviewed", "approved"]
+    assert [t["to_status"] for t in history.json()["transitions"]] == [
+        "validated", "draft", "validated", "reviewed", "approved",
+    ]
     assert history.json()["validations"][0]["status"] == "pass"
     assert history.json()["reviews"][0]["decision"] == "approve"
 

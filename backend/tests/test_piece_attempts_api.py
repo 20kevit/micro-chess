@@ -7,10 +7,12 @@ from app.modules.piece_recognition import seed as seed_mod
 from app.modules.piece_recognition.validator import SLUG
 from app.modules.progress.models import Attempt
 from app.modules.puzzles.models import Puzzle
+from tests.conftest import publish_staged_puzzles
 
 
 def _seeded_puzzle(db_session) -> Puzzle:
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = (
         db_session.query(Puzzle)
         .filter(Puzzle.exercise_slug == SLUG)

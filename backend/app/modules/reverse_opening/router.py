@@ -11,7 +11,7 @@ from app.modules.reverse_opening.validator import (
     matched_plies,
     position_key,
 )
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles import service as puzzle_service
 from app.modules.rule_engine.base import normalize_square
 
 router = APIRouter(prefix="/reverse-opening", tags=["reverse-opening"])
@@ -25,14 +25,10 @@ def _reject(fen: str, moves: list[str], message_key: str = "reconstruction.inval
 
 @router.post("/step", response_model=schemas.StepOut)
 def validate_step(body: schemas.StepIn, db: Session = Depends(get_db)):
-    puzzle: Puzzle | None = db.get(Puzzle, body.puzzle_id)
-    if (
-        puzzle is None
-        or not puzzle.is_published
-        or puzzle.is_archived
-        or puzzle.exercise_slug != SLUG
-    ):
-        raise HTTPException(status_code=404, detail="puzzle_not_available")
+    try:
+        puzzle = puzzle_service.require_visible_puzzle(db, body.puzzle_id, SLUG)
+    except puzzle_service.PlayerPuzzleUnavailableError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     answer = puzzle.answer_json if isinstance(puzzle.answer_json, dict) else {}
     start_fen = answer.get("start_fen")

@@ -46,6 +46,10 @@ support.close
 support.manage
 ```
 
+A closed ticket can be explicitly reopened by authorized staff. Reopening
+returns it to `open`, preserves all messages, and records an audit event;
+it does not create a second ticket or delete history.
+
 A support request should retain:
 
 * requester

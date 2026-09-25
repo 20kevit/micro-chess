@@ -9,11 +9,13 @@ from datetime import timedelta
 
 import pytest
 
+from app.modules.piece_recognition import generator as puzzle_generator
+from app.modules.piece_recognition import seed as puzzle_seed
 from app.modules.piece_recognition import sessions as session_service
 from app.modules.piece_recognition.models import PieceSpeedSession
 from app.modules.positions import repository as positions_repo
 from app.modules.progress.models import Attempt
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_generated_pool
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +38,17 @@ def small_source_db(tmp_path, monkeypatch):
     conn.close()
     monkeypatch.setenv(positions_repo.SOURCE_ENV_VAR, str(path))
     return path
+
+
+@pytest.fixture(autouse=True)
+def published_pool(db_session, small_source_db):
+    puzzle_seed.seed_db(db_session)
+    publish_generated_pool(
+        db_session,
+        "piece-recognition",
+        puzzle_generator.create_puzzle,
+        count=25,
+    )
 
 
 def _open(client):
@@ -90,9 +103,14 @@ def test_next_practice_exclude_ids_avoids_repeat(client, db_session):
 def test_next_puzzles_vary_and_submit_end_to_end(client, db_session):
     headers = make_auth_headers(db_session)
     fens = set()
+    excluded = []
     for _ in range(5):
-        body = client.post("/api/v1/piece-recognition/next", json={}).json()
+        body = client.post(
+            "/api/v1/piece-recognition/next",
+            json={"exclude_ids": excluded},
+        ).json()
         fens.add((body["fen"], body["prompt_fa"]))
+        excluded.append(body["id"])
         res = client.post(
             "/api/v1/attempts",
             json={"puzzle_id": body["id"], "answer": {"selected_squares": []}, "mode": "practice"},

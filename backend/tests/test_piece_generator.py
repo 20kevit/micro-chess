@@ -15,6 +15,7 @@ from app.modules.piece_recognition.categories import (
 from app.modules.piece_recognition.validator import CANONICAL_TARGETS, squares_for_target
 from app.modules.positions import repository as positions_repo
 from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.service import DuplicatePuzzleCandidateError
 
 STARTPOS = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -180,10 +181,11 @@ def test_squares_helper_agrees_with_generator():
         )
 
 
-def test_create_puzzle_persists_published_row(db_session):
+def test_create_puzzle_stages_validated_row(db_session):
     puzzle = generator.create_puzzle(db_session, random.Random(5))
     assert puzzle.id is not None
-    assert puzzle.is_published and not puzzle.is_archived
+    assert not puzzle.is_published and not puzzle.is_archived
+    assert puzzle.status == "validated"
     assert puzzle.fen and puzzle.prompt_fa and puzzle.explanation
     stored = db_session.get(Puzzle, puzzle.id)
     assert stored.answer_json["squares"] == generator.question_for_fen(
@@ -204,10 +206,9 @@ def test_identical_rows_reused_not_duplicated(db_session, monkeypatch):
     again = generator.create_puzzle(db_session)
     assert again.id == first.id
     assert db_session.query(Puzzle).count() == before
-    # ...unless that row is excluded, in which case a fresh row appears.
-    fresh = generator.create_puzzle(db_session, exclude_ids={first.id})
-    assert fresh.id != first.id
-    assert db_session.query(Puzzle).count() == before + 1
+    with pytest.raises(DuplicatePuzzleCandidateError):
+        generator.create_puzzle(db_session, exclude_ids={first.id})
+    assert db_session.query(Puzzle).count() == before
 
 
 def test_exclude_ids_steer_away_from_shown(db_session):

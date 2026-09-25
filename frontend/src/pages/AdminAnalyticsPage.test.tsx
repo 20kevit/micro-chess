@@ -120,7 +120,7 @@ describe("admin analytics page", () => {
     mockedAdmin.puzzleAnalytics.mockResolvedValue(puzzles());
     renderPage();
     await waitFor(() => expect(screen.getByText("تحلیل‌ها")).toBeTruthy());
-    expect(screen.getByText("کاربران فعال")).toBeTruthy();
+     expect(screen.getAllByText("کاربران فعال").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("استفاده تمرین‌ها")).toBeTruthy();
     expect(screen.getByText("عملکرد معماها")).toBeTruthy();
     // Observed difficulty label, never raw codes or answers.
@@ -162,6 +162,6 @@ describe("admin analytics page", () => {
     await waitFor(() => expect(screen.getByText("مشکلی پیش آمد. دوباره تلاش کن.")).toBeTruthy());
     mockedAdmin.platformAnalytics.mockResolvedValue(platform());
     await user.click(screen.getByText("تلاش دوباره"));
-    await waitFor(() => expect(screen.getByText("کاربران فعال")).toBeTruthy());
+     await waitFor(() => expect(screen.getAllByText("کاربران فعال").length).toBeGreaterThanOrEqual(1));
   });
 });

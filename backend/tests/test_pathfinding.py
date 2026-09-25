@@ -28,7 +28,7 @@ from app.modules.pathfinding.scoring import score_path
 from app.modules.pathfinding.validator import SLUG, apply_step, replay_path, validate
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_generated_pool
 
 KIND_LETTER = {"knight": "N", "bishop": "B", "rook": "R", "queen": "Q"}
 
@@ -374,7 +374,8 @@ def test_create_puzzle_persists_and_hides_answer(db_session):
     rng = random.Random(11)
     puzzle = gen.create_puzzle(db_session, rng)
     assert puzzle.exercise_slug == SLUG
-    assert puzzle.is_published and not puzzle.is_archived
+    assert not puzzle.is_published and not puzzle.is_archived
+    assert puzzle.status == "validated"
     assert puzzle.position_json == {
         "from": puzzle.answer_json["from"],
         "target": puzzle.answer_json["target"],
@@ -407,7 +408,7 @@ def test_independent_optimal_recomputed_on_submit(client, db_session):
     ans = puzzle.answer_json
     optimal = moves.shortest_path_length(ans["piece"], ans["from"], ans["target"])
     assert ans["optimal_moves"] == optimal
-    # A direct wrong path cannot be rescued by client fields.
+    publish_generated_pool(db_session, SLUG, gen.create_puzzle, count=1)
     bad = client.post(
         "/api/v1/attempts",
         json={
@@ -433,14 +434,17 @@ def test_seed_count_and_content(db_session):
         assert puzzle.position_json["from"] != puzzle.position_json["target"]
         assert puzzle.position_json["piece"] in ("knight", "bishop", "rook", "queen")
         assert puzzle.answer_json["optimal_moves"] >= 1
-        assert puzzle.prompt_fa and puzzle.is_published
+        assert puzzle.prompt_fa
+        assert not puzzle.is_published and puzzle.status == "validated"
 
 
 # --- Step endpoint + attempt API ---
 
 
 def _seed_puzzle(db_session, seed: int = 3) -> Puzzle:
-    return gen.create_puzzle(db_session, random.Random(seed))
+    puzzle = gen.create_puzzle(db_session, random.Random(seed))
+    publish_generated_pool(db_session, SLUG, gen.create_puzzle, count=1)
+    return puzzle
 
 
 def _legal_dest_for(puzzle: Puzzle) -> str:
@@ -528,6 +532,7 @@ def test_step_reaches_target_flag(client, db_session):
         puzzle = _seed_puzzle(db_session)
     ans = puzzle.answer_json
     assert moves.is_legal_step(ans["piece"], ans["from"], ans["target"])
+    publish_generated_pool(db_session, SLUG, gen.create_puzzle, count=1)
     res = client.post(
         "/api/v1/pathfinding/step",
         json={
@@ -617,6 +622,7 @@ def test_api_submit_extra_and_illegal_penalized(client, db_session):
 
 def test_api_list_and_detail_hide_answer(client, db_session):
     gen.create_puzzle(db_session, random.Random(31))
+    publish_generated_pool(db_session, SLUG, gen.create_puzzle, count=1)
     res = client.get(f"/api/v1/puzzles?exercise={SLUG}")
     assert res.status_code == 200
     assert len(res.json()) >= 1
@@ -628,6 +634,12 @@ def test_api_list_and_detail_hide_answer(client, db_session):
 
 
 # --- Practice next + speed lifecycle ---
+
+
+@pytest.fixture
+def published_pool(db_session):
+    seed_mod.seed_db(db_session)
+    publish_generated_pool(db_session, SLUG, gen.create_puzzle)
 
 
 def _practice_puzzle(client) -> dict:
@@ -643,7 +655,7 @@ def _submit_path(client, session_id: int | str, puzzle_id: int, answer: dict):
     return client.post(f"/api/v1/pathfinding/sessions/{session_id}/submit", json={"puzzle_id": puzzle_id, "answer": answer})
 
 
-def test_api_next_and_submit(client, db_session):
+def test_api_next_and_submit(client, db_session, published_pool):
     headers = make_auth_headers(db_session)
     body = _practice_puzzle(client)
     puzzle = db_session.get(Puzzle, body["id"])
@@ -659,7 +671,7 @@ def test_api_next_and_submit(client, db_session):
     assert ok.json()["score"] == float(ans["optimal_moves"] * 5)
 
 
-def test_speed_lifecycle(client, db_session):
+def test_speed_lifecycle(client, db_session, published_pool):
     headers = make_auth_headers(db_session)
     opened = client.post("/api/v1/pathfinding/sessions", json={})
     assert opened.status_code == 200
@@ -717,7 +729,7 @@ def test_speed_unknown_session_404(client):
     assert client.get("/api/v1/pathfinding/sessions/nope").status_code == 404
 
 
-def test_speed_submit_ignores_client_score(client, db_session):
+def test_speed_submit_ignores_client_score(client, db_session, published_pool):
     opened = client.post("/api/v1/pathfinding/sessions", json={}).json()
     sid = opened["session_id"]
     prepared = client.post(f"/api/v1/pathfinding/sessions/{sid}/puzzles", json={"count": 20}).json()
@@ -734,7 +746,7 @@ def test_speed_submit_ignores_client_score(client, db_session):
     assert sub.json()["attempt"]["score"] != 9999.0
 
 
-def test_practice_submit_ignores_client_fen(client, db_session):
+def test_practice_submit_ignores_client_fen(client, db_session, published_pool):
     body = _practice_puzzle(client)
     res = client.post(
         "/api/v1/attempts",

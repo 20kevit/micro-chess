@@ -285,6 +285,13 @@ export interface AdminUser {
   roles: string[];
   is_active: boolean;
   created_at: string;
+  current_plan_code: string | null;
+  current_plan_status: string | null;
+  verification_channel: string | null;
+  phone_verified: boolean;
+  last_active_at: string | null;
+  attempts_count: number;
+  coupon_redemption_count: number;
 }
 
 export interface AdminUserDetail extends AdminUser {
@@ -337,6 +344,7 @@ export interface AdminPuzzle {
   difficulty: number | null;
   target_rating: number | null;
   retired_at: string | null;
+  usage_attempts?: number;
 }
 
 export interface PuzzleHistory {
@@ -382,7 +390,7 @@ export interface AnswerContract {
   attempt_field: string;
   fen_derived: boolean;
   needs_board: boolean;
-  position_fields: Array<{ name: string; kind: string; description: string }>;
+  position_fields: Array<{ name: string; kind: string; description: string; item_hint?: string; options?: string[] }>;
   notes: string;
   validator_registered: boolean;
   generator_available: boolean;
@@ -951,9 +959,23 @@ export interface ReviewQueueItem {
   initial_rating: number;
   created_at: string;
   attempts: number;
+  usage_attempts: number;
   failure_rate: number | null;
   severity: string;
   reasons: string[];
+  fen: string | null;
+  position_json: Record<string, unknown>;
+  answer_json: Record<string, unknown>;
+  prompt_fa: string;
+  explanation: string;
+  source_reference: string | null;
+  generator_run_id: number | null;
+  validation_status: string | null;
+  latest_validation_status: string | null;
+  creator: { user_id: number; username: string; display_name: string } | null;
+  creator_user_id: number | null;
+  creator_username: string | null;
+  creator_display_name: string | null;
 }
 
 export interface UserProfileFull {
@@ -966,7 +988,12 @@ export interface UserProfileFull {
     created_at: string;
     last_active_at: string | null;
     attempts_total: number;
+    phone_verified: boolean;
+    verification_channel: string | null;
+    phone_masked: string;
+    verification: VerificationStatus;
   };
+  verification: VerificationStatus;
   learning: {
     attempts_by_exercise: Array<{ exercise_slug: string; attempts: number; correct: number }>;
     skills: Array<{ skill: string; level: string; confidence: string; evidence_count: number }>;
@@ -1077,11 +1104,44 @@ export interface ProductInsight {
   suggestion: string;
 }
 
+export interface ProviderHealth {
+  vapid?: { configured: boolean; available?: boolean };
+  telegram?: { configured: boolean; available: boolean };
+  bale?: { configured: boolean; available: boolean };
+  channels?: Record<string, { available: boolean; configured?: boolean; linked_users?: number; subscriptions?: number }>;
+  billing?: { provider: string; available: boolean };
+  verification?: { telegram_available: boolean; bale_available: boolean };
+}
+
 export interface SystemHealth {
   ok: boolean;
   database: { reachable: boolean };
   schema_status: { expected: number | null; stored: number | null; ok: boolean };
   puzzles: { total: number; published: number };
+  providers: ProviderHealth;
+  channels: Record<string, { available: boolean; configured?: boolean; linked_users?: number; subscriptions?: number }>;
+}
+
+export interface AdminJourneyOverview {
+  onboarding_completed: number;
+  placement_completed: number;
+  phones_verified: number;
+  telegram_verified: number;
+  bale_verified: number;
+  free_users: number;
+  premium_users: number;
+  premium_activations: number;
+  coupon_redemptions: number;
+  users_at_daily_limit: number;
+  quest_days: number;
+  quests_completed: number;
+  quests_total: number;
+  quest_completion_rate: number;
+  push_subscriptions: number;
+  telegram_links: number;
+  bale_links: number;
+  notification_delivery_failures: number;
+  events: Record<string, number>;
 }
 
 export interface SupportStats {
@@ -1096,16 +1156,53 @@ export interface AdminCoupon {
   id: number;
   code: string;
   campaign_slug: string | null;
+  description: string;
   discount_type: string;
   discount_value: number;
   trial_days: number;
+  currency: string;
   is_active: boolean;
   valid_from: string | null;
   valid_until: string | null;
   max_redemptions: number | null;
   max_per_user: number;
+  first_time_only: boolean;
+  min_amount_minor: number;
   total_redemptions: number;
   applicable_plan_codes: string[];
+}
+
+export interface AdminRedemption {
+  id: number;
+  coupon_code: string;
+  user_id: number;
+  subscription_id: number | null;
+  status: string;
+  discount_granted_minor: number;
+  trial_days_granted: number;
+  created_at: string | null;
+}
+
+export interface AdminSubscription extends Subscription {
+  user_id: number;
+  updated_at?: string;
+}
+
+export interface AdminPayment {
+  id: number;
+  user_id: number;
+  subscription_id: number | null;
+  plan_code: string;
+  price_amount_minor: number;
+  discount_minor: number;
+  final_amount_minor: number;
+  currency: string;
+  coupon_code: string | null;
+  provider: string;
+  provider_ref: string | null;
+  status: string;
+  failure_reason: string;
+  created_at: string | null;
 }
 
 export interface AdminPrice {
@@ -1152,6 +1249,7 @@ export interface VerificationStatus {
   verified: boolean;
   phone_masked: string;
   channel: string | null;
+  available_channels: string[];
 }
 
 export interface Quota {

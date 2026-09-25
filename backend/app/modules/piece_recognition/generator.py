@@ -9,7 +9,7 @@ Flow per new puzzle::
        deliberately NOT biased toward questions with existing pieces, so
        zero-target questions occur naturally.
     3. Compute the authoritative target squares server-side.
-    4. Build the Persian prompt/explanation/hint and persist a published
+    4. Build the Persian prompt/explanation/hint and stage a validated
        ``Puzzle`` row. The answer lives only in ``answer_json`` and is never
        sent to the client (see ``PuzzleOut``).
 
@@ -30,7 +30,8 @@ from app.modules.piece_recognition.categories import (
 )
 from app.modules.piece_recognition.validator import SLUG, squares_for_target
 from app.modules.positions import repository as positions
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_GENERATED, Puzzle
+from app.modules.puzzles.service import reusable_candidate_query, stage_validated_puzzle
 
 
 def category_for(target_key: str) -> Category:
@@ -98,13 +99,8 @@ def _match_existing(
 ) -> tuple[Puzzle | None, bool]:
     """Return (usable_row_or_None, identical_exists)."""
     candidates = (
-        db.query(Puzzle)
-        .filter(
-            Puzzle.exercise_slug == SLUG,
-            Puzzle.is_published == True,  # noqa: E712
-            Puzzle.is_archived == False,  # noqa: E712
-            Puzzle.fen == fen,
-        )
+        reusable_candidate_query(db, SLUG)
+        .filter(Puzzle.fen == fen)
         .order_by(Puzzle.id)
         .all()
     )
@@ -125,10 +121,13 @@ def create_puzzle(
     rng: random.Random | None = None,
     explicit_path: str | None = None,
     exclude_ids: set[int] | None = None,
+    *,
+    source: str = SOURCE_GENERATED,
+    source_reference: str | None = None,
 ) -> Puzzle:
-    """Generate one random question and persist it as a published puzzle.
+    """Generate one random question and stage it as a validated candidate.
 
-    The persisted row plugs into the standard attempt flow unchanged
+    The staged row plugs into the standard attempt flow unchanged
     (``POST /api/v1/attempts`` validates against the stored ``answer_json``).
     Identical (position, question) rows are reused, not duplicated;
     ``exclude_ids`` steers away from just-shown puzzles: a novel combo is
@@ -149,19 +148,22 @@ def create_puzzle(
                 return usable
             if not identical:
                 break
-    puzzle = Puzzle(
-        exercise_slug=SLUG,
-        fen=data["fen"],
-        position_json={"target": data["target"]},
-        answer_json={"squares": data["squares"], "target": data["target"]},
-        hint_json=data["hint_json"],
-        prompt_fa=data["prompt_fa"],
-        explanation=data["explanation"],
-        initial_rating=900.0,
-        is_published=True,
-        is_archived=False,
+    puzzle = stage_validated_puzzle(
+        db,
+        {
+            "exercise_slug": SLUG,
+            "fen": data["fen"],
+            "position_json": {"target": data["target"]},
+            "answer_json": {"squares": data["squares"], "target": data["target"]},
+            "hint_json": data["hint_json"],
+            "prompt_fa": data["prompt_fa"],
+            "explanation": data["explanation"],
+            "initial_rating": 900.0,
+        },
+        source=source,
+        source_reference=source_reference
+        or (f"generator:{SLUG}" if source == SOURCE_GENERATED else f"{source}:{SLUG}"),
     )
-    db.add(puzzle)
     db.commit()
     db.refresh(puzzle)
     return puzzle

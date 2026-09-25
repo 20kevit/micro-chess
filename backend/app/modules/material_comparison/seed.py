@@ -16,7 +16,8 @@ from app.modules.material_comparison import material as mat
 from app.modules.material_comparison.generator import PROMPT_FA, ensure_exercise
 from app.modules.material_comparison.validator import SLUG
 from app.modules.positions import repository as positions
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_IMPORTED, Puzzle
+from app.modules.puzzles.service import stage_validated_puzzle
 
 # Each entry: fen, expected choice, explanation, hints, rating.
 # 5 white-ahead / 5 black-ahead / 5 equal, covering pawns, knights,
@@ -177,19 +178,21 @@ def seed_db(db: Session) -> int:
     for item in PUZZLES:
         white, black = mat.material_from_fen(item["fen"])
         _ = (white, black)
-        puzzle = Puzzle(
-            exercise_slug=SLUG,
-            fen=item["fen"],
-            position_json={"fen": item["fen"], "mode": "standard"},
-            answer_json={"fen": item["fen"]},
-            hint_json={"hints": item["hints"]},
-            prompt_fa=PROMPT_FA,
-            explanation=item["explanation"],
-            initial_rating=item["rating"],
-            is_published=True,
-            is_archived=False,
+        stage_validated_puzzle(
+            db,
+            {
+                "exercise_slug": SLUG,
+                "fen": item["fen"],
+                "position_json": {"fen": item["fen"], "mode": "standard"},
+                "answer_json": {"fen": item["fen"]},
+                "hint_json": {"hints": item["hints"]},
+                "prompt_fa": PROMPT_FA,
+                "explanation": item["explanation"],
+                "initial_rating": item["rating"],
+            },
+            source=SOURCE_IMPORTED,
+            source_reference=f"seed:{SLUG}",
         )
-        db.add(puzzle)
         created += 1
     db.commit()
     return created

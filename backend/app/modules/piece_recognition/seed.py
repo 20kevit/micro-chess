@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal, init_db
 from app.modules.exercises.models import Exercise
 from app.modules.piece_recognition.validator import SLUG, TARGETS, squares_for_target
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_IMPORTED, Puzzle
+from app.modules.puzzles.service import stage_validated_puzzle
 
 STARTPOS = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -172,19 +173,21 @@ def seed_db(db: Session) -> int:
     for item in PUZZLES:
         target = TARGETS[item["target"]]
         answer = {"squares": squares_for_target(item["fen"], target), "target": item["target"]}
-        puzzle = Puzzle(
-            exercise_slug=SLUG,
-            fen=item["fen"],
-            position_json={"target": item["target"]},
-            answer_json=answer,
-            hint_json={"hints": item["hints"]},
-            prompt_fa=item["prompt_fa"],
-            explanation=item["explanation"],
-            initial_rating=item["rating"],
-            is_published=True,
-            is_archived=False,
+        stage_validated_puzzle(
+            db,
+            {
+                "exercise_slug": SLUG,
+                "fen": item["fen"],
+                "position_json": {"target": item["target"]},
+                "answer_json": answer,
+                "hint_json": {"hints": item["hints"]},
+                "prompt_fa": item["prompt_fa"],
+                "explanation": item["explanation"],
+                "initial_rating": item["rating"],
+            },
+            source=SOURCE_IMPORTED,
+            source_reference=f"seed:{SLUG}",
         )
-        db.add(puzzle)
         created += 1
     db.commit()
     return created

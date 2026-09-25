@@ -168,3 +168,132 @@ Tickets are the single conversation system (`open -> answered ->
 closed`); "messages / issues / feedback" are views over ticket
 status + free-form `category`, not a second system. User context on
 tickets reuses existing admin user detail; no secrets exposed.
+
+## 9. Exercise & Content Management (Phase 12)
+
+Admin is the professional content-management surface for MicroChess:
+an authorized admin operates the full content lifecycle without
+database access, SQL, or code changes for normal operations.
+
+Information architecture additions:
+
+```text
+Admin
+|-- Exercises (/admin/exercises) + Workspace (/admin/exercises/:slug)
+|   `-- tabs: overview | puzzles | generate | review | quality |
+|       difficulty | learning | analytics | settings
+|-- Puzzles (/admin/puzzles: server-side library, filters, bulk)
+|-- Puzzle detail (/admin/puzzles/:id: preview, answer, difficulty,
+|   rating, validation, lifecycle, usage, history)
+|-- Puzzle editor (/admin/puzzles/new, /admin/puzzles/:id/edit:
+|   Board Editor + typed Answer Editor + validate + save-as-draft)
+|-- Content health (/admin/content-health: global supply view)
+`-- Review Queue (/admin/review-queue: now links into puzzle detail)
+```
+
+Backend (`admin/content.py` over `admin/service.py`; no new tables,
+no migration, no new capabilities):
+
+- Answer contracts (`exercises/answer_contracts.py`): one typed
+  contract per exercise validator (squares, moves, single_move,
+  move_sequence, ordered_squares, single_square, square_or_color,
+  choice, options, path, pieces, structured fallback). Served via
+  `GET /admin/exercises/{slug}/answer-contract` with validator and
+  generator availability flags.
+- `POST /admin/puzzles/preview-validate`: authoritative validation
+  of unsaved content (structural gates + FEN-derived answer replay
+  through the registered validator). Never writes.
+- Meaning edits of validated/reviewed/approved content via
+  `PATCH /admin/puzzles/{id}` now apply the change and demote the
+  puzzle to draft (`content_edited`, audited, history row) so gates
+  are re-passed. Published/retired/rejected/quarantined stay
+  immutable; exercise reassignment stays forbidden.
+- `POST /admin/puzzles/bulk` (max 50): validate, approve_review,
+  approve, publish, quarantine, release, reject, retire, restore.
+  Per-item lifecycle gates, per-item failures, destructive actions
+  require a reason; per-action capability (same as single-item
+  routes); one summary audit row (`puzzles.bulk_<action>`).
+- `POST /admin/exercises`: creation gated on a registered
+  server-side validator (`exercise_not_implemented` otherwise);
+  capability `exercises.create`.
+- `GET /admin/exercises/{slug}/quality`: supply by status, review
+  backlog, quarantined, difficulty coverage, validation failures,
+  high-failure published puzzles (>= 5 attempts, >= 70% failure),
+  success rate, avg duration, `supply_state` (healthy/attention/
+  critical) with machine-readable `attention_reasons`. No composite
+  quality score is invented.
+- `GET /admin/exercises/{slug}/learning` (window 7/14/30/90d):
+  usage, mistake distribution, canonical skills (primary/secondary
+  from `evidence/taxonomy.py` plus evidence counts), adaptive
+  recommendation outcomes. Read-only.
+- `GET /admin/content-health`: per-exercise supply rows with
+  reasons (`low_supply`, `review_backlog`, `quarantined_content`,
+  `no_generator`); thresholds reuse `LOW_SUPPLY_THRESHOLD`.
+- `GET /admin/puzzles/{id}/usage`: attempts, results, success rate,
+  avg duration (nulls, never invented).
+- `GET /admin/puzzles` gained `difficulty`, `source`, `search`
+  (prompt/exercise/FEN), `rating_min/max`, `sort`/`order`.
+
+Lifecycle map change: `reviewed -> draft` and `approved -> draft`
+are now allowed, reachable only through the audited admin-edit
+demotion in `update_puzzle` (no direct-transition endpoint exists,
+so no step can be skipped by callers).
+
+Frontend (`components/content/`, new pages, Persian RTL):
+
+- `BoardEditor`: SVG pieces (never glyphs), place/remove/move,
+  eraser, side to move, orientation, castling flags, en-passant,
+  clear/reset, FEN text apply with parse errors. `dir="ltr"` island.
+- `AnswerEditor`: one renderer per contract type; structured-JSON
+  fallback only for exercise-specific shapes.
+- Difficulty editor (1-5) and rating editor (100-3000, admin-only,
+  never shown to players); changing difficulty never rewrites
+  attempt snapshots (attempts store their own copies).
+- Exercise creation is honest: unregistered slugs are refused
+  server-side and explained in the UI; no fake database-only
+  exercises.
+
+Tests: `backend/tests/test_phase12_content.py` (22 cases) plus
+updated `test_admin.py` lifecycle expectations; frontend
+`lib/fenEditor.test.ts`, `pages/AdminContent.test.tsx`, updated
+`AdminPages.test.tsx` / `AdminOps.test.tsx`.
+
+## 10. Phase 13 Admin Control Center
+
+Phase 13 keeps the existing domain services and adds an operator-first
+workspace around them:
+
+- `AdminLayout` is a collapsible RTL sidebar with Dashboard, Content,
+  Users, Reports, and Sales groups. All Admin routes are nested under
+  `/admin`; the player shell is not rendered for those routes.
+- Exercise detail is the content entry point. Its tabs cover overview,
+  puzzles, one-candidate generation, review, quality, difficulty,
+  learning, analytics, and settings. The puzzle editor renders the
+  exercise answer contract, board, position metadata, hints, source
+  reference, and rating controls; unsaved validation is read-only.
+- Generated candidates enter as `validated` and require review and
+  approval. The generator screen never publishes or silently edits a
+  candidate. Rejected candidates remain auditable.
+- Safe draft deletion is intentionally narrow: it is available only for
+  a manual, unpublished draft with no lifecycle history, validation,
+  review, generator provenance, or attempts. Every other lifecycle
+  action uses archive/quarantine/reject/retire and preserves history.
+- Admin list endpoints expose `X-Total-Count`; audit supports action,
+  target type/id, actor, and date-window filters. Puzzle library rows
+  include a server-derived attempt count, and user rows include a
+  non-secret verification channel summary.
+- User detail combines account, verification, learning, commercial, and
+  durable timeline data without exposing phone numbers, tokens, or
+  provider secrets. Support tickets can be explicitly reopened by an
+  authorized staff member; reopening is audited.
+- System health distinguishes notification provider configuration from
+  verification-channel availability. Telegram verification is disabled
+  by default in production; the implementation remains available and can
+  be re-enabled with `VERIFICATION_TELEGRAM_ENABLED=true` while Bale
+  remains the safe default.
+
+P13 focused backend coverage is in `backend/tests/test_p13_admin.py`
+and `backend/tests/test_support_notifications.py`. Frontend coverage is
+colocated in the `Admin*P13.test.tsx` files and the updated Phase 12
+Admin tests. The normal gates remain `pytest`, `npm run typecheck`, and
+`npm run build`.

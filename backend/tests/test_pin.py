@@ -7,7 +7,7 @@ from app.modules.pin import seed as seed_mod
 from app.modules.pin.validator import SLUG, find_pins, validate
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_staged_puzzles
 
 
 def answer_for(fen: str, pin: list) -> dict:
@@ -252,7 +252,8 @@ def test_seed_count_and_answer_match(db_session):
         swapped = validate(puzzle.answer_json, {"squares": [stored[2], stored[1], stored[0]]})
         assert swapped.result == AttemptResult.WRONG, puzzle.fen
         seen_fens.add(puzzle.fen)
-        assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
+        assert puzzle.prompt_fa and puzzle.explanation
+        assert not puzzle.is_published and puzzle.status == "validated"
     assert len(seen_fens) == 15
     assert len({p.initial_rating for p in puzzles}) >= 5
 
@@ -283,7 +284,11 @@ def test_seed_archives_legacy_move_rows(db_session):
     assert legacy.is_archived is True
     visible = (
         db_session.query(Puzzle)
-        .filter(Puzzle.exercise_slug == SLUG, Puzzle.is_published == True, Puzzle.is_archived == False)  # noqa: E712
+        .filter(
+            Puzzle.exercise_slug == SLUG,
+            Puzzle.status == "validated",
+            Puzzle.is_archived == False,  # noqa: E712
+        )
         .all()
     )
     assert len(visible) == 15
@@ -295,6 +300,7 @@ def test_seed_archives_legacy_move_rows(db_session):
 
 def _seeded(db_session) -> Puzzle:
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).order_by(Puzzle.id).first()
     assert puzzle is not None
     return puzzle

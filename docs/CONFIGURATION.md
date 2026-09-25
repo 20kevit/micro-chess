@@ -19,6 +19,7 @@ Template: `backend/.env.example`. Copy it with `cp .env.example .env`.
 | `LOG_LEVEL` | `INFO` | — |
 | `RATE_LIMIT_ENABLED` | `true` | — |
 | `AUTH_RATE_LIMIT_PER_MINUTE` | `30` | Auth endpoints abuse protection. |
+| `VERIFICATION_TELEGRAM_ENABLED` | `false` | Production-safe default. Keep Telegram verification hidden until explicitly enabled; set `true` to re-enable the existing Telegram channel without a code change. Bale remains available. |
 | `SUPPORT_RATE_LIMIT_PER_MINUTE` | `20` | Support ticket/message spam protection (code default; not in `.env.example`). |
 | `GUEST_SESSION_EXPIRE_DAYS` | `30` | Server-side guest session lifetime (code default; not in `.env.example`). |
 | `PUZZLES_DB_PATH` | unset | Optional shared Lichess position source (read-only). When unset, the backend looks for `./puzzles.db` then `./backend/puzzles.db`, else uses curated fallback positions. Never committed (gitignored). |

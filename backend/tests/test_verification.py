@@ -38,6 +38,20 @@ def webhook_secret(monkeypatch):
     yield "test-hook-secret"
 
 
+@pytest.fixture(autouse=True)
+def telegram_enabled(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "verification_telegram_enabled", True)
+
+
+@pytest.fixture()
+def telegram_disabled(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "verification_telegram_enabled", False)
+
+
 @pytest.fixture()
 def fake_bots():
     from app.modules.verification import bots
@@ -93,7 +107,12 @@ def test_session_create_and_status(client, channel):
     assert "token" not in body  # internal token never leaves the server
     assert body["channel"] == channel
     status = client.get("/api/v1/me/verification/status", headers=h).json()
-    assert status == {"verified": False, "phone_masked": "", "channel": None}
+    assert status == {
+        "verified": False,
+        "phone_masked": "",
+        "channel": None,
+        "available_channels": ["telegram", "bale"],
+    }
 
 
 def test_session_unknown_channel_and_auth(client):
@@ -115,6 +134,105 @@ def test_already_verified_cannot_create_session(client, db_session):
     db_session.commit()
     assert client.post("/api/v1/me/verification/sessions",
                        json={"channel": "telegram"}, headers=h).status_code == 409
+
+
+def test_telegram_disabled_rejects_new_session_without_token(client, db_session, telegram_disabled):
+    h = _bearer(_register(client, "v_disabled_new")["access_token"])
+    response = client.post("/api/v1/me/verification/sessions",
+                           json={"channel": "telegram"}, headers=h)
+    assert response.status_code == 422
+    assert response.json()["detail"] == "verification_channel_unavailable"
+
+    from app.modules.notify.models import ChannelLinkToken
+
+    assert db_session.query(ChannelLinkToken).count() == 0
+    status = client.get("/api/v1/me/verification/status", headers=h).json()
+    assert status["available_channels"] == ["bale"]
+
+
+def test_bale_verification_succeeds_when_telegram_disabled(
+    client, db_session, webhook_secret, fake_bots, telegram_disabled
+):
+    data = _register(client, "v_disabled_bale")
+    h = _bearer(data["access_token"])
+    code = _session(client, h, "bale")["pairing_code"]
+    assert _webhook(client, "bale", {"message": {"chat": {"id": 810},
+                                                   "text": code}}).status_code == 200
+    assert _webhook(client, "bale",
+                    _contact_update(810, 810, 810, "09120000010")).status_code == 200
+    status = client.get("/api/v1/me/verification/status", headers=h).json()
+    assert status["verified"] is True
+    assert status["channel"] == "bale"
+    assert status["available_channels"] == ["bale"]
+
+
+def test_disabled_telegram_webhook_is_ignored_after_authentication(
+    client, db_session, webhook_secret, fake_bots, monkeypatch
+):
+    data = _register(client, "v_disabled_webhook")
+    h = _bearer(data["access_token"])
+    code = _session(client, h)["pairing_code"]
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "verification_telegram_enabled", False)
+    response = _webhook(client, "telegram", {"message": {"chat": {"id": 820},
+                                                           "text": code}})
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    assert fake_bots["telegram"].outbox == []
+
+    from app.modules.notify.models import ChannelLinkToken
+    from app.modules.users.models import User
+
+    row = db_session.query(ChannelLinkToken).filter(
+        ChannelLinkToken.pairing_code == code).first()
+    assert row is not None and row.chat_id is None and row.used_at is None
+    user = db_session.get(User, _user_id(db_session, "v_disabled_webhook"))
+    assert user.phone_verified is False and user.phone is None
+
+
+def test_disabled_telegram_webhook_still_requires_authentication(
+    client, telegram_disabled, webhook_secret
+):
+    response = _webhook(
+        client,
+        "telegram",
+        {"message": {"chat": {"id": 830}, "text": "123456"}},
+        secret="wrong",
+    )
+    assert response.status_code == 403
+
+
+def test_historical_telegram_verified_user_remains_compatible_when_disabled(
+    client, db_session, telegram_disabled
+):
+    data = _register(client, "v_historical")
+    user_id = _user_id(db_session, "v_historical")
+    from app.modules.player.models import PlayerExternalIdentity
+    from app.modules.users.models import User
+
+    user = db_session.get(User, user_id)
+    user.phone = "+989100000011"
+    user.phone_verified = True
+    db_session.add(PlayerExternalIdentity(
+        user_id=user_id,
+        provider="telegram",
+        external_username="historical-telegram-11",
+        provider_user_id="historical-telegram-11",
+        is_verified=True,
+        verified_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    ))
+    db_session.commit()
+
+    login = client.post("/api/v1/auth/login",
+                        json={"username": "v_historical", "password": "password123"})
+    assert login.status_code == 200
+    h = _bearer(login.json()["access_token"])
+    status = client.get("/api/v1/me/verification/status", headers=h).json()
+    assert status["verified"] is True
+    assert status["channel"] == "telegram"
+    assert status["available_channels"] == ["bale"]
+    _ = data
 
 
 def test_two_tabs_second_session_invalidates_first(client, db_session):

@@ -235,7 +235,7 @@ def add_staff_message(
 
 
 def close_ticket(db: Session, *, ticket_id: int, staff_id: int) -> tuple[SupportTicket, bool]:
-    """Close an open ticket (terminal; idempotent). Emits support.closed."""
+    """Close a ticket (idempotent). Emits support.closed."""
     ticket = db.get(SupportTicket, ticket_id)
     if ticket is None:
         raise ValueError("ticket_not_found")
@@ -261,6 +261,27 @@ def close_ticket(db: Session, *, ticket_id: int, staff_id: int) -> tuple[Support
         title=ticket.subject,
         body="",
         dedup_key=f"support-closed:{ticket.id}",
+    )
+    return ticket, True
+
+
+def reopen_ticket(db: Session, *, ticket_id: int, staff_id: int) -> tuple[SupportTicket, bool]:
+    ticket = db.get(SupportTicket, ticket_id)
+    if ticket is None:
+        raise ValueError("ticket_not_found")
+    if ticket.status != STATUS_CLOSED:
+        return ticket, False
+    ticket.status = STATUS_OPEN
+    ticket.closed_at = None
+    ticket.assigned_admin_id = staff_id
+    db.commit()
+    db.refresh(ticket)
+    _record_audit(
+        db,
+        actor_id=staff_id,
+        action="support.reopen",
+        target_id=ticket.id,
+        metadata={},
     )
     return ticket, True
 

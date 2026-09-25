@@ -123,7 +123,13 @@ def test_seed_count_and_variety(db_session):
     targets = {p.position_json.get("target") for p in puzzles}
     assert len(ratings) >= 5
     assert len(targets) >= 6
-    assert all(p.prompt_fa and p.explanation and p.is_published for p in puzzles)
+    assert all(
+        p.prompt_fa
+        and p.explanation
+        and not p.is_published
+        and p.status == "validated"
+        for p in puzzles
+    )
 
 
 def test_seed_answers_match_fen(db_session):

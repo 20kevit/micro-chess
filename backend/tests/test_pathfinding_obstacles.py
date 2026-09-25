@@ -34,7 +34,7 @@ from app.modules.pathfinding_obstacles.validator import (
 )
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_generated_pool
 
 
 def S(kind, white, enemies, target):
@@ -456,7 +456,8 @@ def test_create_puzzle_persists_and_reuses(db_session):
     rng = random.Random(7)
     first = gen.create_puzzle(db_session, rng)
     assert first.exercise_slug == SLUG
-    assert first.is_published and not first.is_archived
+    assert not first.is_published and not first.is_archived
+    assert first.status == "validated"
     assert "optimal_moves" in first.answer_json
     assert "optimal_moves" not in first.position_json
     # Solver accepts the persisted puzzle.
@@ -477,7 +478,13 @@ def test_seed_idempotent(db_session):
 # --- Runtime API ---
 
 
-def test_practice_next_never_leaks_answer(client):
+@pytest.fixture
+def published_pool(db_session):
+    seed_mod.seed_db(db_session)
+    publish_generated_pool(db_session, SLUG, gen.create_puzzle)
+
+
+def test_practice_next_never_leaks_answer(client, db_session, published_pool):
     res = client.post("/api/v1/pathfinding-obstacles/next", json={})
     assert res.status_code == 200
     body = res.json()
@@ -488,7 +495,7 @@ def test_practice_next_never_leaks_answer(client):
     assert "answer_json" not in body
 
 
-def test_step_oracle_accepts_rejects_and_tracks_capture(client):
+def test_step_oracle_accepts_rejects_and_tracks_capture(client, db_session, published_pool):
     nxt = client.post("/api/v1/pathfinding-obstacles/next", json={}).json()
     pid = nxt["id"]
     fen, pos = nxt["fen"], nxt["position_json"]
@@ -522,7 +529,7 @@ def test_step_unknown_puzzle_404(client):
     assert res.status_code == 404
 
 
-def test_attempt_api_authoritative_score_and_no_leak(client, db_session):
+def test_attempt_api_authoritative_score_and_no_leak(client, db_session, published_pool):
     nxt = client.post("/api/v1/pathfinding-obstacles/next", json={}).json()
     pos = nxt["position_json"]
     state = tr.parse_state(
@@ -547,7 +554,7 @@ def test_attempt_api_authoritative_score_and_no_leak(client, db_session):
     assert "answer_json" not in detail
 
 
-def test_attempt_wrong_path_rejected(client, db_session):
+def test_attempt_wrong_path_rejected(client, db_session, published_pool):
     nxt = client.post("/api/v1/pathfinding-obstacles/next", json={}).json()
     pos = nxt["position_json"]
     res = client.post("/api/v1/attempts", json={
@@ -559,7 +566,7 @@ def test_attempt_wrong_path_rejected(client, db_session):
     assert res.json()["result"] == "wrong"
 
 
-def test_speed_lifecycle_buffer_clock_submit_report(client, db_session):
+def test_speed_lifecycle_buffer_clock_submit_report(client, db_session, published_pool):
     headers = make_auth_headers(db_session)
     session = client.post("/api/v1/pathfinding-obstacles/sessions", json={}).json()
     sid = session["session_id"]

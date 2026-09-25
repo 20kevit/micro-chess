@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     # Phase 11 support abuse protection (spam ticket/message creation).
     support_rate_limit_per_minute: int = 20
     # Free/Premium verification + coupon abuse protection.
+    verification_telegram_enabled: bool = False
     verification_rate_limit_per_minute: int = 20
     billing_rate_limit_per_minute: int = 30
     webhook_rate_limit_per_minute: int = 120

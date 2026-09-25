@@ -16,6 +16,13 @@ class AdminUserOut(BaseModel):
     roles: list[str]
     is_active: bool
     created_at: datetime
+    current_plan_code: str | None = None
+    current_plan_status: str | None = None
+    verification_channel: str | None = None
+    phone_verified: bool = False
+    last_active_at: datetime | None = None
+    attempts_count: int = 0
+    coupon_redemption_count: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -99,6 +106,7 @@ class PuzzleAdminOut(BaseModel):
     difficulty: int | None = None
     target_rating: float | None = None
     retired_at: datetime | None = None
+    usage_attempts: int = 0
 
 
 class PuzzleCreateIn(BaseModel):
@@ -242,9 +250,23 @@ class ReviewQueueItemOut(BaseModel):
     initial_rating: float = 1200.0
     created_at: datetime
     attempts: int = 0
+    usage_attempts: int = 0
     failure_rate: float | None = None
     severity: str = "normal"
     reasons: list[str] = []
+    fen: str | None = None
+    position_json: dict = {}
+    answer_json: dict = {}
+    prompt_fa: str = ""
+    explanation: str = ""
+    source_reference: str | None = None
+    generator_run_id: int | None = None
+    validation_status: str | None = None
+    latest_validation_status: str | None = None
+    creator: dict | None = None
+    creator_user_id: int | None = None
+    creator_username: str | None = None
+    creator_display_name: str | None = None
 
 
 class RetentionOut(BaseModel):
@@ -291,6 +313,8 @@ class SystemHealthOut(BaseModel):
     database: dict = {}
     schema_status: dict = {}
     puzzles: dict = {}
+    providers: dict = {}
+    channels: dict = {}
 
 
 class UserProfileFullOut(BaseModel):
@@ -298,6 +322,7 @@ class UserProfileFullOut(BaseModel):
     learning: dict = {}
     commercial: dict = {}
     timeline: list[dict] = []
+    verification: dict = {}
 
 
 class DashboardExtendedOut(BaseModel):
@@ -318,3 +343,101 @@ class SupportStatsOut(BaseModel):
     open: int = 0
     answered: int = 0
     closed: int = 0
+
+
+# --- Phase 12 content management ------------------------------------------------
+
+
+class ExerciseCreateIn(BaseModel):
+    slug: str = Field(min_length=1, max_length=100)
+    title_fa: str = Field(min_length=1, max_length=200)
+    title_en: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=1000)
+    is_active: bool = True
+    sort_order: int = Field(default=0, ge=0)
+
+
+class AnswerContractOut(BaseModel):
+    exercise_slug: str
+    answer_type: str
+    answer_fields: list[dict] = []
+    attempt_field: str = ""
+    fen_derived: bool = False
+    needs_board: bool = True
+    position_fields: list[dict] = []
+    notes: str = ""
+    validator_registered: bool = False
+    generator_available: bool = False
+    generator_codes: list[str] = []
+
+
+class PreviewValidateIn(BaseModel):
+    exercise_slug: str = Field(min_length=1, max_length=100)
+    fen: str | None = Field(default=None, max_length=255)
+    position_json: dict = {}
+    answer_json: dict = {}
+    difficulty: int | None = Field(default=None)
+    target_rating: float | None = Field(default=None)
+    initial_rating: float | None = Field(default=None)
+    prompt_fa: str = Field(default="", max_length=500)
+    explanation: str = Field(default="", max_length=2000)
+    exclude_puzzle_id: int | None = Field(default=None)
+
+
+class PreviewValidateOut(BaseModel):
+    ok: bool
+    errors: list[dict] = []
+    content_hash: str = ""
+
+
+class BulkPuzzleIn(BaseModel):
+    puzzle_ids: list[int] = Field(min_length=1, max_length=50)
+    action: str = Field(min_length=1, max_length=20)
+    reason: str = Field(default="", max_length=500)
+
+
+class BulkPuzzleOut(BaseModel):
+    action: str
+    succeeded: list[int] = []
+    failed: list[dict] = []
+
+
+class PuzzleUsageOut(BaseModel):
+    puzzle_id: int
+    attempts: int = 0
+    by_result: dict = {}
+    success_rate: float | None = None
+    avg_duration_ms: float | None = None
+    recent_attempts: int = 20
+
+
+class ExerciseQualityOut(BaseModel):
+    exercise_slug: str
+    supply_by_status: list[dict] = []
+    published: int = 0
+    review_backlog: int = 0
+    quarantined: int = 0
+    difficulty_distribution: list[dict] = []
+    difficulty_levels_covered: list[int] = []
+    validation_failures: int = 0
+    high_failure_puzzles: list[dict] = []
+    attempts: int = 0
+    success_rate: float | None = None
+    avg_duration_ms: float | None = None
+    supply_state: str = "healthy"
+    attention_reasons: list[str] = []
+
+
+class ExerciseLearningOut(BaseModel):
+    exercise_slug: str
+    window_days: int = 30
+    usage: dict = {}
+    mistakes: list[dict] = []
+    skills: dict = {}
+    recommendations: list[dict] = []
+
+
+class ContentHealthOut(BaseModel):
+    low_supply_threshold: int = 5
+    exercises: list[dict] = []
+    attention_count: int = 0

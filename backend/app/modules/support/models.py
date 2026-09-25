@@ -2,12 +2,14 @@
 
 A support ticket is owned by exactly one authenticated account
 (``user_id``); guest support is not enabled (no product requirement).
-Lifecycle is exactly ``open -> answered -> closed``:
+Lifecycle is ``open -> answered -> closed`` with an audited reopen path
+back to ``open``:
 
 * ``open``: created, awaiting staff (owner replies keep it open).
 * ``answered``: staff responded, awaiting the owner (owner replies move
   it back to open; staff replies keep it answered).
-* ``closed``: terminal. Messages and re-closing are rejected.
+* ``closed``: messages and re-closing are rejected until an authorized
+  staff member explicitly reopens the ticket.
 
 Messages are append-only facts (owner follow-ups + staff responses).
 The first owner message is stored at creation time from the ticket's

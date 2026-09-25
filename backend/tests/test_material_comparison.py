@@ -18,9 +18,10 @@ from app.modules.material_comparison.validator import (
     total_value,
     validate,
 )
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_GENERATED, Puzzle
+from app.modules.puzzles.service import stage_validated_puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_generated_pool, publish_staged_puzzles
 
 
 def answer_for_fen(fen: str) -> dict:
@@ -235,13 +236,11 @@ def test_generated_puzzles_satisfy_10_percent(db_session):
         assert puzzle.position_json["fen"] == puzzle.fen
 
 
-def test_generator_distribution_covers_all_categories(db_session):
+def test_generator_handles_each_desired_category():
     rng = random.Random(999)
-    seen = set()
-    for _ in range(60):
-        puzzle = gen_mod.create_puzzle(db_session, rng)
-        seen.add(mat.classify_fen(puzzle.fen))
-    assert seen == {"white", "black", "equal"}
+    for category in ("white", "black", "equal"):
+        data = gen_mod.generate_question_data(rng, desired=category)
+        assert mat.classify_fen(data["fen"]) in {"white", "black", "equal"}
 
 
 def test_generator_desired_category_hint(db_session):
@@ -277,7 +276,8 @@ def test_seed_puzzles_valid_with_sensible_distribution(db_session):
         expected = "white" if white > black else "black" if black > white else "equal"
         distribution[expected] = distribution.get(expected, 0) + 1
         assert validate(puzzle.answer_json, {"choice": expected}).result == AttemptResult.CORRECT
-        assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
+        assert puzzle.prompt_fa and puzzle.explanation
+        assert not puzzle.is_published and puzzle.status == "validated"
     assert distribution.get("equal", 0) >= 2
     assert distribution.get("white", 0) >= 2
     assert distribution.get("black", 0) >= 2
@@ -297,6 +297,7 @@ def test_seed_rejects_broken_puzzles():
 
 def _seeded(db_session) -> Puzzle:
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = (
         db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).order_by(Puzzle.id).first()
     )
@@ -315,7 +316,33 @@ def test_api_list_hides_answer(client, db_session):
     assert body[0]["position_json"]["fen"] == body[0]["fen"]
 
 
-def test_api_next_hides_answer(client, db_session):
+@pytest.fixture
+def published_pool(db_session):
+    seed_mod.seed_db(db_session)
+    puzzle_ids = publish_generated_pool(db_session, SLUG, gen_mod.create_puzzle, count=19)
+    if len(puzzle_ids) < 20:
+        data = gen_mod.question_for_fen("q3k2r/8/8/8/8/8/8/3QK2R w - - 0 1")
+        assert data is not None
+        stage_validated_puzzle(
+            db_session,
+            {
+                "exercise_slug": SLUG,
+                "fen": data["fen"],
+                "position_json": {"fen": data["fen"], "mode": "standard"},
+                "answer_json": {"fen": data["fen"]},
+                "hint_json": data["hint_json"],
+                "prompt_fa": data["prompt_fa"],
+                "explanation": data["explanation"],
+                "initial_rating": 800.0,
+            },
+            source=SOURCE_GENERATED,
+            source_reference=f"generator:{SLUG}",
+        )
+        db_session.commit()
+        publish_staged_puzzles(db_session, SLUG)
+
+
+def test_api_next_hides_answer(client, db_session, published_pool):
     res = client.post("/api/v1/heavier-side/next", json={})
     assert res.status_code == 200
     body = res.json()
@@ -326,7 +353,7 @@ def test_api_next_hides_answer(client, db_session):
     assert "black_material" not in body
 
 
-def test_api_next_puzzle_satisfies_gate(client, db_session):
+def test_api_next_puzzle_satisfies_gate(client, db_session, published_pool):
     for _ in range(5):
         res = client.post("/api/v1/heavier-side/next", json={})
         assert res.status_code == 200
@@ -371,7 +398,7 @@ def test_api_invalid_puzzle_id_404(client, db_session):
     assert res.status_code == 404
 
 
-def test_speed_lifecycle(client, db_session):
+def test_speed_lifecycle(client, db_session, published_pool):
     started = client.post("/api/v1/heavier-side/sessions", json={})
     assert started.status_code == 200
     session_id = started.json()["session_id"]

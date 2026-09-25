@@ -26,7 +26,8 @@ from app.modules.reverse_opening.validator import (
     play_sequence,
     position_key,
 )
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_IMPORTED, Puzzle
+from app.modules.puzzles.service import stage_validated_puzzle
 
 # Each entry: canonical UCI line from the standard start, Persian opening
 # name (metadata only, never the answer), explanation, hints, rating.
@@ -248,25 +249,27 @@ def seed_db(db: Session) -> int:
             "target_fen": target_fen,
             "solutions": [list(item["moves"])],
         }
-        puzzle = Puzzle(
-            exercise_slug=SLUG,
-            fen=target_fen,
-            position_json={
-                "start_fen": START_FEN,
-                "target_fen": target_fen,
-                "mode": "reconstruct",
-                "opening_fa": item["opening_fa"],
-                "description_fa": describe_opening(target_fen, item["opening_fa"]),
+        stage_validated_puzzle(
+            db,
+            {
+                "exercise_slug": SLUG,
+                "fen": target_fen,
+                "position_json": {
+                    "start_fen": START_FEN,
+                    "target_fen": target_fen,
+                    "mode": "reconstruct",
+                    "opening_fa": item["opening_fa"],
+                    "description_fa": describe_opening(target_fen, item["opening_fa"]),
+                },
+                "answer_json": answer,
+                "hint_json": {"hints": item["hints"]},
+                "prompt_fa": item["prompt_fa"],
+                "explanation": item["explanation"],
+                "initial_rating": item["rating"],
             },
-            answer_json=answer,
-            hint_json={"hints": item["hints"]},
-            prompt_fa=item["prompt_fa"],
-            explanation=item["explanation"],
-            initial_rating=item["rating"],
-            is_published=True,
-            is_archived=False,
+            source=SOURCE_IMPORTED,
+            source_reference=f"seed:{SLUG}",
         )
-        db.add(puzzle)
         created += 1
     db.commit()
     return created

@@ -224,7 +224,24 @@ Record at minimum:
 
 ---
 
-## 15. Definition of Done
+## 15. Phase 13 Admin workflow
+
+The Admin generator registry is the single source for the generator
+screen. An operator selects an exercise, supplies optional seed,
+difficulty, and rating targets, and requests one candidate at a time.
+The response is rendered as a candidate with its board, contract-aware
+answer, provenance, and validation state. The operator can accept it
+into the normal review workflow, reject it with a reason, or regenerate
+it; none of these actions publishes content.
+
+A failed job preserves the generator version, configuration, seed,
+requesting operator, counts, and failure summary. The Admin UI reports
+the real job status and never presents a generation request as a
+publication event.
+
+---
+
+## 16. Definition of Done
 
 Generators are complete when:
 

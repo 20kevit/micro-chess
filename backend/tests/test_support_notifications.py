@@ -282,6 +282,75 @@ def test_staff_list_respond_close_lifecycle_with_notifications(client, db_sessio
     assert {"support.create", "support.reply", "support.respond", "support.close"} <= actions
 
 
+def test_closed_ticket_can_reopen_once_and_remains_audited(client, db_session):
+    owner = _token(client, "support_reopen_owner")
+    _token(client, "support_reopen_admin")
+    staff_user = _grant(db_session, "support_reopen_admin", "ADMIN")
+    staff = _login_admin(client, "support_reopen_admin")
+    ticket_id = _ticket(client, owner).json()["id"]
+
+    responded = client.post(
+        f"/api/v1/admin/support/tickets/{ticket_id}/messages",
+        json={"body": "initial response"},
+        headers=_bearer(staff),
+    )
+    assert responded.status_code == 201, responded.text
+    closed = client.post(
+        f"/api/v1/admin/support/tickets/{ticket_id}/close", headers=_bearer(staff)
+    )
+    assert closed.status_code == 200, closed.text
+    assert closed.json()["status"] == "closed"
+    assert closed.json()["closed_at"] is not None
+
+    reopened = client.post(
+        f"/api/v1/admin/support/tickets/{ticket_id}/reopen", headers=_bearer(staff)
+    )
+    assert reopened.status_code == 200, reopened.text
+    body = reopened.json()
+    assert body["status"] == "open"
+    assert body["closed_at"] is None
+    assert body["assigned_admin_id"] == staff_user.id
+    row = db_session.get(SupportTicket, ticket_id)
+    assert row.status == "open"
+    assert row.closed_at is None
+
+    audits = (
+        db_session.query(AuditLog)
+        .filter(
+            AuditLog.target_type == "support_ticket",
+            AuditLog.target_id == str(ticket_id),
+            AuditLog.action == "support.reopen",
+        )
+        .all()
+    )
+    assert len(audits) == 1
+    assert audits[0].actor_user_id == staff_user.id
+
+    repeated = client.post(
+        f"/api/v1/admin/support/tickets/{ticket_id}/reopen", headers=_bearer(staff)
+    )
+    assert repeated.status_code == 200, repeated.text
+    assert repeated.json()["status"] == "open"
+    assert (
+        db_session.query(AuditLog)
+        .filter(
+            AuditLog.target_type == "support_ticket",
+            AuditLog.target_id == str(ticket_id),
+            AuditLog.action == "support.reopen",
+        )
+        .count()
+        == 1
+    )
+
+    owner_reply = client.post(
+        f"/api/v1/me/support/tickets/{ticket_id}/messages",
+        json={"body": "the issue is back"},
+        headers=_bearer(owner),
+    )
+    assert owner_reply.status_code == 201, owner_reply.text
+    assert db_session.get(SupportTicket, ticket_id).status == "open"
+
+
 def test_support_staff_endpoints_enforce_capabilities(client, db_session):
     player = _token(client, "support_nocap_a")
     other = _token(client, "support_nocap_b")

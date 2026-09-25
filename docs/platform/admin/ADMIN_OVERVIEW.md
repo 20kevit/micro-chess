@@ -237,7 +237,31 @@ Admin actions MUST NOT:
 
 ---
 
-## 14. Definition of Done
+## 14. Phase 13 Control Center
+
+The production Admin surface uses a single RTL sidebar shell and keeps
+Exercise detail as the primary content workspace. The library, review
+queue, one-candidate generator, user detail, commercial views, analytics,
+insights, support, system health, and audit views all consume the same
+backend contracts and server-side totals.
+
+The UI is an operator surface, not a second business layer:
+
+* answer correctness, lifecycle gates, rating effects, and scoring stay
+  backend-owned;
+* list filters and audit date windows run on the server;
+* a draft delete is offered only when the backend proves it is safe;
+* user verification displays only masked status and channel labels;
+* support reopen, quarantine, rejection, and other state changes require
+  the corresponding capability and produce audit records.
+
+Telegram verification is disabled by default in production. Its backend
+implementation and channel contract remain available for an explicit
+configuration change; Bale remains the default verification path.
+
+---
+
+## 15. Definition of Done
 
 The Admin platform is complete when:
 

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { ChessPiece, type PieceSymbol } from "./ChessPiece";
+import { t } from "../../i18n";
 
 // Board is always LTR: a-file on the left in White orientation.
 // Strict 8x8 grid: the container keeps aspect-ratio 1/1 with 8 equal row and
@@ -137,7 +138,6 @@ interface Props {
   squareStates?: Partial<Record<string, "selected" | "correct" | "missed" | "wrong" | "target">>;
   /** Disable interaction (e.g. after submitting). */
   disabled?: boolean;
-  squareSize?: number;
   /** Allow dragging a piece onto another square (pointer + touch). */
   draggablePieces?: boolean;
   /** restricts drag initiation to these squares when set (null = any piece). */
@@ -424,7 +424,7 @@ export function ChessBoard({
       dir="ltr"
       className="w-full select-none"
       role="grid"
-      aria-label="chessboard"
+      aria-label={t("board.ariaLabel")}
       style={{
         touchAction: gesturesOn ? "none" : undefined,
         WebkitTouchCallout: gesturesOn ? "none" : undefined,

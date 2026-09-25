@@ -60,6 +60,112 @@ export function faDate(iso: string | null | undefined): string {
   return d.toLocaleDateString("fa-IR");
 }
 
+export function faDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("fa-IR");
+}
+
+const ADMIN_STATUS_KEYS: Record<string, FaKey> = {
+  draft: "admin.statusDraft",
+  validated: "admin.statusValidated",
+  reviewed: "admin.statusReviewed",
+  approved: "admin.statusApproved",
+  published: "admin.statusPublished",
+  quarantined: "admin.status.quarantined",
+  rejected: "admin.status.rejected",
+  retired: "admin.status.retired",
+  archived: "admin.status.retired",
+  pending: "admin.status.pending",
+  trialing: "admin.status.trialing",
+  active: "admin.status.active",
+  expired: "admin.status.expired",
+  cancelled: "admin.status.cancelled",
+  past_due: "admin.status.past_due",
+  requires_action: "admin.status.requires_action",
+  verified: "admin.status.verified",
+  failed: "admin.status.failed",
+  revoked: "admin.status.revoked",
+  pass: "admin.status.verified",
+  fail: "admin.status.failed",
+  high: "admin.status.high",
+  medium: "admin.status.medium",
+  normal: "admin.status.normal",
+  low: "admin.confidence.low",
+  emerging: "admin.user.learning",
+  developing: "admin.user.learning",
+  struggling: "admin.user.learning",
+  proficient: "admin.user.mastery",
+  mastered: "admin.user.mastery",
+  unseen: "admin.empty",
+  direct: "admin.evidence.strong",
+  strong: "admin.evidence.strong",
+  weak: "admin.evidence.weak",
+  positive: "admin.evidence.positive",
+  negative: "admin.evidence.negative",
+  neutral: "admin.evidence.neutral",
+  open: "admin.support.new",
+  answered: "admin.support.answered",
+  closed: "admin.support.closed",
+  applied: "admin.status.verified",
+  shown: "admin.status.verified",
+  accepted: "admin.status.verified",
+  completed: "admin.status.verified",
+  skipped: "feedback.skipped",
+  abandoned: "feedback.abandoned",
+};
+
+export function adminStatusLabel(value: string | null | undefined): string {
+  if (!value) return t("admin.notAvailable");
+  return t(ADMIN_STATUS_KEYS[value] ?? "admin.unknown");
+}
+
+const ADMIN_SOURCE_KEYS: Record<string, FaKey> = {
+  manual: "admin.sourceManual",
+  generated: "admin.sourceGenerated",
+  imported: "admin.sourceImported",
+  free_beta: "admin.sourceFreeBeta",
+  trial: "admin.sourceTrial",
+  coupon: "admin.sourceCoupon",
+  paid: "admin.sourcePaid",
+  payment: "admin.sourcePaid",
+  none: "admin.sourceNone",
+};
+
+export function adminSourceLabel(value: string | null | undefined): string {
+  if (!value) return t("admin.notAvailable");
+  return t(ADMIN_SOURCE_KEYS[value] ?? "admin.unknown");
+}
+
+const BILLING_INTERVAL_KEYS: Record<string, FaKey> = {
+  none: "admin.plans.none",
+  monthly: "admin.plans.monthly",
+  yearly: "admin.plans.yearly",
+  annual: "admin.plans.yearly",
+  lifetime: "admin.plans.lifetime",
+};
+
+export function billingIntervalLabel(value: string): string {
+  return t(BILLING_INTERVAL_KEYS[value] ?? "admin.unknown");
+}
+
+const COUPON_TYPE_KEYS: Record<string, FaKey> = {
+  percent: "admin.coupon.percent",
+  fixed: "admin.coupon.fixed",
+  free_trial: "admin.coupon.freeTrial",
+};
+
+export function couponTypeLabel(value: string): string {
+  return t(COUPON_TYPE_KEYS[value] ?? "admin.unknown");
+}
+
+export function verificationChannelLabel(value: string | null | undefined): string {
+  if (value === "telegram") return t("verify.telegram");
+  if (value === "bale") return t("verify.bale");
+  return t("admin.notAvailable");
+}
+
 // Adaptive recommendation reason text. Unknown codes fall back to the
 // raw code so a future server-side addition never breaks rendering.
 export function adaptiveReasonLabel(reason: string): string {

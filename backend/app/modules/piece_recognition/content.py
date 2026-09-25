@@ -8,6 +8,7 @@ Registered on import; core flow never branches on the exercise slug.
 
 from typing import Any
 
+from app.modules.piece_recognition.categories import CATEGORIES
 from app.modules.piece_recognition.validator import SLUG, TARGETS, squares_for_target
 from app.modules.puzzles.validation import register_content_validator
 
@@ -22,7 +23,8 @@ def check_piece_recognition_content(fields: dict[str, Any]) -> list[dict[str, An
     target = answer.get("target") or position.get("target")
     if target is None:
         return [{"code": "target_missing", "detail": "piece-recognition content requires a target"}]
-    spec = TARGETS.get(target)
+    category = CATEGORIES.get(target)
+    spec = category.target_spec() if category is not None else TARGETS.get(target)
     if spec is None:
         return [{"code": "unknown_target", "detail": "piece-recognition target is not supported"}]
     if not fen:

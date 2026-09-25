@@ -117,7 +117,7 @@ export interface ApiError extends Error {
   details: Record<string, unknown>;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function send(path: string, init?: RequestInit): Promise<Response> {
   const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
     headers: {
@@ -151,8 +151,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     err.details = details;
     throw err;
   }
+  return res;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await send(path, init);
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+export interface PageResult<T> {
+  items: T[];
+  total: number;
+}
+
+async function requestPage<T>(path: string): Promise<PageResult<T>> {
+  const res = await send(path);
+  const totalHeader = res.headers.get("X-Total-Count");
+  const items = (await res.json()) as T[];
+  const parsed = Number(totalHeader);
+  return { items, total: Number.isFinite(parsed) ? parsed : items.length };
 }
 
 export function apiStatus(e: unknown): number | null {
@@ -1199,8 +1217,24 @@ function adminQuery(params?: Record<string, string | number | boolean | undefine
 
 export const adminApi = {
   dashboard: () => request<AdminOverview>("/api/v1/admin/dashboard"),
-  users: (params?: { search?: string; role?: string; status?: string; page?: number; page_size?: number }) =>
-    request<AdminUser[]>(`/api/v1/admin/users${adminQuery(params)}`),
+  users: (params?: {
+    search?: string;
+    role?: string;
+    status?: string;
+    sort?: string;
+    order?: string;
+    page?: number;
+    page_size?: number;
+  }) => request<AdminUser[]>(`/api/v1/admin/users${adminQuery(params)}`),
+  usersPage: (params?: {
+    search?: string;
+    role?: string;
+    status?: string;
+    sort?: string;
+    order?: string;
+    page?: number;
+    page_size?: number;
+  }) => requestPage<AdminUser>(`/api/v1/admin/users${adminQuery(params)}`),
   user: (id: number) => request<AdminUserDetail>(`/api/v1/admin/users/${id}`),
   userProfile: (id: number) =>
     request<import("./types").UserProfileFull>(`/api/v1/admin/users/${id}/profile`),
@@ -1242,7 +1276,21 @@ export const adminApi = {
     page?: number;
     page_size?: number;
   }) => request<AdminPuzzle[]>(`/api/v1/admin/puzzles${adminQuery(params)}`),
+  puzzlesPage: (params?: {
+    exercise?: string;
+    status?: string;
+    difficulty?: number;
+    source?: string;
+    search?: string;
+    rating_min?: number;
+    rating_max?: number;
+    sort?: string;
+    order?: string;
+    page?: number;
+    page_size?: number;
+  }) => requestPage<AdminPuzzle>(`/api/v1/admin/puzzles${adminQuery(params)}`),
   puzzle: (id: number) => request<AdminPuzzle>(`/api/v1/admin/puzzles/${id}`),
+  deletePuzzle: (id: number) => request<void>(`/api/v1/admin/puzzles/${id}`, { method: "DELETE" }),
   createPuzzle: (body: {
     exercise_slug: string;
     fen?: string | null;
@@ -1291,23 +1339,58 @@ export const adminApi = {
     }),
   generatorRuns: (params?: { generator?: string; exercise?: string; status?: string; page?: number; page_size?: number }) =>
     request<GeneratorRun[]>(`/api/v1/admin/generator-runs${adminQuery(params)}`),
+  generatorRunsPage: (params?: {
+    generator?: string;
+    exercise?: string;
+    status?: string;
+    page?: number;
+    page_size?: number;
+  }) => requestPage<GeneratorRun>(`/api/v1/admin/generator-runs${adminQuery(params)}`),
   generatorRun: (id: number) => request<GeneratorRun>(`/api/v1/admin/generator-runs/${id}`),
   cancelGeneratorRun: (id: number) =>
     request<GeneratorRun>(`/api/v1/admin/generator-runs/${id}/cancel`, { method: "POST" }),
-  audit: (params?: { action?: string; target_type?: string; page?: number; page_size?: number }) =>
-    request<AdminAuditRecord[]>(`/api/v1/admin/audit${adminQuery(params)}`),
+  audit: (params?: {
+    action?: string;
+    target_type?: string;
+    target_id?: number;
+    actor_id?: number;
+    date_from?: string;
+    date_to?: string;
+    page?: number;
+    page_size?: number;
+  }) => request<AdminAuditRecord[]>(`/api/v1/admin/audit${adminQuery(params)}`),
+  auditPage: (params?: {
+    action?: string;
+    target_type?: string;
+    target_id?: number;
+    actor_id?: number;
+    date_from?: string;
+    date_to?: string;
+    page?: number;
+    page_size?: number;
+  }) => requestPage<AdminAuditRecord>(`/api/v1/admin/audit${adminQuery(params)}`),
   // Admin analytics (Phase 8). Aggregate read-only metrics; every
   // endpoint authorizes server-side via analytics.read_* capabilities.
   platformAnalytics: (params?: { period?: string; date_from?: string; date_to?: string }) =>
     request<AdminPlatformAnalytics>(`/api/v1/admin/analytics${adminQuery(params)}`),
   exerciseAnalytics: (params?: { period?: string; date_from?: string; date_to?: string }) =>
     request<AdminExerciseAnalytics[]>(`/api/v1/admin/analytics/exercises${adminQuery(params)}`),
-  puzzleAnalytics: (params?: { period?: string; exercise?: string; page?: number; page_size?: number }) =>
-    request<AdminPuzzleAnalytics[]>(`/api/v1/admin/analytics/puzzles${adminQuery(params)}`),
+  puzzleAnalytics: (params?: {
+    period?: string;
+    date_from?: string;
+    date_to?: string;
+    exercise?: string;
+    page?: number;
+    page_size?: number;
+  }) => request<AdminPuzzleAnalytics[]>(`/api/v1/admin/analytics/puzzles${adminQuery(params)}`),
   // Staff support workflows (Phase 11). UX only — every endpoint
   // authorizes server-side via support.read/respond/close.
   supportTickets: (params?: { status?: string; category?: string; page?: number; page_size?: number }) =>
     request<SupportTicket[]>(`/api/v1/admin/support/tickets${adminQuery(params)}`),
+  supportTicketsPage: (params?: { status?: string; category?: string; page?: number; page_size?: number }) =>
+    requestPage<SupportTicket>(`/api/v1/admin/support/tickets${adminQuery(params)}`),
+  reopenSupport: (id: number) =>
+    request<SupportTicket>(`/api/v1/admin/support/tickets/${id}/reopen`, { method: "POST" }),
   supportTicket: (id: number) => request<SupportTicket>(`/api/v1/admin/support/tickets/${id}`),
   respondSupport: (id: number, body: string) =>
     request<SupportMessage>(`/api/v1/admin/support/tickets/${id}/messages`, {
@@ -1342,6 +1425,8 @@ export const adminApi = {
   // Operations: review queue, dashboard, analytics, sales, insights, health.
   reviewQueue: (params?: { exercise?: string; status?: string; page?: number; page_size?: number }) =>
     request<import("./types").ReviewQueueItem[]>(`/api/v1/admin/review-queue${adminQuery(params)}`),
+  reviewQueuePage: (params?: { exercise?: string; status?: string; page?: number; page_size?: number }) =>
+    requestPage<import("./types").ReviewQueueItem>(`/api/v1/admin/review-queue${adminQuery(params)}`),
   dashboardExtended: () =>
     request<import("./types").DashboardExtended>("/api/v1/admin/dashboard-extended"),
   retention: () => request<import("./types").RetentionData>("/api/v1/admin/analytics/retention"),
@@ -1357,6 +1442,10 @@ export const adminApi = {
     request<import("./types").SalesOverview>("/api/v1/admin/sales/overview"),
   insights: () => request<import("./types").ProductInsight[]>("/api/v1/admin/insights"),
   systemHealth: () => request<import("./types").SystemHealth>("/api/v1/admin/system/health"),
+  journeyOverview: () =>
+    request<import("./types").AdminJourneyOverview>("/api/v1/admin/journey/overview"),
+  providerHealth: () =>
+    request<import("./types").ProviderHealth>("/api/v1/admin/system/provider-health"),
   auditDetail: (id: number) => request<AdminAuditRecord>(`/api/v1/admin/audit/${id}`),
   exerciseAnalyticsDetail: (slug: string, params?: { period?: string }) =>
     request<import("./types").AdminExerciseAnalyticsDetail>(
@@ -1470,11 +1559,17 @@ export const adminBillingApi = {
     }),
   report: () => request<CampaignReport[]>("/api/v1/admin/billing/report"),
   redemptions: (params?: { status?: string; coupon_code?: string; page?: number; page_size?: number }) =>
-    request<Redemption[]>(`/api/v1/admin/billing/redemptions${adminQuery(params)}`),
+    request<import("./types").AdminRedemption[]>(`/api/v1/admin/billing/redemptions${adminQuery(params)}`),
+  redemptionsPage: (params?: { status?: string; coupon_code?: string; page?: number; page_size?: number }) =>
+    requestPage<import("./types").AdminRedemption>(`/api/v1/admin/billing/redemptions${adminQuery(params)}`),
   subscriptions: (params?: { user_id?: number; status?: string; page?: number; page_size?: number }) =>
-    request<Array<Subscription & { user_id: number }>>(`/api/v1/admin/billing/subscriptions${adminQuery(params)}`),
+    request<import("./types").AdminSubscription[]>(`/api/v1/admin/billing/subscriptions${adminQuery(params)}`),
+  subscriptionsPage: (params?: { user_id?: number; status?: string; page?: number; page_size?: number }) =>
+    requestPage<import("./types").AdminSubscription>(`/api/v1/admin/billing/subscriptions${adminQuery(params)}`),
   payments: (params?: { status?: string; page?: number; page_size?: number }) =>
-    request<Array<Record<string, unknown>>>(`/api/v1/admin/billing/payments${adminQuery(params)}`),
+    request<import("./types").AdminPayment[]>(`/api/v1/admin/billing/payments${adminQuery(params)}`),
+  paymentsPage: (params?: { status?: string; page?: number; page_size?: number }) =>
+    requestPage<import("./types").AdminPayment>(`/api/v1/admin/billing/payments${adminQuery(params)}`),
   plans: () => request<import("./types").AdminPlan[]>("/api/v1/admin/billing/plans"),
   setPlanActive: (code: string, isActive: boolean) =>
     request<import("./types").AdminPlan>(`/api/v1/admin/billing/plans/${code}`, {

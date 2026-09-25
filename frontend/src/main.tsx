@@ -19,12 +19,15 @@ import { RequireAdmin } from "./lib/require-admin";
 import { AdminLayout } from "./components/admin/AdminLayout";
 import { AdminAnalyticsPage } from "./pages/AdminAnalyticsPage";
 import { AdminAuditPage } from "./pages/AdminAuditPage";
+import { AdminContentHealthPage } from "./pages/AdminContentHealthPage";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { AdminExerciseDetailPage } from "./pages/AdminExerciseDetailPage";
 import { AdminExercisesPage } from "./pages/AdminExercisesPage";
 import { AdminGeneratorsPage } from "./pages/AdminGeneratorsPage";
 import { AdminInsightsPage } from "./pages/AdminInsightsPage";
 import { AdminPuzzlesPage } from "./pages/AdminPuzzlesPage";
+import { AdminPuzzleDetailPage } from "./pages/AdminPuzzleDetailPage";
+import { AdminPuzzleEditorPage } from "./pages/AdminPuzzleEditorPage";
 import { AdminReviewQueuePage } from "./pages/AdminReviewQueuePage";
 import { AdminSalesPage } from "./pages/AdminSalesPage";
 import { AdminSystemPage } from "./pages/AdminSystemPage";
@@ -212,121 +215,29 @@ const router = createBrowserRouter([
         path: "/admin",
         element: (
           <RequireAdmin>
-            <AdminDashboardPage />
+            <AdminLayout />
           </RequireAdmin>
         ),
-      },
-      {
-        path: "/admin/analytics",
-        element: (
-          <RequireAdmin>
-            <AdminLayout>
-              <AdminAnalyticsPage />
-            </AdminLayout>
-          </RequireAdmin>
-        ),
-      },
-      {
-        path: "/admin/users",
-        element: (
-          <RequireAdmin>
-            <AdminLayout>
-              <AdminUsersPage />
-            </AdminLayout>
-          </RequireAdmin>
-        ),
-      },
-      {
-        path: "/admin/users/:id",
-        element: (
-          <RequireAdmin>
-            <AdminUserDetailPage />
-          </RequireAdmin>
-        ),
-      },
-      {
-        path: "/admin/exercises",
-        element: (
-          <RequireAdmin>
-            <AdminLayout>
-              <AdminExercisesPage />
-            </AdminLayout>
-          </RequireAdmin>
-        ),
-      },
-      {
-        path: "/admin/exercises/:slug",
-        element: (
-          <RequireAdmin>
-            <AdminExerciseDetailPage />
-          </RequireAdmin>
-        ),
-      },
-      {
-        path: "/admin/puzzles",
-        element: (
-          <RequireAdmin>
-            <AdminPuzzlesPage />
-          </RequireAdmin>
-        ),
-      },
-      {
-        path: "/admin/generators",
-        element: (
-          <RequireAdmin>
-            <AdminLayout>
-              <AdminGeneratorsPage />
-            </AdminLayout>
-          </RequireAdmin>
-        ),
-      },
-      {
-        path: "/admin/review-queue",
-        element: (
-          <RequireAdmin>
-            <AdminReviewQueuePage />
-          </RequireAdmin>
-        ),
-      },
-      {
-        path: "/admin/sales",
-        element: (
-          <RequireAdmin>
-            <AdminSalesPage />
-          </RequireAdmin>
-        ),
-      },
-      {
-        path: "/admin/support",
-        element: (
-          <RequireAdmin>
-            <AdminSupportPage />
-          </RequireAdmin>
-        ),
-      },
-      {
-        path: "/admin/insights",
-        element: (
-          <RequireAdmin>
-            <AdminInsightsPage />
-          </RequireAdmin>
-        ),
-      },
-      {
-        path: "/admin/system",
-        element: (
-          <RequireAdmin>
-            <AdminSystemPage />
-          </RequireAdmin>
-        ),
-      },
-      {
-        path: "/admin/audit",
-        element: (
-          <RequireAdmin>
-            <AdminAuditPage />
-          </RequireAdmin>
-        ),
+        children: [
+          { index: true, element: <AdminDashboardPage /> },
+          { path: "analytics", element: <AdminAnalyticsPage /> },
+          { path: "users", element: <AdminUsersPage /> },
+          { path: "users/:id", element: <AdminUserDetailPage /> },
+          { path: "exercises", element: <AdminExercisesPage /> },
+          { path: "exercises/:slug", element: <AdminExerciseDetailPage /> },
+          { path: "puzzles", element: <AdminPuzzlesPage /> },
+          { path: "puzzles/new", element: <AdminPuzzleEditorPage /> },
+          { path: "puzzles/:id", element: <AdminPuzzleDetailPage /> },
+          { path: "puzzles/:id/edit", element: <AdminPuzzleEditorPage /> },
+          { path: "content-health", element: <AdminContentHealthPage /> },
+          { path: "generators", element: <AdminGeneratorsPage /> },
+          { path: "review-queue", element: <AdminReviewQueuePage /> },
+          { path: "sales", element: <AdminSalesPage /> },
+          { path: "support", element: <AdminSupportPage /> },
+          { path: "insights", element: <AdminInsightsPage /> },
+          { path: "system", element: <AdminSystemPage /> },
+          { path: "audit", element: <AdminAuditPage /> },
+        ],
       },
       { path: "*", element: <NotFoundPage /> },
     ],

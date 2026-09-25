@@ -23,7 +23,8 @@ from app.modules.evidence import service as evidence_service
 from app.modules.feedback_engine.service import feedback_key_for
 from app.modules.gamification_engine import service as gamification_service
 from app.modules.progress.models import Attempt
-from app.modules.puzzles.models import STATUS_QUARANTINED, STATUS_REJECTED, Puzzle
+from app.modules.puzzles import service as puzzle_service
+from app.modules.puzzles.models import Puzzle
 from app.modules.rating_engine import service as rating_service
 from app.modules.rule_engine.base import AttemptMode, AttemptResult, ValidationResult
 
@@ -63,14 +64,10 @@ def submit_attempt(
     assignment_id: int | None = None,
     assessment_id: int | None = None,
 ) -> tuple[Attempt, str, dict]:
-    puzzle: Puzzle | None = db.get(Puzzle, puzzle_id)
-    if puzzle is None or not puzzle.is_published or puzzle.is_archived:
-        raise ValueError("puzzle_not_available")
-    # P1 serving boundary (explicit lifecycle guard): quarantined and
-    # rejected content is never submittable, even if visibility flags
-    # ever desync from the canonical status.
-    if puzzle.status in (STATUS_QUARANTINED, STATUS_REJECTED):
-        raise ValueError("puzzle_not_available")
+    try:
+        puzzle = puzzle_service.require_visible_puzzle(db, puzzle_id)
+    except puzzle_service.PlayerPuzzleUnavailableError as exc:
+        raise ValueError("puzzle_not_available") from exc
     # Disabled exercises cannot start new training work (Phase 6 admin).
     # Missing catalog rows (legacy/generated content without an Exercise
     # entry) stay playable so pre-admin behavior is preserved; history is

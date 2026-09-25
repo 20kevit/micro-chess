@@ -15,7 +15,8 @@ import chess
 from app.db.session import SessionLocal, init_db
 from app.modules.checkmate.validator import SLUG
 from app.modules.exercises.models import Exercise
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_IMPORTED, Puzzle
+from app.modules.puzzles.service import stage_validated_puzzle
 
 PROMPT_FA = "وضعیت طرفی که نوبت حرکت با اوست چیست؟"
 
@@ -191,19 +192,21 @@ def seed_db(db: Session) -> int:
     created = 0
     for item in PUZZLES:
         answer = {"fen": item["fen"]}
-        puzzle = Puzzle(
-            exercise_slug=SLUG,
-            fen=item["fen"],
-            position_json={"fen": item["fen"], "mode": "standard"},
-            answer_json=answer,
-            hint_json={"hints": item["hints"]},
-            prompt_fa=item["prompt_fa"],
-            explanation=item["explanation"],
-            initial_rating=item["rating"],
-            is_published=True,
-            is_archived=False,
+        stage_validated_puzzle(
+            db,
+            {
+                "exercise_slug": SLUG,
+                "fen": item["fen"],
+                "position_json": {"fen": item["fen"], "mode": "standard"},
+                "answer_json": answer,
+                "hint_json": {"hints": item["hints"]},
+                "prompt_fa": item["prompt_fa"],
+                "explanation": item["explanation"],
+                "initial_rating": item["rating"],
+            },
+            source=SOURCE_IMPORTED,
+            source_reference=f"seed:{SLUG}",
         )
-        db.add(puzzle)
         created += 1
     db.commit()
     return created

@@ -19,7 +19,7 @@ from app.modules.blindfold_calculation.validator import (
 from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_generated_pool, publish_staged_puzzles
 
 # Real puzzles.db row (first seed entry): Kd6.
 FEN = "3k4/p7/2K5/3P2p1/1P3p2/P7/6P1/8 w - - 0 39"
@@ -270,7 +270,8 @@ def test_seed_count_idempotent_shapes(db_session):
         assert count <= 12
         assert chess.Move.from_uci(stored["solution"]) in board.legal_moves
         assert puzzle.prompt_fa == "بهترین حرکت چیست؟"
-        assert puzzle.explanation and puzzle.is_published
+        assert puzzle.explanation
+        assert not puzzle.is_published and puzzle.status == "validated"
         # Validator agrees with the stored solution.
         assert validate(stored, {"move": board.san(chess.Move.from_uci(stored["solution"]))}).result == AttemptResult.CORRECT
     assert sides == {"white", "black"}
@@ -317,6 +318,7 @@ def test_seed_archives_legacy_rows(db_session):
 
 def _seeded(db_session) -> Puzzle:
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).order_by(Puzzle.id).first()
     assert puzzle is not None
     return puzzle
@@ -351,7 +353,44 @@ def test_api_detail_hides_answer(client, db_session):
     assert "answer_json" not in res.json()
 
 
-def test_api_next_hides_solution(client, db_session):
+@pytest.fixture
+def calculation_source_db(tmp_path, monkeypatch):
+    import sqlite3
+
+    path = tmp_path / "puzzles.db"
+    connection = sqlite3.connect(path)
+    connection.execute(
+        'CREATE TABLE "puzzles" ("PuzzleId" TEXT, "FEN" TEXT, "Rating" INTEGER, "Themes" TEXT, "Moves" TEXT)'
+    )
+    rows = [
+        (item["puzzle_id"], item["fen"], item["rating"], "", item["solution"])
+        for item in seed_mod.PUZZLES
+    ]
+    rows.extend(
+        [
+            ("extra-1", "4k3/8/8/8/8/8/8/4K3 w - - 0 1", 1200, "", "e1d1"),
+            ("extra-2", "4k3/8/8/8/8/8/8/3K4 w - - 0 1", 1200, "", "d1c1"),
+            ("extra-3", "4k3/8/8/8/8/8/8/2K5 w - - 0 1", 1200, "", "c1b1"),
+            ("extra-4", "4k3/8/8/8/8/8/8/1K6 w - - 0 1", 1200, "", "b1a1"),
+            ("extra-5", "4k3/8/8/8/8/8/8/5K2 w - - 0 1", 1200, "", "f1e1"),
+        ]
+    )
+    connection.executemany(
+        'INSERT INTO "puzzles" ("PuzzleId", "FEN", "Rating", "Themes", "Moves") VALUES (?, ?, ?, ?, ?)',
+        rows,
+    )
+    connection.commit()
+    connection.close()
+    monkeypatch.setenv("PUZZLES_DB_PATH", str(path))
+
+
+@pytest.fixture
+def published_pool(db_session, calculation_source_db):
+    seed_mod.seed_db(db_session)
+    publish_generated_pool(db_session, SLUG, gen_mod.create_puzzle)
+
+
+def test_api_next_hides_solution(client, db_session, published_pool):
     res = client.post("/api/v1/blindfold-calculation/next", json={})
     assert res.status_code == 200
     body = res.json()
@@ -394,7 +433,7 @@ def test_api_correct_and_wrong_submit(client, db_session):
     assert rated.status_code == 401
 
 
-def test_speed_lifecycle(client, db_session):
+def test_speed_lifecycle(client, db_session, published_pool):
     headers = make_auth_headers(db_session)
     started = client.post("/api/v1/blindfold-calculation/sessions", json={})
     assert started.status_code == 200
@@ -444,7 +483,7 @@ def test_speed_lifecycle(client, db_session):
         assert entry["fen"] is None  # blindfold: positions never leak, even post-submit
 
 
-def test_speed_submit_before_start_rejected(client, db_session):
+def test_speed_submit_before_start_rejected(client, db_session, published_pool):
     started = client.post("/api/v1/blindfold-calculation/sessions", json={})
     session_id = started.json()["session_id"]
     buf = client.post(
@@ -459,7 +498,7 @@ def test_speed_submit_before_start_rejected(client, db_session):
     assert sub.status_code == 409  # session_not_started
 
 
-def test_speed_timeout_rejected(client, db_session):
+def test_speed_timeout_rejected(client, db_session, published_pool):
     from datetime import datetime, timedelta, timezone
 
     from app.modules.blindfold_calculation.models import BlindfoldCalculationSpeedSession

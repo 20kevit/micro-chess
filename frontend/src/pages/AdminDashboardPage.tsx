@@ -2,15 +2,36 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "../api/client";
 import type { AdminOverview, DashboardExtended, ProductInsight } from "../api/types";
-import { AdminLayout } from "../components/admin/AdminLayout";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { t } from "../i18n";
 import { faNum } from "../lib/playerDisplay";
 
-// Admin overview: read-only operational snapshot. Every number comes
-// from the server; the response carries no secrets.
+function insightTitle(item: ProductInsight): string {
+  if (item.key.startsWith("low_supply")) return t("admin.lowSupply");
+  if (item.key === "review_queue_depth") return t("admin.reviewQueue");
+  if (item.key === "high_failure_puzzles") return t("admin.failureRate");
+  if (item.key === "payment_failures") return t("admin.payments");
+  if (item.key === "open_support") return t("admin.support");
+  return t("admin.insights");
+}
+
+function auditActionLabel(action: string): string {
+  if (action === "users.suspend") return t("admin.suspend");
+  if (action === "users.reactivate") return t("admin.reactivate");
+  if (action === "puzzles.publish") return t("admin.publish");
+  if (action === "support.close") return t("admin.supportClose");
+  return t("admin.audit");
+}
+
+function auditTargetLabel(target: string): string {
+  if (target === "user") return t("admin.label.user");
+  if (target === "puzzle") return t("admin.puzzles");
+  if (target === "support_ticket") return t("admin.support");
+  return t("admin.audit");
+}
+
 export function AdminDashboardPage() {
   const [data, setData] = useState<AdminOverview | null>(null);
   const [extended, setExtended] = useState<DashboardExtended | null>(null);
@@ -49,13 +70,13 @@ export function AdminDashboardPage() {
 
   if (loading)
     return (
-      <AdminLayout>
+      <>
         <p className="py-8 text-center text-stone-500">{t("common.loading")}</p>
-      </AdminLayout>
+      </>
     );
   if (failed || !data)
     return (
-      <AdminLayout>
+      <>
         <div className="py-8 text-center">
           <p className="text-stone-500">{t("common.error")}</p>
           <div className="mx-auto mt-3 max-w-xs">
@@ -64,7 +85,7 @@ export function AdminDashboardPage() {
             </Button>
           </div>
         </div>
-      </AdminLayout>
+      </>
     );
 
   const stats: Array<[string, number]> = [
@@ -78,7 +99,7 @@ export function AdminDashboardPage() {
   ];
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader title={t("admin.title")} subtitle={t("admin.subtitle")} />
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
         {stats.map(([label, value]) => (
@@ -93,19 +114,19 @@ export function AdminDashboardPage() {
           <Card className="text-center">
             <p className="text-2xl font-black text-sky-700">{faNum(extended.registrations.today)}</p>
             <p className="mt-1 text-xs text-stone-500">
-              {t("admin.newRegistrations")} امروز / هفته {faNum(extended.registrations.week)}
+              {t("admin.newRegistrations")} {t("admin.dashboard.today")} / {t("admin.dashboard.week")} {faNum(extended.registrations.week)}
             </p>
           </Card>
           <Card className="text-center">
             <p className="text-2xl font-black text-sky-700">{faNum(extended.active.today)}</p>
             <p className="mt-1 text-xs text-stone-500">
-              {t("admin.activeUsers")} امروز / هفته {faNum(extended.active.week)}
+              {t("admin.activeUsers")} {t("admin.dashboard.today")} / {t("admin.dashboard.week")} {faNum(extended.active.week)}
             </p>
           </Card>
           <Card className="text-center">
             <p className="text-2xl font-black text-sky-700">{faNum(extended.attempts.week)}</p>
             <p className="mt-1 text-xs text-stone-500">
-              {t("admin.attemptsTotal")} هفته (قبلی {faNum(extended.attempts.prev_week)})
+              {t("admin.attemptsTotal")} {t("admin.dashboard.week")} ({t("admin.dashboard.previous")} {faNum(extended.attempts.prev_week)})
             </p>
           </Card>
           <Card className="text-center">
@@ -192,24 +213,20 @@ export function AdminDashboardPage() {
           <ul className="mt-2 flex flex-col gap-1">
             {insights.slice(0, 5).map((item) => (
               <li key={item.key} className="rounded-xl bg-amber-50 px-3 py-2 text-sm">
-                <span className="font-bold">{item.title}</span>
+                <span className="font-bold">{insightTitle(item)}</span>
               </li>
             ))}
           </ul>
-          <Link to="/admin/insights" className="mt-2 block">
-            <Button variant="secondary" className="w-full">
-              {t("admin.details")}
-            </Button>
+          <Link to="/admin/insights" className="mt-2 flex min-h-[44px] items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-700">
+            {t("admin.details")}
           </Link>
         </Card>
       ) : null}
       <div className="mt-3 flex flex-col gap-3">
         <Card>
           <h2 className="font-black">{t("admin.users")}</h2>
-          <Link to="/admin/users" className="mt-2 block">
-            <Button variant="secondary" className="w-full">
-              {t("admin.details")}
-            </Button>
+          <Link to="/admin/users" className="mt-2 flex min-h-[44px] items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-700">
+            {t("admin.details")}
           </Link>
           <h3 className="mt-3 text-sm font-bold text-stone-500">{t("admin.recentRegistrations")}</h3>
           {data.recent_registrations.length === 0 ? (
@@ -242,22 +259,20 @@ export function AdminDashboardPage() {
                   className="flex min-h-[44px] items-center justify-between gap-2 rounded-xl bg-stone-50 px-3 py-2"
                 >
                   <span className="font-bold" dir="ltr">
-                    {a.action}
+                     {auditActionLabel(a.action)}
                   </span>
                   <span className="text-xs text-stone-500" dir="ltr">
-                    {a.target_type}:{a.target_id}
+                     {auditTargetLabel(a.target_type)}:{a.target_id}
                   </span>
                 </li>
               ))}
             </ul>
           )}
-          <Link to="/admin/audit" className="mt-2 block">
-            <Button variant="secondary" className="w-full">
-              {t("admin.details")}
-            </Button>
+          <Link to="/admin/audit" className="mt-2 flex min-h-[44px] items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-700">
+            {t("admin.details")}
           </Link>
         </Card>
       </div>
-    </AdminLayout>
+    </>
   );
 }

@@ -24,7 +24,8 @@ import random
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal, init_db
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_IMPORTED, Puzzle
+from app.modules.puzzles.service import DuplicatePuzzleCandidateError, archive
 from app.modules.trapped_pieces import generator
 from app.modules.trapped_pieces.detector import trapped_squares
 from app.modules.trapped_pieces.validator import SLUG
@@ -59,7 +60,7 @@ def seed_db(db: Session, rng: random.Random | None = None) -> int:
             not squares  # this exercise never serves zero-target puzzles
             or (row.fen and squares != trapped_squares(row.fen))
         ):
-            row.is_archived = True
+            archive(db, row)
             stale += 1
     if stale:
         db.commit()
@@ -98,7 +99,17 @@ def seed_db(db: Session, rng: random.Random | None = None) -> int:
         # Fill the Speed pool with single-answer positions once Practice
         # variety (or size) is secured; otherwise take any 1-3 position.
         exactly_one = single < SPEED_COUNT and (multi >= MIN_MULTI or total >= PRACTICE_COUNT)
-        puzzle = generator.create_puzzle(db, rng, exclude_ids=exclude, exactly_one=exactly_one)
+        try:
+            puzzle = generator.create_puzzle(
+                db,
+                rng,
+                exclude_ids=exclude,
+                exactly_one=exactly_one,
+                source=SOURCE_IMPORTED,
+                source_reference=f"seed:{SLUG}",
+            )
+        except DuplicatePuzzleCandidateError:
+            continue
         # Independent verification: the stored answer must equal a fresh
         # recomputation from the FEN (never trusted from the generator).
         assert puzzle.fen is not None

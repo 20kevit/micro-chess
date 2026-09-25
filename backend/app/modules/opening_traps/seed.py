@@ -22,7 +22,8 @@ from app.db.session import SessionLocal, init_db
 from app.modules.exercises.models import Exercise
 from app.modules.opening_traps.description import THEME_FA, describe_trap, side_to_move
 from app.modules.opening_traps.validator import SLUG
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_IMPORTED, Puzzle
+from app.modules.puzzles.service import stage_validated_puzzle
 
 # Each entry: genuine opening line behind it (see docs), FEN, UCI solutions,
 # theme code, machine-checkable rule, Persian context, explanation (conceptual,
@@ -332,27 +333,29 @@ def seed_db(db: Session) -> int:
     for item in PUZZLES:
         sans = verify_puzzle(item)
         answer = {"fen": item["fen"], "solutions": sorted(item["solutions"]), "theme": item["theme"]}
-        puzzle = Puzzle(
-            exercise_slug=SLUG,
-            fen=None,
-            position_json={
-                "description_fa": describe_trap(item["fen"], item["opening_fa"], item["trap_fa"]),
-                "side_to_move": side_to_move(item["fen"]),
-                "mode": "tactic-1",
-                "opening_fa": item["opening_fa"],
-                "trap_fa": item["trap_fa"],
-                "theme": item["theme"],
-                "theme_fa": THEME_FA[item["theme"]],
+        stage_validated_puzzle(
+            db,
+            {
+                "exercise_slug": SLUG,
+                "fen": None,
+                "position_json": {
+                    "description_fa": describe_trap(item["fen"], item["opening_fa"], item["trap_fa"]),
+                    "side_to_move": side_to_move(item["fen"]),
+                    "mode": "tactic-1",
+                    "opening_fa": item["opening_fa"],
+                    "trap_fa": item["trap_fa"],
+                    "theme": item["theme"],
+                    "theme_fa": THEME_FA[item["theme"]],
+                },
+                "answer_json": answer,
+                "hint_json": {"hints": item["hints"]},
+                "prompt_fa": item["prompt_fa"],
+                "explanation": item["explanation"],
+                "initial_rating": item["rating"],
             },
-            answer_json=answer,
-            hint_json={"hints": item["hints"]},
-            prompt_fa=item["prompt_fa"],
-            explanation=item["explanation"],
-            initial_rating=item["rating"],
-            is_published=True,
-            is_archived=False,
+            source=SOURCE_IMPORTED,
+            source_reference=f"seed:{SLUG}",
         )
-        db.add(puzzle)
         created += 1
     db.commit()
     return created

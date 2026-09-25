@@ -4,7 +4,7 @@ Every endpoint enforces its capability server-side; frontend route
 guards are UX only. Responses never carry auth secrets.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.capabilities import (
@@ -15,6 +15,7 @@ from app.core.capabilities import (
 from app.core.deps import get_current_session_optional, get_current_user_optional, get_db
 from app.core.pagination import DEFAULT_PAGE_SIZE, PageQuery, PageSizeQuery
 from app.modules.admin import schemas, service
+from app.modules.admin import content as content_service
 from app.modules.analytics import schemas as analytics_schemas
 from app.modules.analytics import service as analytics_service
 from app.modules.support import schemas as support_schemas
@@ -48,13 +49,23 @@ _UNPROCESSABLE = {
     "invalid_config",
     "unsupported_config",
     "invalid_decision",
+    "invalid_slug",
+    "invalid_action",
+    "invalid_ids",
+    "bulk_too_large",
+    "reason_required",
+    "invalid_date_from",
+    "invalid_date_to",
 }
 _CONFLICT = {
     "last_admin",
+    "exercise_exists",
     "puzzle_immutable",
     "puzzle_archived",
     "puzzle_answer_missing",
     "validation_failed",
+    "puzzle_not_draft",
+    "puzzle_delete_conflict",
     "invalid_transition",
     "exercise_not_implemented",
 }
@@ -89,6 +100,7 @@ def get_dashboard(
 
 @router.get("/users", response_model=list[schemas.AdminUserOut])
 def list_users(
+    response: Response,
     search: str | None = None,
     role: str | None = None,
     status: str | None = None,
@@ -104,13 +116,15 @@ def list_users(
 ):
     _ = user
     try:
-        rows, _ = service.list_users(
+        rows, total = service.list_users(
             db, search=search, role=role, status=status,
             page=page, page_size=page_size, sort=sort, order=order,
         )
     except ValueError as exc:
         raise _domain_error(exc)
-    return [service.user_public(row) for row in rows]
+    response.headers["X-Total-Count"] = str(total)
+    summaries = service.user_summaries(db, rows)
+    return [service.user_public(row, summaries.get(row.id)) for row in rows]
 
 
 @router.get("/users/{user_id}", response_model=schemas.AdminUserDetailOut)
@@ -268,13 +282,112 @@ def patch_exercise(
     return service.exercise_admin_view(db, exercise)
 
 
+# --- Phase 12 exercise content management ---------------------------------------
+
+
+@router.post("/exercises", response_model=schemas.ExerciseAdminDetailOut, status_code=201)
+def create_exercise(
+    body: schemas.ExerciseCreateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.EXERCISES_CREATE)),
+):
+    # Creation is refused for slugs without a registered server-side
+    # validator: a database-only exercise would be fake content support.
+    try:
+        exercise = content_service.create_exercise(
+            db, actor_id=user.id, fields=body.model_dump()
+        )
+    except ValueError as exc:
+        raise _domain_error(exc)
+    return service.exercise_admin_view(db, exercise)
+
+
+@router.get(
+    "/exercises/{exercise_slug}/answer-contract",
+    response_model=schemas.AnswerContractOut,
+)
+def get_answer_contract(
+    exercise_slug: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.EXERCISES_MANAGE)),
+):
+    _ = user
+    contract = content_service.answer_contract(db, exercise_slug)
+    if contract is None:
+        raise HTTPException(status_code=404, detail="exercise_not_found")
+    return contract
+
+
+@router.get(
+    "/exercises/{exercise_slug}/quality",
+    response_model=schemas.ExerciseQualityOut,
+)
+def get_exercise_quality(
+    exercise_slug: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.EXERCISES_MANAGE)),
+):
+    _ = user
+    try:
+        return content_service.exercise_quality(db, exercise_slug)
+    except ValueError as exc:
+        raise _domain_error(exc)
+
+
+@router.get(
+    "/exercises/{exercise_slug}/learning",
+    response_model=schemas.ExerciseLearningOut,
+)
+def get_exercise_learning(
+    exercise_slug: str,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.ANALYTICS_READ_EXERCISE)),
+):
+    _ = user
+    if days not in (7, 14, 30, 90):
+        raise HTTPException(status_code=422, detail="invalid_window")
+    try:
+        return content_service.exercise_learning(db, exercise_slug, days=days)
+    except ValueError as exc:
+        raise _domain_error(exc)
+
+
+@router.get("/exercises/{exercise_slug}/generators")
+def get_exercise_generators(
+    exercise_slug: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.GENERATORS_READ)),
+):
+    _ = db
+    _ = user
+    return content_service.exercise_generators(exercise_slug)
+
+
+@router.get("/content-health", response_model=schemas.ContentHealthOut)
+def get_content_health(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.EXERCISES_MANAGE)),
+):
+    _ = user
+    return content_service.content_health(db)
+
+
 # --- puzzles ----------------------------------------------------------------
 
 
 @router.get("/puzzles", response_model=list[schemas.PuzzleAdminOut])
 def list_puzzles(
+    response: Response,
     exercise: str | None = None,
     status: str | None = None,
+    difficulty: int | None = None,
+    source: str | None = None,
+    search: str | None = None,
+    rating_min: float | None = None,
+    rating_max: float | None = None,
+    sort: str = "id",
+    order: str = "asc",
     page: PageQuery = 1,
     page_size: PageSizeQuery = DEFAULT_PAGE_SIZE,
     db: Session = Depends(get_db),
@@ -284,12 +397,16 @@ def list_puzzles(
 ):
     _ = user
     try:
-        rows, _ = service.list_puzzles_admin(
-            db, exercise=exercise, status=status, page=page, page_size=page_size
+        rows, total = service.list_puzzles_admin(
+            db, exercise=exercise, status=status, page=page, page_size=page_size,
+            difficulty=difficulty, source=source, search=search,
+            rating_min=rating_min, rating_max=rating_max, sort=sort, order=order,
         )
     except ValueError as exc:
         raise _domain_error(exc)
-    return [service.puzzle_admin_view(row) for row in rows]
+    response.headers["X-Total-Count"] = str(total)
+    usage = service.puzzle_usage_counts(db, rows)
+    return [service.puzzle_admin_view(row, usage.get(row.id, 0)) for row in rows]
 
 
 @router.get("/puzzles/{puzzle_id}", response_model=schemas.PuzzleAdminOut)
@@ -303,6 +420,19 @@ def get_puzzle(
     if puzzle is None:
         raise HTTPException(status_code=404, detail="puzzle_not_found")
     return service.puzzle_admin_view(puzzle)
+
+
+@router.delete("/puzzles/{puzzle_id}", status_code=204)
+def delete_puzzle(
+    puzzle_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.PUZZLES_RETIRE)),
+):
+    try:
+        service.delete_puzzle_draft(db, actor_id=user.id, puzzle_id=puzzle_id)
+    except ValueError as exc:
+        raise _domain_error(exc)
+    return Response(status_code=204)
 
 
 @router.post("/puzzles", response_model=schemas.PuzzleAdminOut, status_code=201)
@@ -487,6 +617,70 @@ def restore_puzzle(
     return service.puzzle_admin_view(puzzle)
 
 
+# --- Phase 12 puzzle authoring --------------------------------------------------
+
+
+@router.post("/puzzles/preview-validate", response_model=schemas.PreviewValidateOut)
+def preview_validate_puzzle(
+    body: schemas.PreviewValidateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.PUZZLES_CREATE)),
+):
+    # Authoritative validation of unsaved candidate content. Never writes.
+    _ = user
+    return content_service.preview_validate(db, fields=body.model_dump())
+
+
+_BULK_CAPABILITIES = {
+    "validate": Capability.PUZZLES_VALIDATE,
+    "approve_review": Capability.PUZZLES_REVIEW,
+    "approve": Capability.PUZZLES_APPROVE,
+    "publish": Capability.PUZZLES_PUBLISH,
+    "quarantine": Capability.PUZZLES_RETIRE,
+    "release": Capability.PUZZLES_RETIRE,
+    "reject": Capability.PUZZLES_RETIRE,
+    "retire": Capability.PUZZLES_RETIRE,
+    "restore": Capability.PUZZLES_PUBLISH,
+}
+
+
+@router.post("/puzzles/bulk", response_model=schemas.BulkPuzzleOut)
+def bulk_puzzle_action(
+    body: schemas.BulkPuzzleIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user_optional),
+    session=Depends(get_current_session_optional),
+):
+    # Per-action least privilege: each bulk action requires the same
+    # capability as its single-item route. Lifecycle gates still apply
+    # per item inside the service; failures never abort the batch.
+    action = (body.action or "").strip()
+    capability = _BULK_CAPABILITIES.get(action)
+    if capability is None:
+        raise HTTPException(status_code=422, detail="invalid_action")
+    ensure_capability(user, capability, session)
+    try:
+        return content_service.bulk_puzzle_action(
+            db, actor_id=user.id, puzzle_ids=list(body.puzzle_ids),
+            action=action, reason=body.reason,
+        )
+    except ValueError as exc:
+        raise _domain_error(exc)
+
+
+@router.get("/puzzles/{puzzle_id}/usage", response_model=schemas.PuzzleUsageOut)
+def get_puzzle_usage(
+    puzzle_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.PUZZLES_MANAGE)),
+):
+    _ = user
+    try:
+        return content_service.puzzle_usage(db, puzzle_id)
+    except ValueError as exc:
+        raise _domain_error(exc)
+
+
 # --- generators ------------------------------------------------------------
 
 
@@ -531,6 +725,7 @@ def run_generator(
 
 @router.get("/generator-runs", response_model=list[schemas.GeneratorRunOut])
 def list_generator_runs(
+    response: Response,
     generator: str | None = None,
     exercise: str | None = None,
     status: str | None = None,
@@ -542,10 +737,11 @@ def list_generator_runs(
     _ = user
     from app.modules.generators import service as generator_service
 
-    rows, _ = service.list_generator_runs(
+    rows, total = service.list_generator_runs(
         db, generator=generator, exercise=exercise, status=status,
         page=page, page_size=page_size,
     )
+    response.headers["X-Total-Count"] = str(total)
     return [generator_service.run_view(row) for row in rows]
 
 
@@ -695,6 +891,7 @@ def _support_error(exc: ValueError) -> HTTPException:
 
 @router.get("/support/tickets", response_model=list[support_schemas.SupportTicketStaffOut])
 def list_support_tickets(
+    response: Response,
     status: str | None = None,
     category: str | None = None,
     page: PageQuery = 1,
@@ -704,11 +901,12 @@ def list_support_tickets(
 ):
     _ = user
     try:
-        rows, _ = support_service.list_all_tickets(
+        rows, total = support_service.list_all_tickets(
             db, status=status, category=category, page=page, page_size=page_size
         )
     except ValueError as exc:
         raise _support_error(exc)
+    response.headers["X-Total-Count"] = str(total)
     return [support_service.ticket_view(row, include_owner=True) for row in rows]
 
 
@@ -769,21 +967,51 @@ def close_support_ticket(
 # --- audit ------------------------------------------------------------------
 
 
+@router.post("/support/tickets/{ticket_id}/reopen", response_model=support_schemas.SupportTicketStaffOut)
+def reopen_support_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capability(Capability.SUPPORT_RESPOND)),
+):
+    try:
+        ticket, _ = support_service.reopen_ticket(
+            db, ticket_id=ticket_id, staff_id=user.id
+        )
+    except ValueError as exc:
+        raise _support_error(exc)
+    return support_service.ticket_view(ticket, include_owner=True)
+
+
 @router.get("/audit", response_model=list[schemas.AuditOut])
 def list_audit(
+    response: Response,
     action: str | None = None,
     target_type: str | None = None,
+    target_id: int | None = None,
     actor_id: int | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     page: PageQuery = 1,
     page_size: PageSizeQuery = DEFAULT_PAGE_SIZE,
     db: Session = Depends(get_db),
     user: User = Depends(require_capability(Capability.AUDIT_VIEW)),
 ):
     _ = user
-    rows, _ = service.list_audit(
-        db, action=action, target_type=target_type, actor_id=actor_id,
-        page=page, page_size=page_size,
-    )
+    try:
+        rows, total = service.list_audit(
+            db,
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            actor_id=actor_id,
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as exc:
+        raise _domain_error(exc)
+    response.headers["X-Total-Count"] = str(total)
     return [service.audit_view(row) for row in rows]
 
 
@@ -792,6 +1020,7 @@ def list_audit(
 
 @router.get("/review-queue", response_model=list[schemas.ReviewQueueItemOut])
 def get_review_queue(
+    response: Response,
     exercise: str | None = None,
     status: str | None = None,
     page: PageQuery = 1,
@@ -803,11 +1032,12 @@ def get_review_queue(
     from app.modules.admin import ops as ops_service
 
     try:
-        items, _ = ops_service.review_queue(
+        items, total = ops_service.review_queue(
             db, exercise=exercise, status=status, page=page, page_size=page_size
         )
     except ValueError as exc:
         raise _domain_error(exc)
+    response.headers["X-Total-Count"] = str(total)
     return items
 
 
@@ -950,12 +1180,7 @@ def get_provider_health(
     db: Session = Depends(get_db),
     user: User = Depends(require_capability(Capability.ADMIN_OVERVIEW)),
 ):
-    _ = db
     _ = user
-    from app.modules.notify import service as notify_service
+    from app.modules.admin import ops as ops_service
 
-    return {
-        "vapid": notify_service.vapid_health(),
-        "telegram": {"configured": bool(__import__("os").environ.get("TELEGRAM_BOT_TOKEN"))},
-        "bale": {"configured": bool(__import__("os").environ.get("BALE_BOT_TOKEN"))},
-    }
+    return ops_service.provider_health(db)

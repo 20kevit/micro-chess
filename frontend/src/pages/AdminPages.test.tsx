@@ -37,12 +37,21 @@ vi.mock("../api/client", async (importOriginal) => {
       reviewPuzzle: vi.fn(),
       approvePuzzle: vi.fn(),
       puzzleHistory: vi.fn(),
+      puzzleUsage: vi.fn(),
+      previewValidate: vi.fn(),
+      bulkPuzzles: vi.fn(),
       publishPuzzle: vi.fn(),
       retirePuzzle: vi.fn(),
       quarantinePuzzle: vi.fn(),
       releasePuzzle: vi.fn(),
       rejectPuzzle: vi.fn(),
       restorePuzzle: vi.fn(),
+      createExercise: vi.fn(),
+      answerContract: vi.fn(),
+      exerciseQuality: vi.fn(),
+      exerciseLearning: vi.fn(),
+      exerciseGenerators: vi.fn(),
+      contentHealth: vi.fn(),
       generators: vi.fn(),
       runGenerator: vi.fn(),
       generatorRuns: vi.fn(),
@@ -217,15 +226,19 @@ describe("admin users page", () => {
   it("lists users with status badges", async () => {
     mockedUseAuth.mockReturnValue(base({ user: ADMIN }));
     mockedAdmin.users.mockResolvedValue([
-      { id: 1, username: "boss", display_name: "boss", roles: ["ADMIN"], is_active: true, created_at: "" },
-      { id: 2, username: "kid", display_name: "kid", roles: ["PLAYER"], is_active: false, created_at: "" },
+      { id: 1, username: "boss", display_name: "boss", roles: ["ADMIN"], is_active: true, created_at: "",
+        current_plan_code: null, current_plan_status: null, verification_channel: null, phone_verified: false, last_active_at: null,
+        attempts_count: 0, coupon_redemption_count: 0 },
+      { id: 2, username: "kid", display_name: "kid", roles: ["PLAYER"], is_active: false, created_at: "",
+        current_plan_code: "free", current_plan_status: "active", verification_channel: "bale", phone_verified: true, last_active_at: null,
+        attempts_count: 4, coupon_redemption_count: 1 },
     ]);
     render(
       <MemoryRouter initialEntries={["/admin/users"]}>
         <AdminUsersPage />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(screen.getByText("boss")).toBeTruthy());
+     await waitFor(() => expect(screen.getAllByText("boss").length).toBeGreaterThanOrEqual(1));
     // Each status word appears once in the filter <select> and once per
     // matching badge, so both must be present at least twice.
     expect(screen.getAllByText("فعال").length).toBeGreaterThanOrEqual(2);
@@ -234,7 +247,7 @@ describe("admin users page", () => {
 });
 
 describe("admin puzzles page", () => {
-  it("shows the empty state and the draft form", async () => {
+  it("shows the empty state and the authoring entry", async () => {
     mockedUseAuth.mockReturnValue(base({ user: ADMIN }));
     mockedAdmin.puzzles.mockResolvedValue([]);
     render(
@@ -243,10 +256,10 @@ describe("admin puzzles page", () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getByText("موردی نیست.")).toBeTruthy());
-    expect(screen.getByText("ساخت پیش‌نویس")).toBeTruthy();
+    expect(screen.getByText("افزودن معمای جدید")).toBeTruthy();
   });
 
-  it("offers the lifecycle actions matching server state", async () => {
+  it("lists puzzles with filters and detail links", async () => {
     mockedUseAuth.mockReturnValue(base({ user: ADMIN }));
     mockedAdmin.puzzles.mockResolvedValue([
       {
@@ -276,14 +289,47 @@ describe("admin puzzles page", () => {
         <AdminPuzzlesPage />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(screen.getByText("اعتبارسنجی")).toBeTruthy());
-    expect(screen.getByText("تأیید بازبینی")).toBeTruthy();
-    expect(screen.getByText("بازگردانی برای اصلاح")).toBeTruthy();
-    expect(screen.getByText("انتشار")).toBeTruthy();
-    // Each lifecycle word appears once in the filter <select> and once
-    // per matching badge, so both must be present at least twice.
-    expect(screen.getAllByText("اعتبارسنجی‌شده").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText(/مولد/).length).toBeGreaterThanOrEqual(1);
+    // Server-side library: rows link into the detail workspace where
+    // lifecycle actions live; filters stay visible for narrowing.
+    await waitFor(() => expect(screen.getAllByText("باز کردن").length).toBe(3));
+    expect(screen.getByText("همه وضعیت‌ها")).toBeTruthy();
+    expect(screen.getByText("همه دشواری‌ها")).toBeTruthy();
+    expect(screen.getByText("همه منابع")).toBeTruthy();
+    // Each status word appears once in the filter <select> and once
+    // per matching row badge.
+     expect(screen.getAllByText("پیش‌نویس").length).toBeGreaterThanOrEqual(1);
+     expect(screen.getAllByText("اعتبارسنجی‌شده").length).toBeGreaterThanOrEqual(1);
+     expect(screen.getAllByText("تأییدشده").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("reveals bulk actions after selecting rows", async () => {
+    const user = (await import("@testing-library/user-event")).default.setup();
+    mockedUseAuth.mockReturnValue(base({ user: ADMIN }));
+    mockedAdmin.puzzles.mockResolvedValue([
+      {
+        id: 1, exercise_slug: "pin", status: "draft", fen: null, position_json: {},
+        answer_json: {}, hint_json: {}, prompt_fa: "", explanation: "",
+        initial_rating: 1200, is_published: false, is_archived: false,
+        published_at: null, created_at: "", source: "manual", source_reference: null,
+        generator_run_id: null, difficulty: null, target_rating: null, retired_at: null,
+      },
+    ]);
+    mockedAdmin.bulkPuzzles.mockResolvedValue({ action: "validate", succeeded: [1], failed: [] });
+    render(
+      <MemoryRouter initialEntries={["/admin/puzzles"]}>
+        <AdminPuzzlesPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText("باز کردن")).toBeTruthy());
+    expect(screen.queryByText("اعتبارسنجی گروهی")).toBeNull();
+    await user.click(screen.getByRole("checkbox"));
+    expect(screen.getByText("اعتبارسنجی گروهی")).toBeTruthy();
+    await user.click(screen.getByText("اعتبارسنجی گروهی"));
+    await waitFor(() => expect(mockedAdmin.bulkPuzzles).toHaveBeenCalledWith({
+      puzzle_ids: [1],
+      action: "validate",
+      reason: "",
+    }));
   });
 });
 
@@ -309,9 +355,9 @@ describe("admin generators page", () => {
         <AdminGeneratorsPage />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(screen.getByText("اجرای مولد")).toBeTruthy());
-    await waitFor(() => expect(screen.getByText("اجراهای مولد")).toBeTruthy());
-    await waitFor(() => expect(screen.getByText("completed")).toBeTruthy());
+     await waitFor(() => expect(screen.getByText("تولید معمای تازه")).toBeTruthy());
+     await waitFor(() => expect(screen.getByText("اجراهای مولد")).toBeTruthy());
+     await waitFor(() => expect(screen.getByText("تأییدشده")).toBeTruthy());
   });
 
   it("marks exercises with and without a safe generator", async () => {
@@ -331,7 +377,7 @@ describe("admin generators page", () => {
     );
     await waitFor(() => expect(screen.getByText("تمرین‌های دارای مولد")).toBeTruthy());
     expect(screen.getByText("تمرین‌های بدون مولد")).toBeTruthy();
-    expect(screen.getByText("captures-v1")).toBeTruthy();
+     expect(screen.getAllByText(/captures-v1/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("آچمز")).toBeTruthy();
   });
 

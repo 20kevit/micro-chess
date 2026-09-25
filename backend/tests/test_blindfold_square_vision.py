@@ -2,6 +2,8 @@
 
 import random
 
+import pytest
+
 from app.modules.blindfold_square_vision import generator as gen_mod
 from app.modules.blindfold_square_vision import seed as seed_mod
 from app.modules.blindfold_square_vision.scoring import score_square_vision
@@ -14,7 +16,7 @@ from app.modules.blindfold_square_vision.validator import (
 from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_generated_pool, publish_staged_puzzles
 
 
 def answer_for(square: str) -> dict:
@@ -145,6 +147,7 @@ def test_seed_covers_both_colors_and_is_idempotent(db_session):
 
 def _seeded(db_session) -> Puzzle:
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = (
         db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).order_by(Puzzle.id).first()
     )
@@ -152,7 +155,13 @@ def _seeded(db_session) -> Puzzle:
     return puzzle
 
 
-def test_api_next_hides_color(client, db_session):
+@pytest.fixture
+def published_pool(db_session):
+    seed_mod.seed_db(db_session)
+    publish_generated_pool(db_session, SLUG, gen_mod.create_puzzle)
+
+
+def test_api_next_hides_color(client, db_session, published_pool):
     res = client.post("/api/v1/blindfold-square-vision/next", json={})
     assert res.status_code == 200
     body = res.json()
@@ -183,7 +192,7 @@ def test_api_practice_submit_scores_plus5_minus3(client, db_session):
     assert bad.json()["score"] == -3.0
 
 
-def test_speed_lifecycle(client, db_session):
+def test_speed_lifecycle(client, db_session, published_pool):
     started = client.post("/api/v1/blindfold-square-vision/sessions", json={})
     assert started.status_code == 200
     session_id = started.json()["session_id"]

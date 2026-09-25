@@ -11,9 +11,10 @@ from app.modules.chinese_board import seed as seed_mod
 from app.modules.chinese_board.scoring import score_chinese_board
 from app.modules.chinese_board.validator import SLUG, normalize_entry, validate
 from app.modules.exercises import registry
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_GENERATED, Puzzle
+from app.modules.puzzles.service import stage_validated_puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_generated_pool, publish_staged_puzzles
 
 FOUR_PIECE_FEN = "3qk3/8/8/8/8/8/8/3QK3 w - - 0 1"
 
@@ -401,7 +402,8 @@ def test_seed_puzzles_valid_with_rising_sizes(db_session):
         counts.append(count)
         assert puzzle.position_json["piece_count"] == count
         assert puzzle.position_json["memorization_ms"] == count * 1000
-        assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
+        assert puzzle.prompt_fa and puzzle.explanation
+        assert not puzzle.is_published and puzzle.status == "validated"
         pieces = [{"square": p["square"], "piece": p["type"], "color": p["color"]}
                   for p in cb.extract_pieces(puzzle.fen)]
         assert validate(puzzle.answer_json, {"pieces": pieces}).result == AttemptResult.CORRECT
@@ -421,6 +423,7 @@ def test_seed_rejects_broken_puzzles():
 
 def _seeded(db_session) -> Puzzle:
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = (
         db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).order_by(Puzzle.id).first()
     )
@@ -440,7 +443,38 @@ def test_api_list_hides_answer(client, db_session):
     assert body[0]["position_json"]["memorization_ms"] == body[0]["position_json"]["piece_count"] * 1000
 
 
-def test_api_next_hides_answer(client, db_session):
+@pytest.fixture
+def published_pool(db_session):
+    seed_mod.seed_db(db_session)
+    puzzle_ids = publish_generated_pool(db_session, SLUG, gen_mod.create_puzzle, count=19)
+    if len(puzzle_ids) < 20:
+        data = gen_mod.question_for_fen("4k3/8/8/8/8/8/4Q3/4K3 w - - 0 1")
+        assert data is not None
+        stage_validated_puzzle(
+            db_session,
+            {
+                "exercise_slug": SLUG,
+                "fen": data["fen"],
+                "position_json": {
+                    "fen": data["fen"],
+                    "piece_count": data["piece_count"],
+                    "memorization_ms": data["memorization_ms"],
+                    "mode": "standard",
+                },
+                "answer_json": {"fen": data["fen"]},
+                "hint_json": data["hint_json"],
+                "prompt_fa": data["prompt_fa"],
+                "explanation": data["explanation"],
+                "initial_rating": 800.0,
+            },
+            source=SOURCE_GENERATED,
+            source_reference=f"generator:{SLUG}",
+        )
+        db_session.commit()
+        publish_staged_puzzles(db_session, SLUG)
+
+
+def test_api_next_hides_answer(client, db_session, published_pool):
     res = client.post("/api/v1/chinese-board/next", json={})
     assert res.status_code == 200
     body = res.json()
@@ -451,14 +485,17 @@ def test_api_next_hides_answer(client, db_session):
     assert "pieces" not in body["position_json"]
 
 
-def test_api_next_varies_across_calls(client, db_session):
+def test_api_next_varies_across_calls(client, db_session, published_pool):
     seen = set()
+    excluded = []
     for _ in range(8):
-        res = client.post("/api/v1/chinese-board/next", json={})
+        res = client.post(
+            "/api/v1/chinese-board/next",
+            json={"exclude_ids": excluded},
+        )
         assert res.status_code == 200
         seen.add(res.json()["fen"])
-    # Real-database sampling serves varied positions (seeded rows excluded
-    # from this check only by probability; variety must exceed one).
+        excluded.append(res.json()["id"])
     assert len(seen) > 1
 
 
@@ -514,7 +551,7 @@ def test_api_puzzle_detail_hides_answer(client, db_session):
     assert "answer_json" not in res.json()
 
 
-def test_speed_lifecycle(client, db_session):
+def test_speed_lifecycle(client, db_session, published_pool):
     started = client.post("/api/v1/chinese-board/sessions", json={})
     assert started.status_code == 200
     session_id = started.json()["session_id"]
@@ -542,7 +579,7 @@ def test_speed_lifecycle(client, db_session):
     assert report.json()["entries"][0]["fen"] == first["fen"]
 
 
-def test_speed_submit_rejects_forged_answer(client, db_session):
+def test_speed_submit_rejects_forged_answer(client, db_session, published_pool):
     started = client.post("/api/v1/chinese-board/sessions", json={})
     session_id = started.json()["session_id"]
     buf = client.post(f"/api/v1/chinese-board/sessions/{session_id}/puzzles", json={"count": 20})

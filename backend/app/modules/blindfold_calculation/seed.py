@@ -35,8 +35,8 @@ from app.modules.blindfold_calculation.generator import (
 )
 from app.modules.blindfold_calculation.validator import SLUG
 from app.modules.exercises.models import Exercise
-from app.modules.puzzles.models import Puzzle
-from app.modules.puzzles.service import archive
+from app.modules.puzzles.models import SOURCE_IMPORTED, Puzzle
+from app.modules.puzzles.service import archive, stage_validated_puzzle
 
 # Each entry: real puzzles.db row (puzzle_id, fen, rating) + the first
 # move of its curated solution line. 8 White to move / 7 Black to move,
@@ -105,7 +105,6 @@ def seed_db(db: Session) -> int:
         db.query(Puzzle)
         .filter(
             Puzzle.exercise_slug == SLUG,
-            Puzzle.is_published == True,  # noqa: E712
             Puzzle.is_archived == False,  # noqa: E712
         )
         .count()
@@ -118,29 +117,31 @@ def seed_db(db: Session) -> int:
         san = verify_puzzle(item)
         _ = san
         count = piece_count(item["fen"])
-        puzzle = Puzzle(
-            exercise_slug=SLUG,
-            fen=None,
-            position_json={
-                "description_fa": describe_position(item["fen"]),
-                "side_to_move": side_to_move(item["fen"]),
-                "mode": "best-move",
-                "piece_count": count,
+        stage_validated_puzzle(
+            db,
+            {
+                "exercise_slug": SLUG,
+                "fen": None,
+                "position_json": {
+                    "description_fa": describe_position(item["fen"]),
+                    "side_to_move": side_to_move(item["fen"]),
+                    "mode": "best-move",
+                    "piece_count": count,
+                },
+                "answer_json": {
+                    "fen": item["fen"],
+                    "solution": item["solution"],
+                    "puzzle_id": item["puzzle_id"],
+                    "rating": float(item["rating"]),
+                },
+                "hint_json": {"hints": HINTS},
+                "prompt_fa": PROMPT_FA,
+                "explanation": EXPLANATION_FA,
+                "initial_rating": float(item["rating"]),
             },
-            answer_json={
-                "fen": item["fen"],
-                "solution": item["solution"],
-                "puzzle_id": item["puzzle_id"],
-                "rating": float(item["rating"]),
-            },
-            hint_json={"hints": HINTS},
-            prompt_fa=PROMPT_FA,
-            explanation=EXPLANATION_FA,
-            initial_rating=float(item["rating"]),
-            is_published=True,
-            is_archived=False,
+            source=SOURCE_IMPORTED,
+            source_reference=f"seed:{SLUG}",
         )
-        db.add(puzzle)
         created += 1
     db.commit()
     return created

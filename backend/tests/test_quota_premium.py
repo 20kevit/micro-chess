@@ -29,8 +29,10 @@ def _bearer(token: str) -> dict:
 
 def _seed_piece(db_session):
     from app.modules.piece_recognition import seed as piece_seed
+    from tests.conftest import publish_staged_puzzles
 
     piece_seed.seed_db(db_session)
+    publish_staged_puzzles(db_session, "piece-recognition")
 
 
 def _puzzle_id(db_session) -> int:

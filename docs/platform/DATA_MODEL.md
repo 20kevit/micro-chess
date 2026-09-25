@@ -1721,7 +1721,7 @@ NotificationDelivery
 --------------------
 id
 notification_id
-channel         # in_app | web_push | telegram | bale
+channel         # in_app | web_push | telegram | bale | sms
 status          # pending | sent | delivered | failed
 attempts
 last_error      # provider summary only, never payloads
@@ -1733,12 +1733,11 @@ id
 user_id
 category
 channel
-enabled         # missing row = enabled, except opt-in channels (web_push/telegram/bale default off)
+enabled         # missing row = enabled, except P11 opt-in channels (web_push/telegram/bale/sms default off)
 updated_at
 ```
 
-Only payload summaries reach logs; tokens/phones never persist beyond
-their hashed/verified forms.
+Only payload summaries reach logs; OTP values never persist anywhere.
 
 ---
 
@@ -2549,44 +2548,3 @@ No unnecessary abstractions
 ```
 
 Future capabilities must build on the same authoritative history rather than creating competing sources of truth.
-
----
-
-# 62. Free/Premium quota & verification (schema v17)
-
-```text
-users (P11 columns reused, no new user columns)
------------------------------------------------
-phone            # canonical E.164-ish, set only by verified contact sharing
-phone_verified   # boolean, default false
-timezone         # IANA name for user-local day boundaries
-
-DailyUsage                 # server-counted quota ledger
-----------
-id / user_id / local_date (YYYY-MM-DD, user-local) / timezone
-window_start_utc / window_end_utc   # anti-timezone-hop guard
-count
-UNIQUE (user_id, local_date)
-
-ChannelLinkToken (extended; verification sessions reuse this table)
-----------------
-id / user_id / channel (telegram|bale) / token_hash (unique, server-only)
-expires_at (15 min) / used_at (single-use)
-pairing_code       # user-typed 6-digit code (unique among live sessions)
-attempts           # pairing/claim attempt counter (capped)
-chat_id            # provider chat bound after the code is claimed
-
-PlayerExternalIdentity (extended)
-------------------------
-provider: fide | lichess | chess_com | telegram | bale
-provider_user_id   # stable platform id (telegram/bale), unique per provider
-display_name       # provider-reported, informational only
-is_verified / verified_at   # server-set via contact sharing (never client input)
-
-ChannelLink (unchanged; notification address, written only after verification)
-```
-
-Invariants: quota rows are written only by validated attempts;
-verification binds (user, chat, stable platform id, phone) in one
-transaction; one phone maps to one account; usernames are never
-identity keys.

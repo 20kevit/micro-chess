@@ -8,7 +8,7 @@ from app.modules.checkmate.validator import CHOICES, SLUG, classify, normalize_c
 from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_staged_puzzles
 
 
 def answer_for(fen: str) -> dict:
@@ -188,7 +188,8 @@ def test_seed_count_and_answer_match(db_session):
         assert puzzle.answer_json["fen"] == puzzle.fen
         assert validate(puzzle.answer_json, {"choice": expected}).result == AttemptResult.CORRECT
         seen_answers.add(expected)
-        assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
+        assert puzzle.prompt_fa and puzzle.explanation
+        assert not puzzle.is_published and puzzle.status == "validated"
     assert seen_answers == {"checkmate", "check", "not_check"}
     assert len({p.initial_rating for p in puzzles}) >= 5
 
@@ -198,6 +199,7 @@ def test_seed_count_and_answer_match(db_session):
 
 def _seeded(db_session) -> Puzzle:
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = (
         db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).order_by(Puzzle.id).first()
     )

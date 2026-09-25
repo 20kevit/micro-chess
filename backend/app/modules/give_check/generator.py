@@ -35,7 +35,8 @@ from sqlalchemy.orm import Session
 
 from app.modules.exercises.models import Exercise
 from app.modules.positions import repository as positions
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_GENERATED, Puzzle
+from app.modules.puzzles.service import reusable_candidate_query, stage_validated_puzzle
 from app.modules.give_check.validator import SLUG, checking_moves, either_king_in_check
 
 PROMPT_FA = "با کدام حرکت‌ها می‌توان کیش داد؟"
@@ -136,13 +137,8 @@ def ensure_exercise(db: Session) -> None:
 def _match_existing(db: Session, fen: str, exclude_ids: set[int]) -> tuple[Puzzle | None, bool]:
     """Return (usable_row_or_None, identical_exists)."""
     candidates = (
-        db.query(Puzzle)
-        .filter(
-            Puzzle.exercise_slug == SLUG,
-            Puzzle.is_published == True,  # noqa: E712
-            Puzzle.is_archived == False,  # noqa: E712
-            Puzzle.fen == fen,
-        )
+        reusable_candidate_query(db, SLUG)
+        .filter(Puzzle.fen == fen)
         .order_by(Puzzle.id)
         .all()
     )
@@ -165,8 +161,11 @@ def create_puzzle(
     rng: random.Random | None = None,
     explicit_path: str | None = None,
     exclude_ids: set[int] | None = None,
+    *,
+    source: str = SOURCE_GENERATED,
+    source_reference: str | None = None,
 ) -> Puzzle:
-    """Generate one random question and persist it as a published puzzle."""
+    """Generate one random question and stage it as a validated candidate."""
     rng = rng if rng is not None else random
     ensure_exercise(db)
     excluded = set(exclude_ids or [])
@@ -182,19 +181,22 @@ def create_puzzle(
                 return usable
             if not identical:
                 break
-    puzzle = Puzzle(
-        exercise_slug=SLUG,
-        fen=data["fen"],
-        position_json={"fen": data["fen"]},
-        answer_json={"moves": data["moves"]},
-        hint_json=data["hint_json"],
-        prompt_fa=data["prompt_fa"],
-        explanation=data["explanation"],
-        initial_rating=_rating_for(data["moves"], rng),
-        is_published=True,
-        is_archived=False,
+    puzzle = stage_validated_puzzle(
+        db,
+        {
+            "exercise_slug": SLUG,
+            "fen": data["fen"],
+            "position_json": {"fen": data["fen"]},
+            "answer_json": {"moves": data["moves"]},
+            "hint_json": data["hint_json"],
+            "prompt_fa": data["prompt_fa"],
+            "explanation": data["explanation"],
+            "initial_rating": _rating_for(data["moves"], rng),
+        },
+        source=source,
+        source_reference=source_reference
+        or (f"generator:{SLUG}" if source == SOURCE_GENERATED else f"{source}:{SLUG}"),
     )
-    db.add(puzzle)
     db.commit()
     db.refresh(puzzle)
     return puzzle

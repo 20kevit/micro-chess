@@ -28,10 +28,13 @@ def _seed_content(db_session) -> None:
     from app.modules.captures import seed as cap_seed
     from app.modules.legal_destinations import seed as legal_seed
     from app.modules.piece_recognition import seed as piece_seed
+    from tests.conftest import publish_staged_puzzles
 
     piece_seed.seed_db(db_session)
     legal_seed.seed_db(db_session)
     cap_seed.seed_db(db_session)
+    for slug in ("piece-recognition", "legal-destinations", "captures"):
+        publish_staged_puzzles(db_session, slug)
 
 
 def test_onboarding_save_and_plan(client, db_session):

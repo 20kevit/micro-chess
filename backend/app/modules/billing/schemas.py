@@ -149,14 +149,18 @@ class CouponAdminOut(BaseModel):
     id: int
     code: str
     campaign_slug: str | None
+    description: str = ""
     discount_type: str
     discount_value: int
     trial_days: int
+    currency: str = "IRR"
     is_active: bool
     valid_from: datetime | None
     valid_until: datetime | None
     max_redemptions: int | None
     max_per_user: int
+    first_time_only: bool = False
+    min_amount_minor: int = 0
     total_redemptions: int
     applicable_plan_codes: list[str] = []
 

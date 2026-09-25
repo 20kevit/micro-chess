@@ -54,7 +54,7 @@ describe("admin support page", () => {
     mocked.closeSupport.mockResolvedValue({ ...ticket, status: "closed" });
     renderPage();
     await waitFor(() => expect(screen.getAllByText(t("admin.support")).length).toBeGreaterThanOrEqual(1));
-    expect(screen.getByText("Login problem")).toBeTruthy();
+    expect(screen.getByText(/Login problem/)).toBeTruthy();
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /Login problem/ }));

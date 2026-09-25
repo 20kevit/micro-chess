@@ -64,22 +64,13 @@ def _utcnow() -> datetime:
 
 
 def _default_initial_status(context) -> str:
-    """Derive the lifecycle entry state from explicitly-passed flags.
-
-    Rows constructed directly as already-published (runtime exercise
-    generators, content seeds) enter the lifecycle as ``published``;
-    archived rows enter as ``retired``; everything else starts as a
-    ``draft``. Admin-managed transitions always write ``status``
-    explicitly, so this default only affects direct constructions.
-    """
+    """Keep direct constructions in a non-production lifecycle state."""
     try:
         params = context.get_current_parameters() or {}
     except Exception:
         params = {}
     if params.get("is_archived"):
         return STATUS_RETIRED
-    if params.get("is_published"):
-        return STATUS_PUBLISHED
     return STATUS_DRAFT
 
 

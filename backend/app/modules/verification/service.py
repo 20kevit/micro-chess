@@ -37,12 +37,18 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.modules.notify.models import ChannelLink, ChannelLinkToken
 from app.modules.player.models import PlayerExternalIdentity
 from app.modules.users.models import User
 from app.modules.verification import bots
 
 CHANNELS = ("telegram", "bale")
+
+
+def available_channels() -> list[str]:
+    return list(CHANNELS) if settings.verification_telegram_enabled else ["bale"]
+
 
 _FA_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
 _AR_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
@@ -128,6 +134,7 @@ def verification_state(db: Session, user: User) -> dict:
         "verified": bool(user.phone_verified),
         "phone_masked": mask_phone(user.phone),
         "channel": identity.provider if identity else None,
+        "available_channels": available_channels(),
     }
 
 
@@ -140,6 +147,8 @@ def create_session(db: Session, user: User, channel: str) -> dict:
     from app.modules.notify import service as notify_service
 
     channel = _check_channel(channel)
+    if channel not in available_channels():
+        raise ValueError("verification_channel_unavailable")
     if user.phone_verified:
         raise ValueError("already_verified")
     # One live session per (user, channel): invalidate older ones so a

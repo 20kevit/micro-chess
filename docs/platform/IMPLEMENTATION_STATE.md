@@ -43,21 +43,14 @@ admin bootstrap, cPanel deployment) completed and verified.
 Phase 13 (cPanel Deployment Readiness: Passenger adapter, finalized
 deployment configuration) completed and verified. P11 (Personalized
 Onboarding, Daily Journey, Retention & Notifications, schema v16)
-implemented and verified: short onboarding + placement reusing the
-recommendation/adaptive/rating infrastructure, exactly-3 stable
+implemented and verified: phone + OTP verification (SMS abstraction
+with test/Kavenegar providers), short onboarding + placement reusing
+the recommendation/adaptive/rating infrastructure, exactly-3 stable
 daily quests per local day, Daily Journey home, quest return path,
-extended notification channels (in_app/web_push/telegram/bale)
-with preferences + deduped reminders, PWA foundation (manifest +
-push service worker), product analytics events, and admin journey
-overview + provider health. Free/Premium accounts with daily quota
-(schema v17): username + password authentication only (no Google,
-no SMS OTP, no email auth); Free 10 and Premium 100 exercise
-attempts per user-local day enforced server-side at attempt time;
-phone verification via Telegram/Bale official contact sharing
-(one-time pairing-code sessions, stable platform ids, one phone per
-account); premium activation through the existing
-Plan/Subscription/Coupon/Payment architecture with 100%-discount
-invoice settlement and no payment gateway.
+extended notification channels (in_app/web_push/telegram/bale/sms)
+with secure linking + preferences + deduped reminders, PWA foundation
+(manifest + push service worker), product analytics events, and admin
+journey overview + provider health.
 
 | Area                         | Status      |
 | ---------------------------- | ----------- |
@@ -75,7 +68,6 @@ invoice settlement and no payment gateway.
 | Beta Readiness (Phase 12)    | VERIFIED    |
 | cPanel Deployment (Phase 13) | VERIFIED    |
 | P11 Onboarding & Daily Journey | VERIFIED  |
-| Free/Premium + Verification    | VERIFIED  |
 
 Foundation primitives that later phases build on (password hashing +
 policy, JWT sessions, capability registry, token transport, audit
@@ -589,8 +581,8 @@ Phase 07 content & generators (all verified by tests + live runtime checks):
 * Lifecycle (`puzzles/models.py` `status`: draft → validated →
   reviewed → approved → published → retired, server-enforced;
   `is_published`/`is_archived` stay synced as the player-visibility
-  projection so player queries are untouched; legacy/runtime rows
-  enter via the model default; meaning locks after draft,
+  projection so player queries are untouched; direct constructions
+  start as draft (or retired when archived); meaning locks after draft,
   retired rows are fully immutable). Publish requires approved state
   + final validation; direct draft → publish is rejected (409).
   `tests/test_content_lifecycle.py` (18 tests).
@@ -621,8 +613,9 @@ Phase 07 content & generators (all verified by tests + live runtime checks):
   /admin/generators/{code}/runs`, `GET /admin/generator-runs[/{id}]`,
   `POST .../cancel` under `generators.read/run/cancel`.
 * Unpublished isolation: draft/validated/reviewed/approved return
-  404 on player puzzle/attempt APIs; answers never leave the server
-  except in admin views.
+  404 on player puzzle/attempt APIs; practice/session issuance returns
+  503 until an explicitly published candidate exists; answers never
+  leave the server except in admin views.
 * Schema v7: fresh boots to v7 (new `generator_runs`,
   `puzzle_status_history`, `puzzle_validations`, `puzzle_reviews`
   tables via `create_all`); v1–v6 DBs upgrade with lifecycle columns
@@ -646,9 +639,8 @@ Phase 07 content & generators (all verified by tests + live runtime checks):
   retire (hidden, history kept) → dashboard intact → schema v7.
 * Intentional deferrals: bulk validation/review/publish (spec
   allows but does not require), puzzle tags, observed-difficulty
-  analytics (Phase 8 owns analytics), runtime on-the-fly practice
-  puzzles keep `source=manual` (they predate provenance tracking;
-  managed content is fully traced), generator create/update/delete
+  analytics (Phase 8 owns analytics), runtime practice now serves only
+  explicitly published candidates, generator create/update/delete
   (registry is code-defined by safety design), exercise create/
   delete, user deletion (all prior deferrals unchanged).
 
@@ -1221,3 +1213,42 @@ The agent must never assume that a phase is incomplete merely because its docume
   mastery gates, review queue, speed-discount + per-item timing,
   assessment/assignment context FKs, evidence read APIs, coach views,
   `defended-capture` cause analysis, repeat time-window rules.
+
+## 12. Phase 12 — Professional Exercise & Content Management System
+
+* Admin is the content-management surface: Exercise Workspace
+  (overview/puzzles/generate/review/quality/difficulty/learning/
+  analytics/settings tabs), server-side Puzzle Library (pagination,
+  search, difficulty/source/rating filters, sorting, bulk selection),
+  Puzzle Detail Workspace (preview, answer, difficulty, rating,
+  validation, lifecycle, usage, history), Puzzle Editor (Board
+  Editor + typed Answer Editor + authoritative preview-validate +
+  save-as-draft), global Content Health, Review Queue deep-links.
+* Backend (`admin/content.py`, `exercises/answer_contracts.py`,
+  thin routes): typed answer contracts for all 19 exercise
+  validators; preview-validate (no writes); bulk lifecycle ops (max
+  50, per-item gates, reason for destructive, per-action
+  capability); exercise creation gated on a registered validator;
+  per-exercise quality/learning aggregates; global content health;
+  per-puzzle usage. No new tables, no migration, no new
+  capabilities, no second models/engines.
+* Lifecycle change: editing meaning of validated/reviewed/approved
+  content applies the edit and demotes to draft (`content_edited`,
+  audited, history row); published/retired/rejected/quarantined
+  stay immutable. `test_admin.py` lifecycle expectations updated.
+* Frontend: Persian RTL throughout; SVG pieces only; `dir="ltr"`
+  board islands; shared `components/ui` primitives; loading/empty/
+  error/retry states; confirmations for destructive actions.
+* Tests: `backend/tests/test_phase12_content.py` (22 cases:
+  contracts, creation gates, preview, filters, demotion, bulk,
+  quality/learning/health/usage, authorization); frontend
+  `lib/fenEditor.test.ts`, `pages/AdminContent.test.tsx`, updated
+  `AdminPages.test.tsx` / `AdminOps.test.tsx`. Full backend suite
+  passes: `1501 passed, 1 skipped`.
+* Generator coverage (registry truth): piece-recognition,
+  captures, legal-destinations. All other exercises show an honest
+  "no automatic generation" state with the manual Board Editor path.
+* Frontend verification: `npm ci`, `npm run typecheck`,
+  `npm test -- --run` (60 files, 430 tests), and `npm run build`
+  all pass on Node 22.23.3; the rebuilt same-origin bundle is
+  committed under `frontend/dist/`.

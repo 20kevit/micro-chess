@@ -42,10 +42,11 @@ generation jobs and follows the same review/approval gates.
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import case, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.audit import audit_event
 from app.modules.admin.models import AuditLog
+from app.modules.billing.models import BillingCouponRedemption, BillingSubscription
 
 # Re-exported so the thin router can load rows without importing models.
 __all__ = ["AuditLog", "Puzzle"]
@@ -55,6 +56,7 @@ from app.modules.generators import service as generator_service
 from app.modules.generators.models import GeneratorRun
 from app.modules.player.models import PlayerProfile
 from app.modules.progress.models import Attempt
+from app.modules.player.models import PlayerExternalIdentity
 from app.modules.puzzles import service as puzzle_service
 from app.modules.puzzles.models import (
     STATUS_APPROVED,
@@ -89,21 +91,23 @@ PUZZLE_STATUSES = (
 )
 # Explicit P1 lifecycle transition map (source -> allowed destinations).
 # It mirrors exactly the transitions implemented below: the linear review
-# pipeline, the safety states, and restore. No code path implements
-# reviewed -> draft or approved -> draft demotions, so the map does not
-# invent them; quarantine entry excludes draft (an unservable draft needs
-# no safety hold — refusal from draft goes via rejected); post-publish
-# refusal goes via retire, never direct published -> rejected.
+# pipeline, the safety states, restore, and the admin-edit demotion
+# (Phase 12: editing meaning-defining fields of validated/reviewed/
+# approved content via update_puzzle returns the puzzle to draft with
+# reason "content_edited" so gates are re-passed; no step is skipped).
+# Quarantine entry excludes draft (an unservable draft needs no safety
+# hold — refusal from draft goes via rejected); post-publish refusal
+# goes via retire, never direct published -> rejected.
 LIFECYCLE_TRANSITIONS: dict[str, frozenset[str]] = {
     STATUS_DRAFT: frozenset({STATUS_VALIDATED, STATUS_REJECTED, STATUS_RETIRED}),
     STATUS_VALIDATED: frozenset(
         {STATUS_DRAFT, STATUS_REVIEWED, STATUS_QUARANTINED, STATUS_REJECTED, STATUS_RETIRED}
     ),
     STATUS_REVIEWED: frozenset(
-        {STATUS_APPROVED, STATUS_QUARANTINED, STATUS_REJECTED, STATUS_RETIRED}
+        {STATUS_DRAFT, STATUS_APPROVED, STATUS_QUARANTINED, STATUS_REJECTED, STATUS_RETIRED}
     ),
     STATUS_APPROVED: frozenset(
-        {STATUS_PUBLISHED, STATUS_QUARANTINED, STATUS_REJECTED, STATUS_RETIRED}
+        {STATUS_DRAFT, STATUS_PUBLISHED, STATUS_QUARANTINED, STATUS_REJECTED, STATUS_RETIRED}
     ),
     STATUS_PUBLISHED: frozenset({STATUS_QUARANTINED, STATUS_RETIRED}),
     STATUS_QUARANTINED: frozenset(
@@ -251,7 +255,8 @@ def _role_codes(user: User) -> list[str]:
     return sorted(codes, key=CANONICAL_ROLES.index)
 
 
-def user_public(row: User) -> dict:
+def user_public(row: User, summary: dict | None = None) -> dict:
+    summary = summary or {}
     return {
         "id": row.id,
         "username": row.username or "",
@@ -259,7 +264,105 @@ def user_public(row: User) -> dict:
         "roles": _role_codes(row),
         "is_active": bool(row.is_active),
         "created_at": row.created_at,
+        "current_plan_code": summary.get("current_plan_code"),
+        "current_plan_status": summary.get("current_plan_status"),
+        "verification_channel": summary.get("verification_channel"),
+        "phone_verified": bool(getattr(row, "phone_verified", False)),
+        "last_active_at": summary.get("last_active_at"),
+        "attempts_count": int(summary.get("attempts_count", 0)),
+        "coupon_redemption_count": int(summary.get("coupon_redemption_count", 0)),
     }
+
+
+def user_summaries(db: Session, users: list[User]) -> dict[int, dict]:
+    user_ids = [int(user.id) for user in users]
+    summaries = {
+        user_id: {
+            "current_plan_code": None,
+            "current_plan_status": None,
+            "verification_channel": None,
+            "last_active_at": None,
+            "attempts_count": 0,
+            "coupon_redemption_count": 0,
+        }
+        for user_id in user_ids
+    }
+    if not user_ids:
+        return summaries
+
+    for user_id, attempts, last_active_at in (
+        db.query(
+            Attempt.user_id,
+            func.count(Attempt.id),
+            func.max(Attempt.created_at),
+        )
+        .filter(Attempt.user_id.in_(user_ids))
+        .group_by(Attempt.user_id)
+        .all()
+    ):
+        summaries[int(user_id)].update(
+            {
+                "attempts_count": int(attempts or 0),
+                "last_active_at": last_active_at,
+            }
+        )
+
+    verification_rows = (
+        db.query(
+            PlayerExternalIdentity.user_id,
+            PlayerExternalIdentity.provider,
+        )
+        .filter(
+            PlayerExternalIdentity.user_id.in_(user_ids),
+            PlayerExternalIdentity.provider.in_(("telegram", "bale")),
+            PlayerExternalIdentity.is_verified.is_(True),
+        )
+        .order_by(PlayerExternalIdentity.verified_at.desc(), PlayerExternalIdentity.id.desc())
+        .all()
+    )
+    for user_id, provider in verification_rows:
+        if summaries[int(user_id)]["verification_channel"] is None:
+            summaries[int(user_id)]["verification_channel"] = provider
+
+    for user_id, count in (
+        db.query(BillingCouponRedemption.user_id, func.count(BillingCouponRedemption.id))
+        .filter(BillingCouponRedemption.user_id.in_(user_ids))
+        .group_by(BillingCouponRedemption.user_id)
+        .all()
+    ):
+        summaries[int(user_id)]["coupon_redemption_count"] = int(count or 0)
+
+    current_subscription_ids = (
+        db.query(
+            BillingSubscription.user_id.label("user_id"),
+            func.max(BillingSubscription.id).label("subscription_id"),
+        )
+        .filter(
+            BillingSubscription.user_id.in_(user_ids),
+            BillingSubscription.status.in_(("trialing", "active")),
+        )
+        .group_by(BillingSubscription.user_id)
+        .subquery()
+    )
+    subscriptions = (
+        db.query(BillingSubscription)
+        .join(
+            current_subscription_ids,
+            BillingSubscription.id == current_subscription_ids.c.subscription_id,
+        )
+        .all()
+    )
+    selected: dict[int, BillingSubscription] = {}
+    for subscription in subscriptions:
+        selected.setdefault(int(subscription.user_id), subscription)
+    for user_id, subscription in selected.items():
+        summaries[user_id].update(
+            {
+                "current_plan_code": subscription.plan_code or None,
+                "current_plan_status": subscription.status,
+            }
+        )
+    return summaries
 
 
 def list_users(
@@ -302,7 +405,13 @@ def list_users(
     total = query.count()
     column = {"created_at": User.created_at, "username": User.username, "id": User.id}[sort]
     ordered = column.asc() if order == "asc" else column.desc()
-    rows = query.order_by(ordered, User.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    rows = (
+        query.options(selectinload(User.roles))
+        .order_by(ordered, User.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
     return rows, total
 
 
@@ -314,15 +423,15 @@ def user_detail(db: Session, user: User) -> dict:
     """Permitted administrative view of one account. Never includes
     password hashes, emails, session tokens, or other auth secrets."""
     profile = db.query(PlayerProfile).filter(PlayerProfile.user_id == user.id).first()
-    attempts = db.query(func.count(Attempt.id)).filter(Attempt.user_id == user.id).scalar() or 0
+    summary = user_summaries(db, [user]).get(user.id, {})
     return {
-        **user_public(user),
+        **user_public(user, summary),
         "profile": {
             "display_name": profile.display_name if profile else "",
             "bio": profile.bio if profile else "",
             "avatar_reference": profile.avatar_reference if profile else "",
         },
-        "attempts_count": attempts,
+        "attempts_count": int(summary.get("attempts_count", 0)),
     }
 
 
@@ -665,9 +774,32 @@ def list_puzzles_admin(
     status: str | None = None,
     page: int = 1,
     page_size: int = 50,
+    difficulty: int | None = None,
+    source: str | None = None,
+    search: str | None = None,
+    rating_min: float | None = None,
+    rating_max: float | None = None,
+    sort: str = "id",
+    order: str = "asc",
 ) -> tuple[list[Puzzle], int]:
     if status is not None and status not in PUZZLE_STATUSES:
         raise ValueError("invalid_status")
+    if difficulty is not None and (not isinstance(difficulty, int) or not 1 <= difficulty <= 5):
+        raise ValueError("invalid_difficulty")
+    if source is not None and source not in ("manual", "generated", "imported"):
+        raise ValueError("invalid_source")
+    if sort not in ("id", "created_at", "initial_rating", "difficulty"):
+        raise ValueError("invalid_sort")
+    if order not in ("asc", "desc"):
+        raise ValueError("invalid_order")
+    for label, value in (("rating_min", rating_min), ("rating_max", rating_max)):
+        if value is not None:
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                raise ValueError(f"invalid_{label}")
+            if not 100.0 <= numeric <= 3000.0:
+                raise ValueError(f"invalid_{label}")
     query = db.query(Puzzle)
     if exercise:
         query = query.filter(Puzzle.exercise_slug == exercise)
@@ -677,12 +809,49 @@ def list_puzzles_admin(
         query = query.filter(Puzzle.status == status)
     elif status in ("retired", "archived"):
         query = query.filter(Puzzle.status == STATUS_RETIRED)
+    if difficulty is not None:
+        query = query.filter(Puzzle.difficulty == difficulty)
+    if source is not None:
+        query = query.filter(Puzzle.source == source)
+    if rating_min is not None:
+        query = query.filter(Puzzle.initial_rating >= float(rating_min))
+    if rating_max is not None:
+        query = query.filter(Puzzle.initial_rating <= float(rating_max))
+    if search:
+        like = f"%{search.strip().lower()}%"
+        query = query.filter(
+            or_(
+                func.lower(Puzzle.prompt_fa).like(like),
+                func.lower(Puzzle.exercise_slug).like(like),
+                func.lower(Puzzle.fen).like(like),
+            )
+        )
     total = query.count()
-    rows = query.order_by(Puzzle.id).offset((page - 1) * page_size).limit(page_size).all()
+    column = {
+        "id": Puzzle.id,
+        "created_at": Puzzle.created_at,
+        "initial_rating": Puzzle.initial_rating,
+        "difficulty": Puzzle.difficulty,
+    }[sort]
+    ordered = column.asc() if order == "asc" else column.desc()
+    rows = query.order_by(ordered, Puzzle.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
     return rows, total
 
 
-def puzzle_admin_view(row: Puzzle) -> dict:
+def puzzle_usage_counts(db: Session, rows: list[Puzzle]) -> dict[int, int]:
+    puzzle_ids = [int(row.id) for row in rows]
+    if not puzzle_ids:
+        return {}
+    counts = (
+        db.query(Attempt.puzzle_id, func.count(Attempt.id))
+        .filter(Attempt.puzzle_id.in_(puzzle_ids))
+        .group_by(Attempt.puzzle_id)
+        .all()
+    )
+    return {int(puzzle_id): int(count) for puzzle_id, count in counts}
+
+
+def puzzle_admin_view(row: Puzzle, usage_attempts: int = 0) -> dict:
     """Full administrative view, including the definitive answer (needed
     for review) and lifecycle/provenance metadata. Never reused by
     player-facing endpoints."""
@@ -707,6 +876,7 @@ def puzzle_admin_view(row: Puzzle) -> dict:
         "difficulty": row.difficulty,
         "target_rating": row.target_rating,
         "retired_at": row.retired_at,
+        "usage_attempts": int(usage_attempts),
     }
 
 
@@ -776,6 +946,92 @@ def create_puzzle_draft(db: Session, *, actor_id: int, fields: dict) -> Puzzle:
     return puzzle
 
 
+def delete_puzzle_draft(db: Session, *, actor_id: int, puzzle_id: int) -> None:
+    puzzle = db.get(Puzzle, puzzle_id)
+    if puzzle is None:
+        raise ValueError("puzzle_not_found")
+    if (
+        _puzzle_status(puzzle) != STATUS_DRAFT
+        or bool(puzzle.is_published)
+        or bool(puzzle.is_archived)
+    ):
+        raise ValueError("puzzle_not_draft")
+    if puzzle.source != "manual":
+        raise ValueError("puzzle_delete_conflict")
+
+    has_attempts = db.query(Attempt.id).filter(Attempt.puzzle_id == puzzle.id).first() is not None
+    has_history = (
+        db.query(PuzzleStatusHistory.id)
+        .filter(PuzzleStatusHistory.puzzle_id == puzzle.id)
+        .first()
+        is not None
+    )
+    has_validation = (
+        db.query(PuzzleValidation.id)
+        .filter(PuzzleValidation.puzzle_id == puzzle.id)
+        .first()
+        is not None
+    )
+    has_review = (
+        db.query(PuzzleReview.id)
+        .filter(PuzzleReview.puzzle_id == puzzle.id)
+        .first()
+        is not None
+    )
+    blockers = (
+        has_attempts,
+        has_history,
+        has_validation,
+        has_review,
+        puzzle.generator_run_id is not None,
+    )
+    generator_history = False
+    if puzzle.generator_run_id is None:
+        for (result_json,) in db.query(GeneratorRun.result_json).all():
+            accepted_ids = (
+                result_json.get("accepted_puzzle_ids", [])
+                if isinstance(result_json, dict)
+                else []
+            )
+            if not isinstance(accepted_ids, (list, tuple)):
+                accepted_ids = []
+            if puzzle.id in accepted_ids or str(puzzle.id) in accepted_ids:
+                generator_history = True
+                break
+    if any(blockers) or generator_history:
+        raise ValueError("puzzle_delete_conflict")
+
+    from app.modules.adaptive.models import AdaptiveRecommendation
+    from app.modules.daily_quests.models import DailyQuest
+    from app.modules.evidence.models import Evidence
+
+    if (
+        db.query(AdaptiveRecommendation.id)
+        .filter(AdaptiveRecommendation.puzzle_id == puzzle.id)
+        .first()
+        is not None
+        or db.query(Evidence.id).filter(Evidence.puzzle_id == puzzle.id).first() is not None
+        or db.query(DailyQuest.id).filter(DailyQuest.puzzle_id == puzzle.id).first() is not None
+    ):
+        raise ValueError("puzzle_delete_conflict")
+
+    metadata = {
+        "exercise_slug": puzzle.exercise_slug,
+        "source": puzzle.source,
+        "status": _puzzle_status(puzzle),
+    }
+    db.delete(puzzle)
+    db.flush()
+    record_audit(
+        db,
+        actor_id=actor_id,
+        action="puzzles.delete",
+        target_type="puzzle",
+        target_id=puzzle_id,
+        metadata=metadata,
+    )
+
+
 def _meaning_keys_in(patch: dict) -> list[str]:
     # Exercise reassignment is rejected separately (only when changed);
     # an unchanged slug is a no-op, so it is not a meaning edit.
@@ -800,14 +1056,26 @@ def update_puzzle(db: Session, *, actor_id: int, puzzle_id: int, patch: dict) ->
         # Exercise association is part of the puzzle's stable identity and
         # historical references; it is never reassigned.
         raise ValueError("puzzle_immutable")
-    if _meaning_keys_in(patch) and status != STATUS_DRAFT:
-        # Meaning-defining fields lock once the puzzle leaves draft.
-        # To correct content, request changes (back to draft) and
-        # re-validate: history stays interpretable. (An unchanged
-        # exercise_slug is a harmless no-op, not a meaning edit.)
+    meaning_edit = bool(_meaning_keys_in(patch))
+    if meaning_edit and status not in (
+        STATUS_DRAFT,
+        STATUS_VALIDATED,
+        STATUS_REVIEWED,
+        STATUS_APPROVED,
+    ):
+        # Meaning-defining fields lock once the puzzle leaves the
+        # pre-publish pipeline. To correct content, return it to draft
+        # first (request changes / release): history stays interpretable.
+        # (An unchanged exercise_slug is a harmless no-op, not a meaning
+        # edit.)
         raise ValueError("puzzle_immutable")
+    demote_to_draft = meaning_edit and status in (
+        STATUS_VALIDATED,
+        STATUS_REVIEWED,
+        STATUS_APPROVED,
+    )
     changes: dict = {}
-    if status == STATUS_DRAFT:
+    if status == STATUS_DRAFT or demote_to_draft:
         if "answer_json" in patch:
             puzzle.answer_json = patch["answer_json"] or {}
             changes["answer_json"] = True
@@ -850,6 +1118,17 @@ def update_puzzle(db: Session, *, actor_id: int, puzzle_id: int, patch: dict) ->
             puzzle.exercise_slug, puzzle.fen, puzzle.answer_json or {}
         )
         changes["content_hash"] = True
+    if demote_to_draft:
+        # Phase 12: editing meaning after validation invalidates the
+        # review standing. The puzzle returns to draft (audited, with
+        # history) so validation/review/approval are re-passed; prior
+        # validation rows stay as append-only facts, and the hash above
+        # already reflects the new content.
+        _record_transition(
+            db, actor_id=actor_id, puzzle=puzzle, to_status=STATUS_DRAFT,
+            reason="content_edited",
+        )
+        changes["demoted_to_draft"] = True
     if not changes:
         return puzzle
     db.commit()
@@ -1391,7 +1670,10 @@ def list_audit(
     *,
     action: str | None = None,
     target_type: str | None = None,
+    target_id: int | None = None,
     actor_id: int | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     page: int = 1,
     page_size: int = 50,
 ) -> tuple[list[AuditLog], int]:
@@ -1400,8 +1682,28 @@ def list_audit(
         query = query.filter(AuditLog.action == action)
     if target_type:
         query = query.filter(AuditLog.target_type == target_type)
+    if target_id is not None:
+        query = query.filter(AuditLog.target_id == target_id)
     if actor_id is not None:
         query = query.filter(AuditLog.actor_user_id == actor_id)
+    if date_from:
+        try:
+            start = datetime.fromisoformat(date_from)
+        except ValueError:
+            raise ValueError("invalid_date_from")
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        query = query.filter(AuditLog.created_at >= start)
+    if date_to:
+        try:
+            end = datetime.fromisoformat(date_to)
+        except ValueError:
+            raise ValueError("invalid_date_to")
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        if len(date_to.strip()) == 10:
+            end = end.replace(hour=23, minute=59, second=59, microsecond=999999)
+        query = query.filter(AuditLog.created_at <= end)
     total = query.count()
     rows = (
         query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())

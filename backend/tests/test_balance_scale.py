@@ -20,7 +20,7 @@ from app.modules.balance_scale.validator import (
 from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult, ValidationResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_generated_pool, publish_staged_puzzles
 
 
 def answer_for(left: list) -> dict:
@@ -296,7 +296,8 @@ def test_seed_puzzles_valid_and_solvable(db_session):
         assert "optimal_count" not in puzzle.position_json
         assert "target" not in puzzle.position_json
         ratings.add(puzzle.initial_rating)
-        assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
+        assert puzzle.prompt_fa and puzzle.explanation
+        assert not puzzle.is_published and puzzle.status == "validated"
     assert len(ratings) >= 5
 
 
@@ -314,6 +315,7 @@ def test_seed_rejects_broken_puzzles():
 
 def _seeded(db_session) -> Puzzle:
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = (
         db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).order_by(Puzzle.id).first()
     )
@@ -334,7 +336,13 @@ def test_api_list_hides_answer(client, db_session):
     assert puzzle.id > 0
 
 
-def test_api_next_practice_puzzle_hides_answer(client, db_session):
+@pytest.fixture
+def published_pool(db_session):
+    seed_mod.seed_db(db_session)
+    publish_generated_pool(db_session, SLUG, gen_mod.create_puzzle)
+
+
+def test_api_next_practice_puzzle_hides_answer(client, db_session, published_pool):
     res = client.post("/api/v1/balance-scale/next", json={"exclude_ids": []})
     assert res.status_code == 200
     body = res.json()
@@ -387,7 +395,7 @@ def test_api_invalid_puzzle_id_404(client, db_session):
 # --- Session lifecycle ---
 
 
-def test_speed_session_lifecycle(client, db_session):
+def test_speed_session_lifecycle(client, db_session, published_pool):
     opened = client.post("/api/v1/balance-scale/sessions", json={})
     assert opened.status_code == 200
     sid = opened.json()["session_id"]
@@ -448,7 +456,7 @@ def test_speed_session_lifecycle(client, db_session):
     assert finished.json()["status"] == "finished"
 
 
-def test_speed_session_rejects_foreign_puzzle(client, db_session):
+def test_speed_session_rejects_foreign_puzzle(client, db_session, published_pool):
     opened = client.post("/api/v1/balance-scale/sessions", json={})
     sid = opened.json()["session_id"]
     client.post(f"/api/v1/balance-scale/sessions/{sid}/puzzles", json={"count": 20})
@@ -465,7 +473,7 @@ def test_speed_session_unknown_id_404(client, db_session):
     assert client.get("/api/v1/balance-scale/sessions/nope").status_code == 404
 
 
-def test_speed_session_expiry(client, db_session):
+def test_speed_session_expiry(client, db_session, published_pool):
     opened = client.post("/api/v1/balance-scale/sessions", json={})
     sid = opened.json()["session_id"]
     prepared = client.post(f"/api/v1/balance-scale/sessions/{sid}/puzzles", json={"count": 20})

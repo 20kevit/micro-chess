@@ -1,254 +1,290 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { adminApi, apiCode } from "../api/client";
-import type { AdminUser, AdminUserDetail } from "../api/types";
+import type { KeyboardEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { adminApi } from "../api/client";
+import type { PageResult } from "../api/client";
+import type { AdminUser } from "../api/types";
+import type { FaKey } from "../i18n/fa";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { t } from "../i18n";
-import { faNum } from "../lib/playerDisplay";
+import { adminStatusLabel, faDate, faDateTime, faNum, verificationChannelLabel } from "../lib/playerDisplay";
 
-const MANAGEABLE_ROLES = ["COACH", "PARENT", "ADMIN"] as const;
+const PAGE_SIZE = 20;
+const ROLES = ["PLAYER", "COACH", "PARENT", "ADMIN"] as const;
+const ROLE_KEYS: Record<string, FaKey> = {
+  PLAYER: "auth.role.PLAYER",
+  COACH: "auth.role.COACH",
+  PARENT: "auth.role.PARENT",
+  ADMIN: "auth.role.ADMIN",
+};
 
-// User management: search, inspect, suspend/reactivate, role assign/revoke.
-// Destructive actions ask for confirmation; authorization stays server-side.
+type UserPage = PageResult<AdminUser> | AdminUser[];
+
+function unpack(value: UserPage): { items: AdminUser[]; total: number } {
+  if (Array.isArray(value)) return { items: value, total: value.length };
+  return value;
+}
+
+function roleLabel(role: string): string {
+  const key = ROLE_KEYS[role];
+  return t(key ?? "admin.unknown");
+}
+
+function accountStatus(active: boolean): string {
+  return active ? t("admin.statusActive") : t("admin.statusSuspended");
+}
+
+function subscriptionStatusLabel(status: string | null): string {
+  if (status === "suspended") return t("admin.statusSuspended");
+  return adminStatusLabel(status);
+}
+
+function planLabel(plan: string | null): string {
+  if (!plan) return t("admin.notAvailable");
+  if (plan === "free") return t("account.plan.free");
+  if (plan === "premium") return t("account.plan.premium");
+  return t("admin.unknown");
+}
+
+function pageSummary(page: number, total: number): string {
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  return t("admin.pagination.summary")
+    .replace("{page}", faNum(page))
+    .replace("{pages}", faNum(pages))
+    .replace("{total}", faNum(total));
+}
+
 export function AdminUsersPage() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
-  const [selected, setSelected] = useState<AdminUserDetail | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [sort, setSort] = useState("created_at");
+  const [order, setOrder] = useState("desc");
+  const [page, setPage] = useState(1);
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     setLoading(true);
     setFailed(false);
-    adminApi
-      .users({
-        search: search || undefined,
-        role: role || undefined,
-        status: status || undefined,
-        page_size: 50,
-      })
-      .then((rows) => {
-        setUsers(rows);
-        setLoading(false);
-      })
-      .catch(() => {
-        setFailed(true);
-        setLoading(false);
-      });
-  }, [search, role, status]);
+    const params = {
+      search: search || undefined,
+      role: role || undefined,
+      status: status || undefined,
+      sort,
+      order,
+      page,
+      page_size: PAGE_SIZE,
+    };
+    try {
+      const response = typeof adminApi.usersPage === "function"
+        ? await adminApi.usersPage(params)
+        : await adminApi.users(params);
+      const result = unpack(response as UserPage);
+      setUsers(result.items);
+      setTotal(result.total);
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [order, page, role, search, sort, status]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  async function openDetail(id: number) {
-    setBusy(true);
-    setNotice("");
-    try {
-      setSelected(await adminApi.user(id));
-    } catch {
-      setNotice(t("common.error"));
-    } finally {
-      setBusy(false);
-    }
+  function resetPage() {
+    setPage(1);
   }
 
-  async function refreshSelected(id: number) {
-    try {
-      setSelected(await adminApi.user(id));
-    } catch {
-      setNotice(t("common.error"));
-    }
-    load();
+  function openUser(userId: number) {
+    navigate(`/admin/users/${userId}`);
   }
 
-  async function onSuspend(id: number) {
-    if (!window.confirm(t("admin.suspendConfirm"))) return;
-    setBusy(true);
-    try {
-      await adminApi.suspendUser(id);
-      await refreshSelected(id);
-    } catch {
-      setNotice(t("common.error"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onReactivate(id: number) {
-    if (!window.confirm(t("admin.reactivateConfirm"))) return;
-    setBusy(true);
-    try {
-      await adminApi.reactivateUser(id);
-      await refreshSelected(id);
-    } catch {
-      setNotice(t("common.error"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onAssign(id: number, next: string) {
-    setBusy(true);
-    setNotice("");
-    try {
-      await adminApi.assignRole(id, next);
-      await refreshSelected(id);
-    } catch (e) {
-      setNotice(apiCode(e) === "LAST_ADMIN" ? t("admin.lastAdminBlocked") : t("common.error"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onRevoke(id: number, next: string) {
-    setBusy(true);
-    setNotice("");
-    try {
-      await adminApi.revokeRole(id, next);
-      await refreshSelected(id);
-    } catch (e) {
-      setNotice(apiCode(e) === "LAST_ADMIN" ? t("admin.lastAdminBlocked") : t("common.error"));
-    } finally {
-      setBusy(false);
+  function onRowKeyDown(event: KeyboardEvent<HTMLTableRowElement>, userId: number) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openUser(userId);
     }
   }
 
   return (
     <div>
-      <PageHeader title={t("admin.users")} subtitle={t("admin.subtitle")} />
+      <PageHeader title={t("admin.users")} subtitle={t("admin.users.summary")} />
       <Card>
-        <div className="flex flex-col gap-2">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("admin.searchUsers")}
-            className="min-h-[44px] rounded-xl border border-stone-200 bg-white px-3 text-sm"
-          />
-          <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-6">
+          <label className="md:col-span-2 xl:col-span-2" htmlFor="admin-users-search">
+            <span className="sr-only">{t("admin.searchUsers")}</span>
+            <input
+              id="admin-users-search"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                resetPage();
+              }}
+              placeholder={t("admin.searchUsers")}
+              className="min-h-[44px] w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
+            />
+          </label>
+          <label htmlFor="admin-users-role">
+            <span className="sr-only">{t("admin.allRoles")}</span>
             <select
+              id="admin-users-role"
               value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="min-h-[44px] rounded-xl border border-stone-200 bg-white px-3 text-sm"
+              onChange={(event) => {
+                setRole(event.target.value);
+                resetPage();
+              }}
+              className="min-h-[44px] w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
             >
               <option value="">{t("admin.allRoles")}</option>
-              {["PLAYER", ...MANAGEABLE_ROLES].map((r) => (
-                <option key={r} value={r}>
-                  {t(`auth.role.${r}` as "auth.role.PLAYER")}
-                </option>
-              ))}
+              {ROLES.map((value) => <option key={value} value={value}>{roleLabel(value)}</option>)}
             </select>
+          </label>
+          <label htmlFor="admin-users-status">
+            <span className="sr-only">{t("admin.allStatuses")}</span>
             <select
+              id="admin-users-status"
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="min-h-[44px] rounded-xl border border-stone-200 bg-white px-3 text-sm"
+              onChange={(event) => {
+                setStatus(event.target.value);
+                resetPage();
+              }}
+              className="min-h-[44px] w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
             >
               <option value="">{t("admin.allStatuses")}</option>
               <option value="active">{t("admin.statusActive")}</option>
               <option value="suspended">{t("admin.statusSuspended")}</option>
             </select>
-          </div>
+          </label>
+          <label htmlFor="admin-users-sort">
+            <span className="sr-only">{t("admin.sortBy")}</span>
+            <select
+              id="admin-users-sort"
+              value={sort}
+              onChange={(event) => {
+                setSort(event.target.value);
+                resetPage();
+              }}
+              className="min-h-[44px] w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
+            >
+              <option value="created_at">{t("admin.sortCreated")}</option>
+              <option value="username">{t("auth.username")}</option>
+              <option value="id">{t("admin.sortId")}</option>
+            </select>
+          </label>
+          <label htmlFor="admin-users-order">
+            <span className="sr-only">{t("admin.orderDesc")}</span>
+            <select
+              id="admin-users-order"
+              value={order}
+              onChange={(event) => {
+                setOrder(event.target.value);
+                resetPage();
+              }}
+              className="min-h-[44px] w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
+            >
+              <option value="desc">{t("admin.orderDesc")}</option>
+              <option value="asc">{t("admin.orderAsc")}</option>
+            </select>
+          </label>
         </div>
       </Card>
-      {notice ? (
-        <p className="mt-2 text-center text-sm font-bold text-red-600">{notice}</p>
-      ) : null}
       {loading ? (
         <p className="py-8 text-center text-stone-500">{t("common.loading")}</p>
       ) : failed ? (
         <div className="py-8 text-center">
           <p className="text-stone-500">{t("common.error")}</p>
           <div className="mx-auto mt-3 max-w-xs">
-            <Button onClick={load} className="w-full">
-              {t("common.retry")}
-            </Button>
+            <Button onClick={() => void load()} className="w-full">{t("common.retry")}</Button>
           </div>
         </div>
       ) : users.length === 0 ? (
-        <Card>
-          <p className="text-center text-stone-500">{t("admin.noUsers")}</p>
-        </Card>
+        <Card><p className="text-center text-stone-500">{t("admin.noUsers")}</p></Card>
       ) : (
-        <ul className="mt-3 flex flex-col gap-2">
-          {users.map((u) => (
-            <li key={u.id}>
-              <Card>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void openDetail(u.id)}
-                  className="flex min-h-[44px] w-full items-center justify-between gap-2 text-right"
-                >
-                  <span className="font-bold" dir="ltr">
-                    {u.username}
-                  </span>
-                  <Badge>{u.is_active ? t("admin.statusActive") : t("admin.statusSuspended")}</Badge>
-                </button>
-                <Link to={`/admin/users/${u.id}`} className="mt-1 inline-block text-sm font-bold text-violet-700">
-                  {t("admin.details")}
-                </Link>
-              </Card>
-            </li>
-          ))}
-        </ul>
-      )}
-      {selected ? (
-        <Card className="mt-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-black" dir="ltr">
-              {selected.username}
-            </h2>
-            <span className="text-xs text-stone-500">
-              {t("admin.attempts")}: {faNum(selected.attempts_count)}
-            </span>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {selected.roles.map((r) => (
-              <Badge key={r}>{t(`auth.role.${r}` as "auth.role.PLAYER")}</Badge>
-            ))}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {selected.is_active ? (
-              <Button variant="secondary" disabled={busy} onClick={() => void onSuspend(selected.id)}>
-                {t("admin.suspend")}
-              </Button>
-            ) : (
-              <Button disabled={busy} onClick={() => void onReactivate(selected.id)}>
-                {t("admin.reactivate")}
-              </Button>
-            )}
-            <Button variant="secondary" disabled={busy} onClick={() => setSelected(null)}>
-              {t("profile.cancel")}
-            </Button>
-          </div>
-          <h3 className="mt-3 text-sm font-bold">{t("admin.assignRole")}</h3>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {MANAGEABLE_ROLES.map((r) =>
-              selected.roles.includes(r) ? (
-                <Button
-                  key={r}
-                  variant="secondary"
-                  disabled={busy}
-                  onClick={() => void onRevoke(selected.id, r)}
-                >
-                  {t("admin.revokeRole")}: {t(`auth.role.${r}` as "auth.role.PLAYER")}
-                </Button>
-              ) : (
-                <Button key={r} variant="secondary" disabled={busy} onClick={() => void onAssign(selected.id, r)}>
-                  {t("admin.assignRole")}: {t(`auth.role.${r}` as "auth.role.PLAYER")}
-                </Button>
-              ),
-            )}
+        <Card className="mt-3 overflow-hidden p-0">
+          <div className="overflow-x-auto">
+            <table className="min-w-[1180px] w-full text-right text-sm">
+              <thead className="bg-stone-50 text-xs text-stone-500">
+                <tr>
+                  <th className="px-3 py-3 font-black">{t("auth.username")}</th>
+                  <th className="px-3 py-3 font-black">{t("admin.registered")}</th>
+                  <th className="px-3 py-3 font-black">{t("admin.label.plan")}</th>
+                  <th className="px-3 py-3 font-black">{t("admin.sales.freeUsers")} / {t("admin.sales.premiumUsers")}</th>
+                  <th className="px-3 py-3 font-black">{t("admin.subscriptions")}</th>
+                  <th className="px-3 py-3 font-black">{t("admin.users.verification")}</th>
+                  <th className="px-3 py-3 font-black">{t("admin.users.activity")}</th>
+                  <th className="px-3 py-3 font-black">{t("admin.lastActive")}</th>
+                  <th className="px-3 py-3 font-black">{t("admin.attempts")}</th>
+                  <th className="px-3 py-3 font-black">{t("admin.users.couponUsage")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((user) => (
+                  <tr
+                    key={user.id}
+                    tabIndex={0}
+                    onClick={() => openUser(user.id)}
+                    onKeyDown={(event) => onRowKeyDown(event, user.id)}
+                    className="cursor-pointer border-t border-stone-100 transition hover:bg-violet-50 focus:bg-violet-50 focus:outline-none"
+                  >
+                    <td className="px-3 py-3">
+                      <Link
+                        to={`/admin/users/${user.id}`}
+                        onClick={(event) => event.stopPropagation()}
+                        className="inline-flex min-h-[44px] items-center font-black text-violet-700"
+                        dir="ltr"
+                      >
+                        {user.username}
+                      </Link>
+                      <p className="mt-1 text-xs text-stone-500">{user.display_name}</p>
+                    </td>
+                    <td className="px-3 py-3"><span dir="ltr">{faDate(user.created_at)}</span></td>
+                    <td className="px-3 py-3"><span dir="ltr">{planLabel(user.current_plan_code)}</span></td>
+                    <td className="px-3 py-3"><span dir="ltr">{user.current_plan_code === "premium" ? t("account.plan.premium") : user.current_plan_code === "free" ? t("account.plan.free") : t("admin.notAvailable")}</span></td>
+                    <td className="px-3 py-3"><Badge>{subscriptionStatusLabel(user.current_plan_status)}</Badge></td>
+                    <td className="px-3 py-3">
+                       {user.phone_verified
+                         ? `${t("account.verified")} · ${verificationChannelLabel(user.verification_channel)}`
+                         : t("account.unverified")}
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className="font-bold">{accountStatus(user.is_active)}</span>
+                    </td>
+                    <td className="px-3 py-3"><span dir="ltr">{faDateTime(user.last_active_at)}</span></td>
+                    <td className="px-3 py-3">{faNum(user.attempts_count ?? 0)}</td>
+                    <td className="px-3 py-3">{faNum(user.coupon_redemption_count ?? 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
-      ) : null}
+      )}
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <Button
+          variant="secondary"
+          disabled={loading || page <= 1}
+          onClick={() => setPage((value) => Math.max(1, value - 1))}
+        >
+          {t("admin.pagination.previous")}
+        </Button>
+        <span className="text-center text-xs font-bold text-stone-500">{pageSummary(page, total)}</span>
+        <Button
+          variant="secondary"
+          disabled={loading || page >= Math.max(1, Math.ceil(total / PAGE_SIZE))}
+          onClick={() => setPage((value) => value + 1)}
+        >
+          {t("admin.pagination.next")}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -42,7 +42,8 @@ from sqlalchemy.orm import Session
 from app.modules.exercises.models import Exercise
 from app.modules.pathfinding_obstacles import transitions as tr
 from app.modules.pathfinding_obstacles.validator import SLUG
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_GENERATED, Puzzle
+from app.modules.puzzles.service import reusable_candidate_query, stage_validated_puzzle
 
 PROMPT_FA = "مهره را با کمترین حرکت به ستاره برسانید."
 
@@ -221,8 +222,11 @@ def create_puzzle(
     db: Session,
     rng: random.Random | None = None,
     exclude_ids: set[int] | None = None,
+    *,
+    source: str = SOURCE_GENERATED,
+    source_reference: str | None = None,
 ) -> Puzzle:
-    """Generate one solved, quality-gated puzzle and persist it published."""
+    """Generate one solved, quality-gated puzzle and stage it as validated."""
     rng = rng if rng is not None else random
     ensure_exercise(db)
     excluded = set(exclude_ids or [])
@@ -231,16 +235,7 @@ def create_puzzle(
     # duplicating; steer away from just-shown ids with bounded re-rolls.
     # Filtered in Python (portable across SQLite/PostgreSQL, tiny tables).
     for _ in range(10):
-        candidates = (
-            db.query(Puzzle)
-            .filter(
-                Puzzle.exercise_slug == SLUG,
-                Puzzle.is_published == True,  # noqa: E712
-                Puzzle.is_archived == False,  # noqa: E712
-            )
-            .order_by(Puzzle.id)
-            .all()
-        )
+        candidates = reusable_candidate_query(db, SLUG).order_by(Puzzle.id).all()
         usable: Puzzle | None = None
         identical = False
         for puzzle in candidates:
@@ -259,30 +254,33 @@ def create_puzzle(
         if not identical:
             break
         data = generate_question_data(rng)
-    puzzle = Puzzle(
-        exercise_slug=SLUG,
-        fen=data["fen"],
-        position_json={
-            "from": data["from"],
-            "target": data["target"],
-            "piece": data["piece"],
-            "enemies": data["enemies"],
+    puzzle = stage_validated_puzzle(
+        db,
+        {
+            "exercise_slug": SLUG,
+            "fen": data["fen"],
+            "position_json": {
+                "from": data["from"],
+                "target": data["target"],
+                "piece": data["piece"],
+                "enemies": data["enemies"],
+            },
+            "answer_json": {
+                "from": data["from"],
+                "target": data["target"],
+                "piece": data["piece"],
+                "enemies": data["enemies"],
+                "optimal_moves": data["optimal_moves"],
+            },
+            "hint_json": data["hint_json"],
+            "prompt_fa": data["prompt_fa"],
+            "explanation": data["explanation"],
+            "initial_rating": _rating_for(data["optimal_moves"], len(data["enemies"]), rng),
         },
-        answer_json={
-            "from": data["from"],
-            "target": data["target"],
-            "piece": data["piece"],
-            "enemies": data["enemies"],
-            "optimal_moves": data["optimal_moves"],
-        },
-        hint_json=data["hint_json"],
-        prompt_fa=data["prompt_fa"],
-        explanation=data["explanation"],
-        initial_rating=_rating_for(data["optimal_moves"], len(data["enemies"]), rng),
-        is_published=True,
-        is_archived=False,
+        source=source,
+        source_reference=source_reference
+        or (f"generator:{SLUG}" if source == SOURCE_GENERATED else f"{source}:{SLUG}"),
     )
-    db.add(puzzle)
     db.commit()
     db.refresh(puzzle)
     return puzzle

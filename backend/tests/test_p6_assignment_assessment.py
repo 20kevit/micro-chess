@@ -665,8 +665,10 @@ def test_attempt_api_accepts_and_reports_p6_context(client, db_session):
     assert body["goal"] == "board literacy"
 
     from app.modules.piece_recognition import seed as seed_mod
+    from tests.conftest import publish_staged_puzzles
 
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, "piece-recognition")
     puzzle = (
         db_session.query(PuzzleModel)
         .filter(PuzzleModel.exercise_slug == "piece-recognition")

@@ -1018,10 +1018,19 @@ def test_guest_attempt_is_rejected_without_evidence():
 
 
 def test_speed_session_submit_is_practice_evidence():
+    from app.modules.piece_recognition import generator as piece_generator
+    from app.modules.piece_recognition import seed as piece_seed
     from app.modules.piece_recognition import sessions
+    from tests.conftest import publish_generated_pool
 
     Session = make_db()
     db = Session()
+    piece_seed.seed_db(db)
+    publish_generated_pool(
+        db,
+        "piece-recognition",
+        piece_generator.create_puzzle,
+    )
     session = sessions.start_session(db, user_id=11)
     sessions.prepare_puzzles(db, session.id, count=sessions.MIN_START_BUFFER)
     session = sessions.begin_session(db, session.id)

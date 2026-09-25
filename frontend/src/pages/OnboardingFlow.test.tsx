@@ -18,6 +18,9 @@ vi.mock("../api/client", () => ({
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(notifyApi.track).mockResolvedValue(undefined);
+  vi.mocked(verificationApi.status).mockResolvedValue({
+    verified: false, phone_masked: "", channel: null, available_channels: ["telegram", "bale"],
+  });
   vi.mocked(onboardingApi.get).mockResolvedValue({
     experience: "", play_frequency: "", fide_rating: null, lichess_username: "",
     chesscom_username: "", goal: "", intensity: "standard", timezone: "Asia/Tehran",
@@ -82,7 +85,7 @@ describe("channel verification", () => {
       </MemoryRouter>,
     );
     expect(screen.queryByPlaceholderText(/09/)).toBeNull();
-    await user.click(screen.getByRole("button", { name: "تأیید با تلگرام" }));
+    await user.click(await screen.findByRole("button", { name: "تأیید با تلگرام" }));
     await waitFor(() => expect(verificationApi.createSession).toHaveBeenCalledWith("telegram"));
     await waitFor(() => expect(screen.getByText("123456")).toBeTruthy());
   });
@@ -93,15 +96,19 @@ describe("channel verification", () => {
       channel: "bale", pairing_code: "654321", bot_username: "", bot_url: "",
       expires_at: "",
     });
-    vi.mocked(verificationApi.status).mockResolvedValue({
-      verified: true, phone_masked: "+98912***6789", channel: "bale",
-    });
+    vi.mocked(verificationApi.status)
+      .mockResolvedValueOnce({
+        verified: false, phone_masked: "", channel: null, available_channels: ["telegram", "bale"],
+      })
+      .mockResolvedValue({
+        verified: true, phone_masked: "+98912***6789", channel: "bale", available_channels: ["bale"],
+      });
     render(
       <MemoryRouter>
         <VerifyPage />
       </MemoryRouter>,
     );
-    await user.click(screen.getByRole("button", { name: "تأیید با بله" }));
+    await user.click(await screen.findByRole("button", { name: "تأیید با بله" }));
     await waitFor(() => expect(screen.getByText("شماره‌ات تأیید شد")).toBeTruthy());
     expect(screen.getByRole("button", { name: "دریافت حساب ویژه" })).toBeTruthy();
   });

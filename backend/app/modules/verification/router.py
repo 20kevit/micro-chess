@@ -169,6 +169,8 @@ async def _bot_webhook_impl(channel: str, request: Request, db: Session,
         raise HTTPException(status_code=404, detail="unknown_channel")
     if not _webhook_authorized(request, path_secret):
         raise HTTPException(status_code=403, detail="forbidden")
+    if channel not in service.available_channels():
+        return {"ok": True}
     try:
         update = await request.json()
     except Exception:

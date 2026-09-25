@@ -16,7 +16,8 @@ from app.modules.chinese_board.generator import PROMPT_FA, ensure_exercise
 from app.modules.chinese_board.validator import SLUG
 from app.modules.exercises.models import Exercise
 from app.modules.positions import repository as positions
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_IMPORTED, Puzzle
+from app.modules.puzzles.service import stage_validated_puzzle
 
 # Each entry: fen + hints + rating. 15 positions from tiny (4 pieces) to
 # full (32 pieces) so the study budget (count * 1000ms) is exercised across
@@ -139,24 +140,26 @@ def seed_db(db: Session) -> int:
     created = 0
     for item, count in zip(PUZZLES, counts):
         budget = count * cb.MEMORIZE_MS_PER_PIECE
-        puzzle = Puzzle(
-            exercise_slug=SLUG,
-            fen=item["fen"],
-            position_json={
+        stage_validated_puzzle(
+            db,
+            {
+                "exercise_slug": SLUG,
                 "fen": item["fen"],
-                "piece_count": count,
-                "memorization_ms": budget,
-                "mode": "standard",
+                "position_json": {
+                    "fen": item["fen"],
+                    "piece_count": count,
+                    "memorization_ms": budget,
+                    "mode": "standard",
+                },
+                "answer_json": {"fen": item["fen"]},
+                "hint_json": {"hints": item["hints"]},
+                "prompt_fa": PROMPT_FA,
+                "explanation": f"این صفحه {count} مهره داشت.",
+                "initial_rating": item["rating"],
             },
-            answer_json={"fen": item["fen"]},
-            hint_json={"hints": item["hints"]},
-            prompt_fa=PROMPT_FA,
-            explanation=f"این صفحه {count} مهره داشت.",
-            initial_rating=item["rating"],
-            is_published=True,
-            is_archived=False,
+            source=SOURCE_IMPORTED,
+            source_reference=f"seed:{SLUG}",
         )
-        db.add(puzzle)
         created += 1
     db.commit()
     return created

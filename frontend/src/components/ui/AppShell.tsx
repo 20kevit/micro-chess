@@ -54,6 +54,9 @@ export function AppShell() {
   // Anonymous landing ("/" without a session) gets a wider canvas so the
   // marketing page can breathe; every authenticated view keeps max-w-3xl.
   const isLanding = location.pathname === "/" && !user && !loading;
+  const isAdminRoute = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
+
+  if (isAdminRoute) return <Outlet />;
 
   return (
     <div

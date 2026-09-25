@@ -24,10 +24,10 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.modules.legal_destinations import generator
 from app.modules.legal_destinations.models import LegalSpeedSession
 from app.modules.legal_destinations.validator import SLUG
 from app.modules.progress import service as attempt_service
+from app.modules.puzzles import service as puzzle_service
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptMode
 
@@ -158,7 +158,7 @@ def _attach_puzzles(
     # (best-effort; the generator re-rolls bounded times).
     excluded = set(session.puzzle_ids or [])
     for _ in range(max(0, count)):
-        puzzle = generator.create_puzzle(db, rng, exclude_ids=excluded)
+        puzzle = puzzle_service.player_puzzle(db, SLUG, exclude_ids=excluded)
         excluded.add(puzzle.id)
         made.append(puzzle)
     ids = list(session.puzzle_ids or []) + [p.id for p in made]
@@ -187,7 +187,7 @@ def issue_puzzle(
     rng: random.Random | None = None,
 ) -> Puzzle:
     session = _require_preparable(db, session_id)
-    puzzle = generator.create_puzzle(db, rng)
+    puzzle = puzzle_service.player_puzzle(db, SLUG)
     ids = list(session.puzzle_ids or [])
     ids.append(puzzle.id)
     session.puzzle_ids = ids
@@ -198,7 +198,7 @@ def issue_puzzle(
 
 def issue_practice_puzzle(db: Session, rng: random.Random | None = None) -> Puzzle:
     """Next random puzzle for untimed Practice Mode (no session)."""
-    return generator.create_puzzle(db, rng)
+    return puzzle_service.player_puzzle(db, SLUG)
 
 
 def submit(
@@ -215,9 +215,10 @@ def submit(
     session = _require_active(db, session_id)
     if puzzle_id not in (session.puzzle_ids or []):
         raise PuzzleNotInSessionError("puzzle_not_in_session")
-    puzzle = db.get(Puzzle, puzzle_id)
-    if puzzle is None or not puzzle.is_published or puzzle.is_archived:
-        raise PuzzleNotInSessionError("puzzle_not_available")
+    try:
+        puzzle = puzzle_service.require_visible_puzzle(db, puzzle_id, SLUG)
+    except puzzle_service.PlayerPuzzleUnavailableError as exc:
+        raise PuzzleNotInSessionError(str(exc)) from exc
     # Client-supplied FEN/target/solution metadata is ignored: validation
     # always runs against the stored server-side answer_json.
     safe_answer = {"selected_squares": answer.get("selected_squares", [])} if isinstance(answer, dict) else {}

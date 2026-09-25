@@ -36,7 +36,8 @@ from sqlalchemy.orm import Session
 
 from app.modules.exercises.models import Exercise
 from app.modules.positions import repository as positions
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_GENERATED, Puzzle
+from app.modules.puzzles.service import reusable_candidate_query, stage_validated_puzzle
 from app.modules.trapped_pieces.detector import (
     MAX_PRACTICE_TRAPPED,
     SLUG,
@@ -59,10 +60,36 @@ MAX_CANDIDATES = 25
 # Each holds 1-2 trapped pieces under the authoritative detector;
 # verified by tests.
 CURATED_FENS: tuple[str, ...] = (
-    "4k3/8/8/8/8/1P6/2P5/N5K1 w - - 0 1",  # Na1 corner-trapped
-    "2b1k3/1p1p4/8/8/8/8/8/4K3 w - - 0 1",  # Bc8 blocked by own pawns
-    "4k3/8/8/8/8/8/P7/RN4K1 w - - 0 1",  # Ra1 boxed by Pa2 + Nb1
-    "4k3/8/8/8/8/8/2PPP3/2BQK3 w - - 0 1",  # Qd1 boxed by own men
+    "4k3/8/8/8/8/1P6/2P3P1/N2K3B w - - 0 1",
+    "5k2/8/8/8/8/8/P5P1/RN1K3B w - - 0 1",
+    "2k4N/5P2/6P1/8/8/8/PB6/QN1K4 w - - 0 1",
+    "4K3/8/8/8/8/1p6/2p3p1/n2k3b b - - 0 1",
+    "5K2/8/8/8/8/8/p5p1/rn1k3b b - - 0 1",
+    "2K4n/5p2/6p1/8/8/8/pb6/qn1k4 b - - 0 1",
+    "4k3/8/8/8/8/1P6/2P5/N5K1 w - - 0 1",
+    "2b1k3/1p1p4/8/8/8/8/8/4K3 w - - 0 1",
+    "4k3/8/8/8/8/8/P7/RN4K1 w - - 0 1",
+    "4k3/8/8/8/8/8/2PPP3/2BQK3 w - - 0 1",
+    "4k3/8/8/8/8/1P6/2P5/N2K4 w - - 0 1",
+    "5k2/8/8/8/8/1P6/2P5/N3K3 w - - 0 1",
+    "6k1/8/8/8/8/1P6/2P5/N4K2 w - - 0 1",
+    "4k3/8/8/8/8/6P1/5P2/3K3N w - - 0 1",
+    "5k2/8/8/8/8/6P1/5P2/4K2N w - - 0 1",
+    "6k1/8/8/8/8/6P1/5P2/5K1N w - - 0 1",
+    "7k/8/8/8/8/6P1/5P2/6KN w - - 0 1",
+    "4k3/8/8/8/8/8/1P6/B2K4 w - - 0 1",
+    "5k2/8/8/8/8/8/1P6/B3K3 w - - 0 1",
+    "6k1/8/8/8/8/8/1P6/B4K2 w - - 0 1",
+    "7k/8/8/8/8/8/1P6/B5K1 w - - 0 1",
+    "4k3/8/8/8/8/8/6P1/3K3B w - - 0 1",
+    "5k2/8/8/8/8/8/6P1/4K2B w - - 0 1",
+    "6k1/8/8/8/8/8/6P1/5K1B w - - 0 1",
+    "7k/8/8/8/8/8/6P1/6KB w - - 0 1",
+    "4k3/8/8/8/8/8/PB6/QN1K4 w - - 0 1",
+    "5k2/8/8/8/8/8/PB6/QN2K3 w - - 0 1",
+    "6k1/8/8/8/8/8/PB6/QN3K2 w - - 0 1",
+    "4k3/8/8/8/8/8/P7/RN1K4 w - - 0 1",
+    "4k3/8/8/8/8/8/7P/3K2NR w - - 0 1",
 )
 
 
@@ -160,13 +187,8 @@ def ensure_exercise(db: Session) -> None:
 def _match_existing(db: Session, fen: str, exclude_ids: set[int]) -> tuple[Puzzle | None, bool]:
     """Return (usable_row_or_None, identical_exists)."""
     candidates = (
-        db.query(Puzzle)
-        .filter(
-            Puzzle.exercise_slug == SLUG,
-            Puzzle.is_published == True,  # noqa: E712
-            Puzzle.is_archived == False,  # noqa: E712
-            Puzzle.fen == fen,
-        )
+        reusable_candidate_query(db, SLUG)
+        .filter(Puzzle.fen == fen)
         .order_by(Puzzle.id)
         .all()
     )
@@ -191,8 +213,10 @@ def create_puzzle(
     exclude_ids: set[int] | None = None,
     *,
     exactly_one: bool = False,
+    source: str = SOURCE_GENERATED,
+    source_reference: str | None = None,
 ) -> Puzzle:
-    """Generate one random question and persist it as a published puzzle.
+    """Generate one random question and stage it as a validated candidate.
 
     Practice uses ``exactly_one=False`` (1-3 trapped pieces); Speed
     sessions must pass ``exactly_one=True`` so every served position
@@ -222,19 +246,36 @@ def create_puzzle(
                 return usable
             if not identical:
                 break
-    puzzle = Puzzle(
-        exercise_slug=SLUG,
-        fen=data["fen"],
-        position_json={"fen": data["fen"], "mode": "standard"},
-        answer_json={"squares": data["squares"]},
-        hint_json=data["hint_json"],
-        prompt_fa=data["prompt_fa"],
-        explanation=data["explanation"],
-        initial_rating=_rating_for(data["squares"], rng),
-        is_published=True,
-        is_archived=False,
+    if identical:
+        used_fens = {
+            fen
+            for fen, in reusable_candidate_query(db, SLUG).with_entities(Puzzle.fen).all()
+            if fen
+        }
+        for fen in CURATED_FENS:
+            if fen in used_fens:
+                continue
+            try:
+                data = question_for_fen(fen, exactly_one=exactly_one)
+            except ValueError:
+                continue
+            break
+    puzzle = stage_validated_puzzle(
+        db,
+        {
+            "exercise_slug": SLUG,
+            "fen": data["fen"],
+            "position_json": {"fen": data["fen"], "mode": "standard"},
+            "answer_json": {"squares": data["squares"]},
+            "hint_json": data["hint_json"],
+            "prompt_fa": data["prompt_fa"],
+            "explanation": data["explanation"],
+            "initial_rating": _rating_for(data["squares"], rng),
+        },
+        source=source,
+        source_reference=source_reference
+        or (f"generator:{SLUG}" if source == SOURCE_GENERATED else f"{source}:{SLUG}"),
     )
-    db.add(puzzle)
     db.commit()
     db.refresh(puzzle)
     return puzzle

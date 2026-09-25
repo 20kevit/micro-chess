@@ -33,7 +33,8 @@ from app.modules.balance_scale import solver
 from app.modules.balance_scale.solver import MAX_PIECES
 from app.modules.balance_scale.validator import SLUG, normalize_piece, total_value
 from app.modules.exercises.models import Exercise
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_GENERATED, Puzzle
+from app.modules.puzzles.service import reusable_candidate_query, stage_validated_puzzle
 
 PROMPT_FA = "با کمترین مهره، کفه سفید را با کفه سیاه برابر کن."
 
@@ -140,8 +141,11 @@ def create_puzzle(
     db: Session,
     rng: random.Random | None = None,
     exclude_ids: set[int] | None = None,
+    *,
+    source: str = SOURCE_GENERATED,
+    source_reference: str | None = None,
 ) -> Puzzle:
-    """Generate one random validated puzzle and persist it published."""
+    """Generate one random validated puzzle and stage it as a candidate."""
     rng = rng if rng is not None else random
     ensure_exercise(db)
     excluded = set(exclude_ids or [])
@@ -150,16 +154,7 @@ def create_puzzle(
     # away from just-shown ids with bounded re-rolls (best-effort).
     # Filtered in Python (portable across SQLite/PostgreSQL, tiny tables).
     for _ in range(10):
-        candidates = (
-            db.query(Puzzle)
-            .filter(
-                Puzzle.exercise_slug == SLUG,
-                Puzzle.is_published == True,  # noqa: E712
-                Puzzle.is_archived == False,  # noqa: E712
-            )
-            .order_by(Puzzle.id)
-            .all()
-        )
+        candidates = reusable_candidate_query(db, SLUG).order_by(Puzzle.id).all()
         usable: Puzzle | None = None
         identical = False
         for puzzle in candidates:
@@ -175,27 +170,30 @@ def create_puzzle(
         if not identical:
             break
         data = generate_question_data(rng)
-    puzzle = Puzzle(
-        exercise_slug=SLUG,
-        fen=None,
-        position_json={"left": data["left"]},
-        answer_json={
-            "left": data["left"],
-            "target": data["target"],
-            "optimal_count": data["optimal_count"],
+    puzzle = stage_validated_puzzle(
+        db,
+        {
+            "exercise_slug": SLUG,
+            "fen": None,
+            "position_json": {"left": data["left"]},
+            "answer_json": {
+                "left": data["left"],
+                "target": data["target"],
+                "optimal_count": data["optimal_count"],
+            },
+            "hint_json": {
+                "hints": [
+                    {"id": "h1", "text_fa": "اول ارزش همه مهره‌های سیاه را جمع بزن.", "rating_cost": 5},
+                ]
+            },
+            "prompt_fa": PROMPT_FA,
+            "explanation": f"مجموع کفه سیاه {data['target']} است؛ با کمترین مهره به همین عدد برس.",
+            "initial_rating": _rating_for(data["target"], data["optimal_count"], rng),
         },
-        hint_json={
-            "hints": [
-                {"id": "h1", "text_fa": "اول ارزش همه مهره‌های سیاه را جمع بزن.", "rating_cost": 5},
-            ]
-        },
-        prompt_fa=PROMPT_FA,
-        explanation=f"مجموع کفه سیاه {data['target']} است؛ با کمترین مهره به همین عدد برس.",
-        initial_rating=_rating_for(data["target"], data["optimal_count"], rng),
-        is_published=True,
-        is_archived=False,
+        source=source,
+        source_reference=source_reference
+        or (f"generator:{SLUG}" if source == SOURCE_GENERATED else f"{source}:{SLUG}"),
     )
-    db.add(puzzle)
     db.commit()
     db.refresh(puzzle)
     return puzzle

@@ -17,7 +17,7 @@ from app.modules.reverse_opening.validator import (
 )
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_staged_puzzles
 
 ITALIAN = ["e2e4", "e7e5", "g1f3", "b8c6", "f1c4", "f8c5"]
 
@@ -183,7 +183,8 @@ def test_seed_count_idempotent_shapes(db_session):
         assert puzzle.position_json["mode"] == "reconstruct"
         assert puzzle.position_json["opening_fa"]
         assert "answer_json" not in puzzle.position_json
-        assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
+        assert puzzle.prompt_fa and puzzle.explanation
+        assert not puzzle.is_published and puzzle.status == "validated"
 
 
 def test_seed_sequences_reproduce_targets(db_session):
@@ -231,6 +232,7 @@ def _step(client, db_session, puzzle, fen, moves, frm, to, promotion=None):
 
 def _seeded(db_session) -> Puzzle:
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).order_by(Puzzle.id).first()
     assert puzzle is not None
     return puzzle

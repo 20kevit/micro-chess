@@ -19,7 +19,8 @@ from app.modules.blindfold_square_vision.generator import (
 )
 from app.modules.blindfold_square_vision.validator import SLUG, normalize_square, square_color
 from app.modules.exercises.models import Exercise
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_IMPORTED, Puzzle
+from app.modules.puzzles.service import stage_validated_puzzle
 
 # Curated spread: corners, edges, center — both colors.
 SQUARES = ["a1", "h1", "a8", "h8", "d5", "e4", "c3", "f6"]
@@ -51,19 +52,21 @@ def seed_db(db: Session) -> int:
     created = 0
     for square in SQUARES:
         color = square_color(square)
-        puzzle = Puzzle(
-            exercise_slug=SLUG,
-            fen=EMPTY_FEN,
-            position_json={"square": square, "mode": "standard"},
-            answer_json={"square": square},
-            hint_json={"hints": []},
-            prompt_fa=prompt_for(square),
-            explanation=explanation_for(square, color),
-            initial_rating=800.0,
-            is_published=True,
-            is_archived=False,
+        stage_validated_puzzle(
+            db,
+            {
+                "exercise_slug": SLUG,
+                "fen": EMPTY_FEN,
+                "position_json": {"square": square, "mode": "standard"},
+                "answer_json": {"square": square},
+                "hint_json": {"hints": []},
+                "prompt_fa": prompt_for(square),
+                "explanation": explanation_for(square, color),
+                "initial_rating": 800.0,
+            },
+            source=SOURCE_IMPORTED,
+            source_reference=f"seed:{SLUG}",
         )
-        db.add(puzzle)
         created += 1
     db.commit()
     return created

@@ -21,3 +21,4 @@ class VerificationStatusOut(BaseModel):
     verified: bool
     phone_masked: str
     channel: str | None
+    available_channels: list[str]

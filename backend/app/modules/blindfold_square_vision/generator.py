@@ -21,7 +21,8 @@ from sqlalchemy.orm import Session
 
 from app.modules.blindfold_square_vision.validator import SLUG, normalize_square
 from app.modules.exercises.models import Exercise
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_GENERATED, Puzzle
+from app.modules.puzzles.service import reusable_candidate_query, stage_validated_puzzle
 
 EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"
 
@@ -60,17 +61,8 @@ def ensure_exercise(db: Session) -> None:
 
 
 def _match_existing(db: Session, square: str, exclude_ids: set[int]) -> Puzzle | None:
-    """Return a usable published row for the square, or None."""
-    candidates = (
-        db.query(Puzzle)
-        .filter(
-            Puzzle.exercise_slug == SLUG,
-            Puzzle.is_published == True,  # noqa: E712
-            Puzzle.is_archived == False,  # noqa: E712
-        )
-        .order_by(Puzzle.id)
-        .all()
-    )
+    """Return a usable candidate row for the square, or None."""
+    candidates = reusable_candidate_query(db, SLUG).order_by(Puzzle.id).all()
     for puzzle in candidates:
         answer = puzzle.answer_json if isinstance(puzzle.answer_json, dict) else {}
         if normalize_square(answer.get("square")) == square and puzzle.id not in exclude_ids:
@@ -82,8 +74,11 @@ def create_puzzle(
     db: Session,
     rng: random.Random | None = None,
     exclude_ids: set[int] | None = None,
+    *,
+    source: str = SOURCE_GENERATED,
+    source_reference: str | None = None,
 ) -> Puzzle:
-    """Generate one uniform-random square question, persisted published."""
+    """Generate one uniform-random square question and stage it as validated."""
     from app.modules.blindfold_square_vision.validator import square_color
 
     rng = rng if rng is not None else random
@@ -101,19 +96,22 @@ def create_puzzle(
     if usable is not None:
         return usable
     color = square_color(square)
-    puzzle = Puzzle(
-        exercise_slug=SLUG,
-        fen=EMPTY_FEN,
-        position_json={"square": square, "mode": "standard"},
-        answer_json={"square": square},
-        hint_json={"hints": []},
-        prompt_fa=prompt_for(square),
-        explanation=explanation_for(square, color),
-        initial_rating=800.0,
-        is_published=True,
-        is_archived=False,
+    puzzle = stage_validated_puzzle(
+        db,
+        {
+            "exercise_slug": SLUG,
+            "fen": EMPTY_FEN,
+            "position_json": {"square": square, "mode": "standard"},
+            "answer_json": {"square": square},
+            "hint_json": {"hints": []},
+            "prompt_fa": prompt_for(square),
+            "explanation": explanation_for(square, color),
+            "initial_rating": 800.0,
+        },
+        source=source,
+        source_reference=source_reference
+        or (f"generator:{SLUG}" if source == SOURCE_GENERATED else f"{source}:{SLUG}"),
     )
-    db.add(puzzle)
     db.commit()
     db.refresh(puzzle)
     return puzzle

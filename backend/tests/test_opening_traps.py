@@ -9,7 +9,7 @@ from app.modules.opening_traps.description import THEME_FA, describe_position, d
 from app.modules.opening_traps.validator import SLUG, solution_sans, validate
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_staged_puzzles
 
 FEN_LEGAL = "rn1qkbnr/ppp2p1p/3p2p1/4p3/2B1P1b1/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 0 5"
 FEN_NOAH = "r1bqkbnr/5ppp/p2p4/1pp5/3QP3/1B6/PPP2PPP/RNB1K2R w KQkq - 0 9"
@@ -227,7 +227,8 @@ def test_seed_solutions_legal_and_tactical(db_session):
         assert puzzle.position_json["mode"] == "tactic-1"
         if len(stored["solutions"]) > 1:
             multi += 1
-        assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
+        assert puzzle.prompt_fa and puzzle.explanation
+        assert not puzzle.is_published and puzzle.status == "validated"
     assert multi >= 2  # several puzzles accept multiple tactics
     assert sides == {"white", "black"}
     assert len(themes) >= 5
@@ -248,6 +249,7 @@ def test_seed_no_leak_in_visible_payload(db_session):
 
 def _seeded(db_session) -> Puzzle:
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).order_by(Puzzle.id).first()
     assert puzzle is not None
     return puzzle

@@ -42,7 +42,8 @@ from app.modules.blindfold_calculation.description import (
 from app.modules.blindfold_calculation.validator import SLUG
 from app.modules.exercises.models import Exercise
 from app.modules.positions import repository as positions
-from app.modules.puzzles.models import Puzzle
+from app.modules.puzzles.models import SOURCE_GENERATED, Puzzle
+from app.modules.puzzles.service import reusable_candidate_query, stage_validated_puzzle
 
 PROMPT_FA = "بهترین حرکت چیست؟"
 
@@ -160,16 +161,7 @@ def ensure_exercise(db: Session) -> None:
 
 def _match_existing(db: Session, puzzle_id: str, exclude_ids: set[int]) -> tuple[Puzzle | None, bool]:
     """Return (usable_row_or_None, identical_exists) for a puzzles.db puzzle_id."""
-    candidates = (
-        db.query(Puzzle)
-        .filter(
-            Puzzle.exercise_slug == SLUG,
-            Puzzle.is_published == True,  # noqa: E712
-            Puzzle.is_archived == False,  # noqa: E712
-        )
-        .order_by(Puzzle.id)
-        .all()
-    )
+    candidates = reusable_candidate_query(db, SLUG).order_by(Puzzle.id).all()
     usable: Puzzle | None = None
     identical = False
     for puzzle in candidates:
@@ -186,8 +178,11 @@ def create_puzzle(
     rng: random.Random | None = None,
     explicit_path: str | None = None,
     exclude_ids: set[int] | None = None,
+    *,
+    source: str = SOURCE_GENERATED,
+    source_reference: str | None = None,
 ) -> Puzzle:
-    """Generate one random eligible question and persist it published."""
+    """Generate one random eligible question and stage it as validated."""
     rng = rng if rng is not None else random
     ensure_exercise(db)
     excluded = set(exclude_ids or [])
@@ -203,29 +198,32 @@ def create_puzzle(
                 return usable
             if not identical:
                 break
-    puzzle = Puzzle(
-        exercise_slug=SLUG,
-        fen=None,
-        position_json={
-            "description_fa": data["description_fa"],
-            "side_to_move": data["side"],
-            "mode": "best-move",
-            "piece_count": data["piece_count"],
+    puzzle = stage_validated_puzzle(
+        db,
+        {
+            "exercise_slug": SLUG,
+            "fen": None,
+            "position_json": {
+                "description_fa": data["description_fa"],
+                "side_to_move": data["side"],
+                "mode": "best-move",
+                "piece_count": data["piece_count"],
+            },
+            "answer_json": {
+                "fen": data["fen"],
+                "solution": data["solution"],
+                "puzzle_id": data["puzzle_id"],
+                "rating": data["rating"],
+            },
+            "hint_json": {"hints": HINTS},
+            "prompt_fa": PROMPT_FA,
+            "explanation": EXPLANATION_FA,
+            "initial_rating": data["rating"],
         },
-        answer_json={
-            "fen": data["fen"],
-            "solution": data["solution"],
-            "puzzle_id": data["puzzle_id"],
-            "rating": data["rating"],
-        },
-        hint_json={"hints": HINTS},
-        prompt_fa=PROMPT_FA,
-        explanation=EXPLANATION_FA,
-        initial_rating=data["rating"],
-        is_published=True,
-        is_archived=False,
+        source=source,
+        source_reference=source_reference
+        or (f"generator:{SLUG}" if source == SOURCE_GENERATED else f"{source}:{SLUG}"),
     )
-    db.add(puzzle)
     db.commit()
     db.refresh(puzzle)
     return puzzle

@@ -18,6 +18,7 @@ import pytest
 
 from app.modules.exercises import registry
 from app.modules.legal_destinations import generator as gen
+from app.modules.legal_destinations import seed as seed_mod
 from app.modules.legal_destinations import sessions as session_service
 from app.modules.legal_destinations.models import LegalSpeedSession
 from app.modules.legal_destinations.scoring import score_squares
@@ -31,7 +32,7 @@ from app.modules.legal_destinations.validator import (
 from app.modules.progress.models import Attempt
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_generated_pool
 
 
 def dests(fen: str, origin: str, profile: str = IGNORE_ENEMY_ATTACKS) -> set[str]:
@@ -300,7 +301,13 @@ def test_generator_all_piece_types_placeable():
 # --- Practice + speed API ---
 
 
-def test_practice_next_hides_answer(client, db_session):
+@pytest.fixture
+def published_pool(db_session):
+    seed_mod.seed_db(db_session)
+    publish_generated_pool(db_session, SLUG, gen.create_puzzle)
+
+
+def test_practice_next_hides_answer(client, db_session, published_pool):
     res = client.post("/api/v1/legal-destinations/next", json={})
     assert res.status_code == 200
     body = res.json()
@@ -335,7 +342,7 @@ def _ready_session(client, count=20):
     return sid, puzzles, started
 
 
-def test_speed_lifecycle_buffer_and_clock(client, db_session):
+def test_speed_lifecycle_buffer_and_clock(client, db_session, published_pool):
     sid = _open(client)
     res = client.post(f"/api/v1/legal-destinations/sessions/{sid}/start")
     assert res.status_code == 409
@@ -347,7 +354,7 @@ def test_speed_lifecycle_buffer_and_clock(client, db_session):
     assert started["buffered"] == 20
 
 
-def test_speed_prepare_hides_answers(client, db_session):
+def test_speed_prepare_hides_answers(client, db_session, published_pool):
     sid = _open(client)
     batch = _prepare(client, sid, 20)
     assert len(batch) == 20
@@ -355,7 +362,7 @@ def test_speed_prepare_hides_answers(client, db_session):
     assert len({p["id"] for p in batch}) == 20
 
 
-def test_speed_submit_and_report(client, db_session):
+def test_speed_submit_and_report(client, db_session, published_pool):
     sid, puzzles, _ = _ready_session(client)
     res = client.post(
         f"/api/v1/legal-destinations/sessions/{sid}/submit",
@@ -374,7 +381,7 @@ def test_speed_submit_and_report(client, db_session):
     assert sum(a.score for a in attempts) == report["session"]["score"]
 
 
-def test_speed_submit_ignores_client_solution(client, db_session):
+def test_speed_submit_ignores_client_solution(client, db_session, published_pool):
     sid, puzzles, _ = _ready_session(client)
     res = client.post(
         f"/api/v1/legal-destinations/sessions/{sid}/submit",
@@ -384,7 +391,7 @@ def test_speed_submit_ignores_client_solution(client, db_session):
     assert res.status_code == 200
 
 
-def test_speed_rejects_foreign_puzzle(client, db_session):
+def test_speed_rejects_foreign_puzzle(client, db_session, published_pool):
     sid, _, _ = _ready_session(client)
     foreign = Puzzle(
         exercise_slug=SLUG,
@@ -408,7 +415,7 @@ def test_speed_rejects_foreign_puzzle(client, db_session):
     assert res.status_code == 404
 
 
-def test_speed_expiry_authoritative(client, db_session):
+def test_speed_expiry_authoritative(client, db_session, published_pool):
     from datetime import timedelta
 
     sid, puzzles, _ = _ready_session(client)

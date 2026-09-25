@@ -14,7 +14,7 @@ from app.modules.castling_rights.validator import (
 from app.modules.exercises import registry
 from app.modules.puzzles.models import Puzzle
 from app.modules.rule_engine.base import AttemptResult
-from tests.conftest import make_auth_headers
+from tests.conftest import make_auth_headers, publish_staged_puzzles
 
 
 def opts(fen: str) -> set[str]:
@@ -237,7 +237,8 @@ def test_seed_count_and_answer_match(db_session):
         # ...and the validator agrees with the independent recomputation:
         assert puzzle.answer_json["options"] == legal_castling_options(puzzle.fen)
         seen_answers.add(tuple(expected))
-        assert puzzle.prompt_fa and puzzle.explanation and puzzle.is_published
+        assert puzzle.prompt_fa and puzzle.explanation
+        assert not puzzle.is_published and puzzle.status == "validated"
     assert len(seen_answers) >= 8  # varied, not trivially repeated
     assert len({p.initial_rating for p in puzzles}) >= 5
 
@@ -247,6 +248,7 @@ def test_seed_count_and_answer_match(db_session):
 
 def _seeded(db_session) -> Puzzle:
     seed_mod.seed_db(db_session)
+    publish_staged_puzzles(db_session, SLUG)
     puzzle = (
         db_session.query(Puzzle).filter(Puzzle.exercise_slug == SLUG).order_by(Puzzle.id).first()
     )
