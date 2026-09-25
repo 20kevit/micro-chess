@@ -50,6 +50,37 @@ Read this before changing code. Keep it simple and explicit.
 - Frontend: `npm run typecheck` and `npm run build` must pass.
 - Run the relevant gate before finishing any task.
 
+## 7. Where things live (VPS)
+
+Open with the workspace at `/opt/projects/micro-chess` so all three
+directories below are inside the workspace boundary.
+
+```text
+repo/        ONLY Git working tree. Source of truth. Edit here.
+beta/        Runtime deployment (beta.microchess.ir).  NOT a Git repo.
+production/  Runtime deployment (microchess.ir).      NOT a Git repo.
+```
+
+- `main` is the only permanent branch. Push to `main`; no other branch
+  becomes permanent.
+- **Never hand-edit `beta/` or `production/`.** They are deploy outputs;
+  an edit there is lost on the next deploy. Change `repo/`, then deploy.
+- Deploy with `repo/ops/deploy.sh` (`beta` | `prod <commit>` | `status` |
+  `rollback`). Production takes an explicit, already-betatested commit.
+- `DATABASE_URL` is relative to each unit's working directory, which is
+  what keeps the two databases apart. **Never** point beta at
+  `production/backend/microchess.db`, and never run tests against the
+  production database. Use a disposable database.
+- `.env` files, databases, backups, certificates, and keys are never
+  committed and never printed. Only `*.example` templates are tracked.
+- Telegram verification stays disabled. The production Bale bot stays in
+  production; do not copy its credentials into beta.
+- Infrastructure change is not done until it is verified: run the
+  service, check the health endpoint, and confirm the real domain
+  answers. Do not touch unrelated projects, services, or sites on this
+  host (`/opt/projects/fide-service`, `xray`, `cups`, `xrdp`, and the
+  default Nginx site are out of scope).
+
 ## Repository Map
 
 For a current high-level map of the repository, major domains, entry points,

@@ -6,6 +6,12 @@ This document records the actual implementation state of the platform.
 
 It describes **repository reality**, not planned functionality.
 
+> **Deployment note (2026-09-25).** The phase records below describe
+> work as it was done, including the cPanel push deployment that has
+> since been retired. They are kept as history and are not rewritten.
+> The application itself is unchanged by that move. Current deployment
+> architecture, paths, services, and rollback: `docs/DEPLOYMENT.md`.
+
 ---
 
 ## 2. Status Vocabulary

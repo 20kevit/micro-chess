@@ -17,7 +17,7 @@ Coverage includes chess rules and validators, scoring edge cases,
 the puzzle publish/archive lifecycle, auth/roles/relationships,
 ratings, gamification, support/notifications, the Passenger WSGI
 adapter (`test_passenger_wsgi.py`), the SPA fallback
-(`test_spa_frontend.py`, 13 tests), and the `.cpanel.yml` safety
+(`test_spa_frontend.py`, 13 tests), and the deploy-path safety
 invariants. New exercise or rule changes need focused tests for
 validation, scoring, and custom rules.
 

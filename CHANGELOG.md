@@ -3,6 +3,46 @@
 Deployment and platform changes. Product behavior is documented
 per phase in `docs/platform/IMPLEMENTATION_STATE.md`.
 
+## 2026-09-25 — VPS deployment architecture (infrastructure only)
+
+No application behavior changed. This entry records the move to a
+single-host, two-runtime deployment and the documentation that now
+describes it.
+
+* Production is served from a VPS: Nginx fronts two independent
+  Uvicorn runtimes, `microchess.service` (production, `127.0.0.1:8000`)
+  and `microchess-beta.service` (beta, `127.0.0.1:8001`), each with its
+  own non-root service user, virtualenv, `.env`, and SQLite database.
+* `repo/` is the only Git working tree. `beta/` and `production/` are
+  runtime deployments, not repositories, and are never hand-edited.
+* `main` is the only permanent branch. `master` and the two superseded
+  feature branches are gone; the one commit unique to the abandoned P11
+  SMS line is preserved as the tag `archive/p11-sms-kavenegar-status`.
+* `ops/deploy.sh` is the deployment helper. It refuses a dirty working
+  tree, deploys the committed tree via `git archive`, requires an
+  explicit commit for production, takes a verified database backup
+  first, replaces code paths only, and health-checks the result.
+* `.gitignore` now covers runtime secrets and SQLite artifacts
+  (`.env`, `*.db`, `*.sqlite`, `*.sqlite3`, and WAL/journal sidecars)
+  in the tracked tree instead of a local-only exclude file.
+* The cPanel push deployment is retired. `.cpanel.yml`,
+  `backend/passenger_wsgi.py`, and `docs/platform/CPANEL_DEPLOYMENT.md`
+  are kept for the historical record and are clearly marked as such.
+* `docs/DEPLOYMENT.md` is now the canonical deployment and operations
+  reference. AGENTS.md, README, CONFIGURATION, SETUP, TESTING,
+  ARCHITECTURE, REPOSITORY_MAP, SECURITY, and the platform architecture
+  map were synchronised with it.
+* Telegram verification remains disabled; production Bale credentials
+  remain in production only.
+
+### Known limitation
+
+TLS is not installed. The ACME HTTP-01 webroot is configured on every
+vhost, but Let's Encrypt validators time out reaching this host on port
+80, so no certificate can be issued from here yet. Both domains are
+served over plain HTTP until inbound 80/443 is reachable from the
+validation networks. Details in `docs/DEPLOYMENT.md` section 9.
+
 ## 2026-09-25 — P13/P13.1 admin and content lifecycle hardening
 
 * Completed the Admin control center across content, exercises, review,

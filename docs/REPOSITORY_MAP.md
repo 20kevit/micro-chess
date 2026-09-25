@@ -10,11 +10,13 @@ Conventions: backend paths are under `backend/`; frontend paths under
 ## 1. Top-level layout
 
 ```text
-AGENTS.md                  Agent rules (read first; Persian UI, boundaries, gates)
+AGENTS.md                  Agent rules (read first; Persian UI, boundaries, gates,
+                           VPS layout: repo/ -> beta/ -> production/)
 README.md                  Product overview and implemented-feature summary
 CHANGELOG.md               Deployment/platform change log
 CONTRIBUTING.md / SECURITY.md
-.cpanel.yml                cPanel push-deployment task list (code-only replace)
+.cpanel.yml                LEGACY retired cPanel task list; kept for the record
+ops/deploy.sh              deploy helper repo -> beta -> production (docs/DEPLOYMENT.md)
 docs/                      All documentation (see section 7)
 backend/                   FastAPI backend (authoritative logic)
   app/main.py              ASGI entry; thin router wiring only
@@ -25,7 +27,8 @@ backend/                   FastAPI backend (authoritative logic)
   app/tools/               Offline-only Lichess puzzle ingestion (never imported
                            by the runtime)
   tests/                   pytest suite, one file per area (test_*.py)
-  passenger_wsgi.py        cPanel Passenger WSGI entry (lazy per-PID middleware)
+  passenger_wsgi.py        legacy cPanel Passenger WSGI entry; unused by the
+                           current Uvicorn deployment
   pyproject.toml           Dependency source of truth; requirements.txt mirrors it
 frontend/                  React + Vite + Tailwind v4 SPA (renders only)
   src/main.tsx             Router entry (all routes defined here)
@@ -47,7 +50,9 @@ frontend/                  React + Vite + Tailwind v4 SPA (renders only)
 | Concern | File |
 |---|---|
 | Backend app boot | `backend/app/main.py` |
-| cPanel WSGI entry | `backend/passenger_wsgi.py` |
+| Deploy to beta | `ops/deploy.sh beta` |
+| Deploy to production | `ops/deploy.sh prod <commit>` |
+| Deployment architecture | `docs/DEPLOYMENT.md` |
 | Frontend routes | `frontend/src/main.tsx` |
 | Anonymous landing vs role home | `frontend/src/pages/HomePage.tsx` |
 | Public landing page | `frontend/src/components/landing/LandingPage.tsx` |
@@ -175,7 +180,7 @@ memory_board/, rule_of_the_square/  Empty dirs; no code yet, do not reference.
 | Add backend tests | `backend/tests/test_<area>.py` (`pytest`) |
 | Add frontend tests | Colocated `<Name>.test.tsx` (`npm test`) |
 | Change schema | `backend/app/db/migration.py` + `docs/platform/DATA_MODEL.md` |
-| Change deployment | `.cpanel.yml`, `backend/passenger_wsgi.py`, `docs/DEPLOYMENT.md` |
+| Change deployment | `ops/deploy.sh`, `docs/DEPLOYMENT.md` |
 
 ## 7. Generated / do-not-edit-manually
 
@@ -196,7 +201,8 @@ memory_board/, rule_of_the_square/  Empty dirs; no code yet, do not reference.
 - `docs/ARCHITECTURE.md` — patterns; `docs/platform/DATA_MODEL.md` — schema;
   `docs/PRICING_AND_BILLING.md` — commerce (plans, billing, coupons);
   `docs/EXERCISES.md` — exercise roadmap; `docs/platform/IMPLEMENTATION_STATE.md` —
-  verified phase state; `docs/DEPLOYMENT.md` + `docs/platform/CPANEL_DEPLOYMENT.md` —
-  runbook; `docs/DESIGN_SYSTEM.md` — visual tokens; `docs/API.md`,
+  verified phase state; `docs/DEPLOYMENT.md` — canonical deployment/operations
+  reference (`docs/platform/CPANEL_DEPLOYMENT.md` is historical only);
+  `docs/DESIGN_SYSTEM.md` — visual tokens; `docs/API.md`,
   `docs/platform/API_CONTRACTS.md` — contracts; `docs/SETUP.md`, `docs/TESTING.md`,
   `docs/CONFIGURATION.md` — environment and workflow.

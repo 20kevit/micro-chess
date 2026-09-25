@@ -10,7 +10,7 @@ Template: `backend/.env.example`. Copy it with `cp .env.example .env`.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `DATABASE_URL` | `sqlite:///./microchess.db` | Dev SQLite file (gitignored). Production value lives beside the deployed code and is never copied by `.cpanel.yml`. |
+| `DATABASE_URL` | `sqlite:///./microchess.db` | SQLite file, **relative to the process working directory**, so each runtime resolves its own database. Local dev, beta, and production each have their own gitignored file. |
 | `ENVIRONMENT` | `development` | Set `production` on the host. With `production` + the default `JWT_SECRET`, the app fails fast at startup (`ensure_ready()`). |
 | `JWT_SECRET` | `change-me-in-production` | REQUIRED in production — must be a long random secret. |
 | `JWT_ALGORITHM` | `HS256` | — |
@@ -19,7 +19,7 @@ Template: `backend/.env.example`. Copy it with `cp .env.example .env`.
 | `LOG_LEVEL` | `INFO` | — |
 | `RATE_LIMIT_ENABLED` | `true` | — |
 | `AUTH_RATE_LIMIT_PER_MINUTE` | `30` | Auth endpoints abuse protection. |
-| `VERIFICATION_TELEGRAM_ENABLED` | `false` | Production-safe default. Keep Telegram verification hidden until explicitly enabled; set `true` to re-enable the existing Telegram channel without a code change. Bale remains available. |
+| `VERIFICATION_TELEGRAM_ENABLED` | `false` | **Telegram verification is disabled by project decision** (no usable server connectivity). Leave it `false`. The Bale channel stays available; its bot credentials live only in the production `.env`. |
 | `SUPPORT_RATE_LIMIT_PER_MINUTE` | `20` | Support ticket/message spam protection (code default; not in `.env.example`). |
 | `GUEST_SESSION_EXPIRE_DAYS` | `30` | Server-side guest session lifetime (code default; not in `.env.example`). |
 | `PUZZLES_DB_PATH` | unset | Optional shared Lichess position source (read-only). When unset, the backend looks for `./puzzles.db` then `./backend/puzzles.db`, else uses curated fallback positions. Never committed (gitignored). |
@@ -32,6 +32,19 @@ schema-reuse notes): `docs/LICHESS_PUZZLES.md`.
 
 There is no debug mode in the codebase. CORS and rate limits are
 env-driven only.
+
+## Per-runtime files on the VPS
+
+Each runtime owns its own `backend/.env` and its own SQLite database.
+Neither is committed. Beta and production MUST NOT share either one;
+see `docs/DEPLOYMENT.md`.
+
+| Runtime | `.env` | Database |
+|---|---|---|
+| beta | `beta/backend/.env` | `beta/backend/microchess-beta.db` |
+| production | `production/backend/.env` | `production/backend/microchess.db` |
+
+Both files are mode `0600` and are not reachable over HTTP.
 
 ## Frontend (build-time)
 
@@ -56,8 +69,9 @@ A committed regression test
 ## Database
 
 Schema is managed by idempotent `ensure_schema`
-(`backend/app/db/migration.py`, `SCHEMA_VERSION = 16`): fresh
-databases boot to v16, older ones upgrade with data preserved,
-newer-than-code databases refuse to boot. Models use only portable
+(`backend/app/db/migration.py`, `SCHEMA_VERSION = 17`): fresh
+databases boot to v17, older ones upgrade with data preserved,
+newer-than-code databases refuse to boot. Back up a production
+database before any deploy that could migrate it. Models use only portable
 SQLAlchemy column types. The full logical model is documented in
 `docs/platform/DATA_MODEL.md`.

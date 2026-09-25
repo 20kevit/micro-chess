@@ -4,9 +4,9 @@
 
 The security model (authentication, authorization, privacy, abuse
 protection, audit) is documented in `docs/platform/SECURITY.md`.
-Deployment-specific rules (secrets handling, production guards,
-`.cpanel.yml` safety invariants) are in
-`docs/platform/CPANEL_DEPLOYMENT.md` (sections 5 and 14).
+Deployment-specific rules (secrets handling, runtime separation,
+production guards, the deploy-path safety invariants) are in
+`docs/DEPLOYMENT.md`.
 
 Hard rules, verified in code and tests:
 
@@ -14,8 +14,15 @@ Hard rules, verified in code and tests:
   bundled into the frontend.
 - Production refuses to boot with the development JWT secret
   (`Settings.ensure_ready()`, tested).
-- `.env` files, databases, and credentials are never copied by
-  `.cpanel.yml` and live outside the replaced code paths.
+- `.env` files, databases, and credentials are never committed and
+  never overwritten by a deploy: only code paths (`backend/app`,
+  `backend/static`, `docs`) are replaced, and the `backend/` directory
+  holding `.env` and the database is never wiped.
+- On the VPS, beta and production each run as their own non-root system
+  user over their own `.env`, database, virtualenv, port, and domain.
+  Neither can read the other's files.
+- Backups live in `/opt/backups/` (mode `0700`) and are never served by
+  Nginx or committed.
 
 ## Reporting a vulnerability
 

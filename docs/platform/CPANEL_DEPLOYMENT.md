@@ -1,4 +1,17 @@
-# MicroChess — cPanel Deployment (prebuilt frontend)
+<!--
+STATUS: HISTORICAL / SUPERSEDED. NOT THE CURRENT DEPLOYMENT.
+
+This runbook describes the retired cPanel shared-hosting deployment for
+the `microche` account. MicroChess is no longer deployed to cPanel and
+the account is no longer part of the architecture. Every path, host, and
+procedure below is preserved as a historical record only.
+
+Do not follow this document. The current, authoritative deployment and
+operations reference is docs/DEPLOYMENT.md.
+-->
+
+# MicroChess — cPanel Deployment (prebuilt frontend) — HISTORICAL
+
 
 This document is the single operator reference for deploying MicroChess
 on the `microche` cPanel shared-hosting account. Code references are

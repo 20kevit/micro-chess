@@ -35,8 +35,9 @@ for the verified phase-by-phase state.
 - **Admin & content** — admin panel API, puzzle lifecycle
   (publish/archive, answers immutable once published), content
   generators, analytics, support tickets, in-app notifications.
-- **Deployment** — single-host push deployment: FastAPI serves
-  the prebuilt frontend with SPA fallback; see `docs/DEPLOYMENT.md`.
+- **Deployment** — single-host, two-runtime deployment (beta then
+  production) driven by explicit Git commits; FastAPI serves the
+  prebuilt frontend with SPA fallback. See `docs/DEPLOYMENT.md`.
 
 ## Architecture (short)
 
@@ -61,8 +62,10 @@ docs/      product + architecture + api + exercises + platform
   python-chess, SQLite (PostgreSQL-ready via `DATABASE_URL`).
 - Frontend: React 18, Vite 6, TypeScript, Tailwind CSS v4,
   React Router 6, self-hosted Vazirmatn font.
-- Production: cPanel + LiteSpeed + Passenger (`a2wsgi` bridge),
-  prebuilt `frontend/dist/` served by FastAPI.
+- Production: a single VPS running two independent FastAPI/Uvicorn
+  runtimes (beta and production) behind Nginx, serving the prebuilt
+  `frontend/dist/` from `backend/static/`. The legacy cPanel/Passenger
+  deployment is retired; see `docs/DEPLOYMENT.md`.
 
 ## Local setup
 
@@ -118,12 +121,25 @@ artifact for push deployment (no server-side build on the host).
 
 ## Deployment (overview)
 
-`git push` → cPanel runs `.cpanel.yml` → code paths are replaced
-under `/home/microche/microchess`, dependencies install into the
-account virtualenv, Passenger reloads via `tmp/restart.txt`. The
-`.env` file and database live beside the code and survive deploys.
-Operator reference: `docs/DEPLOYMENT.md` (overview) and
-`docs/platform/CPANEL_DEPLOYMENT.md` (full runbook).
+`git push` to `main` → the VPS deploys the committed tree to the beta
+runtime → verify `beta.microchess.ir` → deploy that exact, tested commit
+to the production runtime.
+
+```text
+GitHub main
+   ↓
+/opt/projects/micro-chess/repo      ← only Git working tree (source of truth)
+   ↓  ops/deploy.sh beta
+/opt/projects/micro-chess/beta      ← beta.microchess.ir
+   ↓  verify, then promote the tested commit
+/opt/projects/micro-chess/production  ← microchess.ir
+```
+
+`beta/` and `production/` are runtime deployments, not Git repositories,
+and are never hand-edited. Each has its own service, port, database, and
+`.env`. Operator reference: `docs/DEPLOYMENT.md` (canonical).
+`docs/platform/CPANEL_DEPLOYMENT.md` is the retired cPanel runbook, kept
+for the historical record only.
 
 ## Documentation
 
@@ -137,7 +153,8 @@ Operator reference: `docs/DEPLOYMENT.md` (overview) and
 - Exercises: `docs/EXERCISES.md` (roadmap, single source of truth),
   `docs/exercises/` (per-exercise specs)
 - Platform state & runbooks: `docs/platform/IMPLEMENTATION_STATE.md`,
-  `docs/platform/CPANEL_DEPLOYMENT.md`, `docs/platform/SECURITY.md`
+  `docs/platform/SECURITY.md` (the cPanel runbook
+  `docs/platform/CPANEL_DEPLOYMENT.md` is historical only)
 - Design: `docs/DESIGN_SYSTEM.md`
 - Changes: `CHANGELOG.md`
 

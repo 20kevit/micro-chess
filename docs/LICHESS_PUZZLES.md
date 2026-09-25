@@ -4,7 +4,7 @@ Standalone offline pipeline that fetches the official Lichess puzzle
 dump and normalizes it into a stable format for future MicroChess use.
 It is **not** part of the application runtime: the FastAPI app never
 imports it, no lifespan hook runs it, and the normal API works without
-it. It never runs on production/cPanel unless an operator invokes it
+it. It never runs in beta or production unless an operator invokes it
 explicitly over SSH.
 
 ## Source

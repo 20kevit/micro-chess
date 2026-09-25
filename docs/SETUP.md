@@ -79,7 +79,7 @@ require the additional `--confirm-production` flag
 The dev database is SQLite at `backend/microchess.db`
 (`DATABASE_URL=sqlite:///./microchess.db`, gitignored). Schema is
 managed by idempotent `ensure_schema`
-(`backend/app/db/migration.py`, currently `SCHEMA_VERSION = 16`):
+(`backend/app/db/migration.py`, currently `SCHEMA_VERSION = 17`):
 it runs on startup, upgrades older databases preserving data, and
 refuses to boot on a newer-than-code database. No manual migration
 step exists; PostgreSQL later is a `DATABASE_URL` change only.
@@ -88,5 +88,6 @@ step exists; PostgreSQL later is a `DATABASE_URL` change only.
 
 Stop the server, delete the gitignored `backend/microchess.db`,
 restart, and re-run the seeds above. Production data is never
-touched by this flow (production `.env`/database live beside the
-deployed code — see `docs/DEPLOYMENT.md`).
+touched by this flow. On the VPS each runtime keeps its own `.env`
+and database, and beta must never use the production database — see
+`docs/DEPLOYMENT.md`.

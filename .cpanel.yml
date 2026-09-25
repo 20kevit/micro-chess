@@ -1,3 +1,14 @@
+# =============================================================================
+# LEGACY - NOT AN ACTIVE DEPLOYMENT TARGET. DO NOT RUN.
+#
+# This file describes the retired cPanel push deployment (account
+# `microche`, path /home/microche/microchess, Passenger + LiteSpeed).
+# MicroChess is no longer deployed to cPanel. Nothing on the current host
+# reads this file, and the paths below do not exist.
+#
+# Kept only for the historical record. The current deployment is the VPS
+# described in docs/DEPLOYMENT.md (repo/ -> beta/ -> production/).
+# =============================================================================
 # MicroChess cPanel Git deployment (prebuilt frontend + Passenger backend).
 #
 # Push-deployment model (the model cPanel officially prefers over pull):

@@ -4,24 +4,42 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
-backend/microchess.db
-backend/.env
-# Shared Lichess position source (optional local data, never committed).
-puzzles.db
-backend/puzzles.db
+
+# ---> Runtime secrets and data (NEVER committed)
+# Each runtime - local dev, beta, production - keeps its own `.env`
+# and its own SQLite database beside the code it runs. The `.env`
+# holds JWT/bot secrets; the database holds user data. Both are
+# runtime state, not source. Only `*.example` templates are tracked.
+.env
+*.env.local
+
+# SQLite databases plus their journal/WAL sidecars, at any depth.
+# `*.db` covers the dev `backend/microchess.db`, the beta
+# `microchess-beta.db`, and the optional shared Lichess position
+# source `puzzles.db` (read-only input, regenerable - never committed).
+# `frontend/dist/` is deliberately NOT affected: the prebuilt bundle
+# IS committed (see the Node note below).
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
 # Lichess puzzle ingestion pipeline: official dump + derived large files
 # (regenerable offline via backend/app/tools/lichess_puzzles, never committed).
 *.zst
 lichess_db_puzzle.csv
 data/
 backend/data/
+
 # ---> Node
 node_modules/
-frontend/.env
 # NOTE: frontend/dist/ is intentionally COMMITTED: it is the prebuilt
 # production artifact for git-push deployment (no server-side build on
-# the current host). Rebuild with `npm ci && npm run build`
+# the host). Rebuild with `npm ci && npm run build`
 # (VITE_API_BASE_URL empty for same-origin) before committing.
+
 # ---> Misc
 .opencode/
 *.log

@@ -221,4 +221,4 @@ Notes:
     `tools/lichess_puzzles`): operator-run CLIs (`python -m ...`) with
     env-driven paths, streaming I/O, atomic outputs, and no imports
     from — or into — the request runtime, so the FastAPI lifespan and
-    cPanel deploys never execute them.
+    deployments never execute them.

@@ -24,11 +24,12 @@ backend/                 FastAPI app + Passenger entry + requirements mirror
   app/main.py            composition root: lifespan, middleware, router mounts, SPA mount
   app/core/              config, error envelope, auth deps, capabilities,
                          rate limits, logging, pagination, SPA fallback
-  app/db/                session/engine + idempotent ensure_schema (SCHEMA_VERSION = 16)
+  app/db/                session/engine + idempotent ensure_schema (SCHEMA_VERSION = 17)
   app/modules/*/        one responsibility per module (section 3)
   app/cli.py             admin bootstrap (create-admin)
-  passenger_wsgi.py      cPanel Passenger entry (WSGI callable `application`)
-  requirements.txt       generated mirror of pyproject.toml (cPanel installs this)
+  passenger_wsgi.py      legacy cPanel Passenger entry (WSGI `application`); not
+                         used by the current Uvicorn deployment
+  requirements.txt       generated mirror of pyproject.toml (used by deploys)
 frontend/                React + Vite + TS + Tailwind, RTL Persian shell
   src/main.tsx           routes (public, exercise, player, mentor, admin, NotFound)
   src/exercises/         catalog.ts — central exercise registry (19 active entries)
@@ -37,7 +38,9 @@ frontend/                React + Vite + TS + Tailwind, RTL Persian shell
   src/i18n/              Persian strings (fa.ts); t("key") everywhere
   dist/                  committed production bundle (see docs/DEPLOYMENT.md)
 docs/                    product + architecture + api + exercises + platform
-.cpanel.yml              push-deployment task list (code paths only, pip, restart.txt)
+ops/deploy.sh            deploy helper: repo -> beta -> production (see
+                         docs/DEPLOYMENT.md)
+.cpanel.yml              LEGACY retired cPanel task list; kept for the record
 ```
 
 ## 3. Backend subsystems
@@ -132,11 +135,17 @@ GET  .../sessions/{id}/report    (rebuilt from stored attempts)
 
 FastAPI serves the committed `frontend/dist/` from
 `backend/static/` with SPA fallback (`app/core/frontend.py`,
-mounted last; `/api/*` never falls back). cPanel push deployment
-via `.cpanel.yml` onto the `microche` account with the
-`passenger_wsgi.py` adapter (lazy per-PID middleware for LiteSpeed
-fork-safety). Overview: `docs/DEPLOYMENT.md`. Operator runbook:
-`CPANEL_DEPLOYMENT.md`.
+mounted last; `/api/*` never falls back). Two independent Uvicorn
+runtimes on one host — beta and production — each with its own service
+unit, port, `.env`, and SQLite database, behind Nginx:
+
+```text
+GitHub main -> repo/ -> beta/ -> production/
+```
+
+The retired cPanel/Passenger deployment is history only;
+`passenger_wsgi.py` and `.cpanel.yml` are kept but unused. Current
+architecture, paths, services, and rollback: `docs/DEPLOYMENT.md`.
 
 ## 8. Invariants
 
