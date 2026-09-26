@@ -31,13 +31,56 @@
 #      `status` and rollback always know what is live.
 set -euo pipefail
 
-REPO=${MICROCHESS_REPO:-/opt/projects/micro-chess/repo}
-BACKUPS=${MICROCHESS_BACKUPS:-/opt/backups}
-PROD=/opt/projects/micro-chess/production
-BETA=/opt/projects/micro-chess/beta
-
 die()  { echo "ERROR: $*" >&2; exit 1; }
 say()  { echo "==> $*"; }
+
+# --- host configuration (private, never in Git) ---------------------------
+# This script ships in a PUBLIC repository, so it holds no server paths,
+# service accounts, unit names, ports, or backup locations. Those come
+# from a private env file that is never committed:
+#
+#   MICROCHESS_REPO        git working tree
+#   MICROCHESS_BETA        beta runtime directory
+#   MICROCHESS_PROD        production runtime directory
+#   MICROCHESS_BACKUPS     backup root (0700)
+#   MICROCHESS_PROD_UNIT   production systemd unit
+#   MICROCHESS_BETA_UNIT   beta systemd unit
+#   MICROCHESS_PROD_PORT   production loopback port
+#   MICROCHESS_BETA_PORT   beta loopback port
+#   MICROCHESS_PROD_DB     production SQLite file
+#   MICROCHESS_BETA_DB     beta SQLite file
+#
+# docs/DEPLOYMENT.md documents the variables; no host value is in Git.
+# Override the private env location with MICROCHESS_PRIVATE_ENV=<path>.
+
+# Layout defaults are derived from this script's own real path (symlink
+# resolved), so a fresh clone anywhere works without configuration.
+_here=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)
+_root=$(dirname "$(dirname "$_here")")
+
+PRIVATE_ENV=${MICROCHESS_PRIVATE_ENV:-$_root/../micro-chess-private/deploy.env}
+if [ -n "${MICROCHESS_PRIVATE_ENV:-}" ] && [ ! -r "$PRIVATE_ENV" ]; then
+  die "MICROCHESS_PRIVATE_ENV is not readable: $PRIVATE_ENV"
+fi
+if [ -r "$PRIVATE_ENV" ]; then . "$PRIVATE_ENV"; fi
+
+REPO=${MICROCHESS_REPO:-$_root/repo}
+BETA=${MICROCHESS_BETA:-$_root/beta}
+PROD=${MICROCHESS_PROD:-$_root/production}
+BACKUPS=${MICROCHESS_BACKUPS:-$_root/backups}
+PROD_DB=${MICROCHESS_PROD_DB:-$PROD/backend/microchess.db}
+BETA_DB=${MICROCHESS_BETA_DB:-$BETA/backend/microchess.db}
+
+need() {
+  local name="$1"
+  [ -n "${!name:-}" ] || die "$name is not set. Put it in the private env file ($PRIVATE_ENV) or export it; see docs/DEPLOYMENT.md, 'Host configuration'."
+}
+need_envs() {
+  need MICROCHESS_PROD_UNIT
+  need MICROCHESS_BETA_UNIT
+  need MICROCHESS_PROD_PORT
+  need MICROCHESS_BETA_PORT
+}
 
 # --- integrity of the source of truth -------------------------------------
 require_clean_repo() {
@@ -133,27 +176,32 @@ PY
 case "${1:-}" in
   beta)
     require_clean_repo
+    need MICROCHESS_BETA_UNIT
+    need MICROCHESS_BETA_PORT
     sha=$(resolve_commit "${2:-origin/main}")
     deploy_code "$BETA" "$sha"
-    systemctl restart microchess-beta
-    health_check http://127.0.0.1:8001 beta microchess-beta
+    systemctl restart "$MICROCHESS_BETA_UNIT"
+    health_check "http://127.0.0.1:$MICROCHESS_BETA_PORT" beta "$MICROCHESS_BETA_UNIT"
     ;;
   prod)
     require_clean_repo
+    need MICROCHESS_PROD_UNIT
+    need MICROCHESS_PROD_PORT
     [ -n "${2:-}" ] || die "production requires an explicit, already-betatested commit:
     ops/deploy.sh prod <commit>"
     sha=$(resolve_commit "$2")
-    backup_db "$PROD/backend/microchess.db" prod
+    backup_db "$PROD_DB" prod
     deploy_code "$PROD" "$sha"
-    systemctl restart microchess
-    health_check http://127.0.0.1:8000 production microchess
+    systemctl restart "$MICROCHESS_PROD_UNIT"
+    health_check "http://127.0.0.1:$MICROCHESS_PROD_PORT" production "$MICROCHESS_PROD_UNIT"
     ;;
   rollback)
     require_clean_repo
+    need_envs
     env_name="${2:-}"; [ -n "$env_name" ] || die "usage: ops/deploy.sh rollback <beta|prod> <commit>"
     case "$env_name" in
-      prod)  dir=$PROD; svc=microchess;      port=8000; db="$PROD/backend/microchess.db" ;;
-      beta)  dir=$BETA; svc=microchess-beta; port=8001; db="$BETA/backend/microchess-beta.db" ;;
+      prod)  dir=$PROD; svc=$MICROCHESS_PROD_UNIT; port=$MICROCHESS_PROD_PORT; db=$PROD_DB ;;
+      beta)  dir=$BETA; svc=$MICROCHESS_BETA_UNIT; port=$MICROCHESS_BETA_PORT; db=$BETA_DB ;;
       *)     die "unknown environment: $env_name (use beta or prod)" ;;
     esac
     [ -n "${3:-}" ] || die "usage: ops/deploy.sh rollback $env_name <commit>"
@@ -165,7 +213,9 @@ case "${1:-}" in
     health_check "http://127.0.0.1:$port" "$env_name" "$svc"
     ;;
   status)
-    for row in "production:$PROD:microchess:8000" "beta:$BETA:microchess-beta:8001"; do
+    need_envs
+    for row in "production:$PROD:$MICROCHESS_PROD_UNIT:$MICROCHESS_PROD_PORT" \
+               "beta:$BETA:$MICROCHESS_BETA_UNIT:$MICROCHESS_BETA_PORT"; do
       IFS=: read -r name dir svc port <<<"$row"
       printf '%-11s %-8s %-42s %s\n' "$name" "$(systemctl is-active "$svc")" \
         "$(cat "$dir/DEPLOYED_COMMIT" 2>/dev/null)" \

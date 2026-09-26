@@ -50,15 +50,22 @@ Read this before changing code. Keep it simple and explicit.
 - Frontend: `npm run typecheck` and `npm run build` must pass.
 - Run the relevant gate before finishing any task.
 
-## 7. Where things live (VPS)
+## 7. Repository and deployment workflow
 
-Open with the workspace at `/opt/projects/micro-chess` so all three
-directories below are inside the workspace boundary.
+This repository is PUBLIC. Keep server-specific operational detail
+(host addresses, filesystem paths, service accounts, unit names, ports,
+backup locations, certificate paths) OUT of the tracked files. Use the
+neutral placeholders already in `docs/DEPLOYMENT.md` (`<PROJECT_ROOT>`,
+`<PRODUCTION_SERVICE>`, `<BETA_SERVICE>`, `<INTERNAL_PORT>`,
+`<APP_USER>`, `<BACKUP_ROOT>`).
+
+On the deployment host the project lives in a workspace holding three
+directories:
 
 ```text
 repo/        ONLY Git working tree. Source of truth. Edit here.
-beta/        Runtime deployment (beta.microchess.ir).  NOT a Git repo.
-production/  Runtime deployment (microchess.ir).      NOT a Git repo.
+beta/        Runtime deployment (beta environment).  NOT a Git repo.
+production/  Runtime deployment (production env.).  NOT a Git repo.
 ```
 
 - `main` is the only permanent branch. Push to `main`; no other branch
@@ -66,20 +73,29 @@ production/  Runtime deployment (microchess.ir).      NOT a Git repo.
 - **Never hand-edit `beta/` or `production/`.** They are deploy outputs;
   an edit there is lost on the next deploy. Change `repo/`, then deploy.
 - Deploy with `repo/ops/deploy.sh` (`beta` | `prod <commit>` | `status` |
-  `rollback`). Production takes an explicit, already-betatested commit.
-- `DATABASE_URL` is relative to each unit's working directory, which is
-  what keeps the two databases apart. **Never** point beta at
-  `production/backend/microchess.db`, and never run tests against the
-  production database. Use a disposable database.
+  `rollback`). Production takes an explicit, already-betatested commit
+  and is never deployed automatically.
+- The helper holds no host values: they come from a private, uncommitted
+  env file (`MICROCHESS_*` variables, see `docs/DEPLOYMENT.md`). It fails
+  closed if one is missing. Do not hardcode host values into it.
+- `DATABASE_URL` is relative to each service's working directory, which is
+  what keeps the two databases apart. **Never** point beta at the
+  production database file, and never run tests against a production
+  database. Use a disposable database.
 - `.env` files, databases, backups, certificates, and keys are never
   committed and never printed. Only `*.example` templates are tracked.
-- Telegram verification stays disabled. The production Bale bot stays in
-  production; do not copy its credentials into beta.
+- Telegram verification stays disabled. The production messaging-bot
+  credentials stay in production; do not copy them into beta.
+- Change the code, not the environment: no DNS, TLS, firewall, SSH, or
+  reverse-proxy architecture changes as part of application work.
 - Infrastructure change is not done until it is verified: run the
   service, check the health endpoint, and confirm the real domain
-  answers. Do not touch unrelated projects, services, or sites on this
-  host (`/opt/projects/fide-service`, `xray`, `cups`, `xrdp`, and the
-  default Nginx site are out of scope).
+  answers. Do not touch unrelated projects, services, or sites on the
+  deployment host; they are out of scope.
+- Operator-only detail (real paths, units, ports, backups, host access)
+  belongs in a private, uncommitted runbook kept outside the repository
+  next to the deployment host. Never symlink it into a tracked file, and
+  never add a second public copy.
 
 ## Repository Map
 

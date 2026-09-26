@@ -62,10 +62,11 @@ docs/      product + architecture + api + exercises + platform
   python-chess, SQLite (PostgreSQL-ready via `DATABASE_URL`).
 - Frontend: React 18, Vite 6, TypeScript, Tailwind CSS v4,
   React Router 6, self-hosted Vazirmatn font.
-- Production: a single VPS running two independent FastAPI/Uvicorn
-  runtimes (beta and production) behind Nginx, serving the prebuilt
-  `frontend/dist/` from `backend/static/`. The legacy cPanel/Passenger
-  deployment is retired; see `docs/DEPLOYMENT.md`.
+- Production: a single host running two independent FastAPI/Uvicorn
+  runtimes (beta and production) behind Nginx as a reverse proxy,
+  serving the prebuilt `frontend/dist/` from `backend/static/`. The
+  legacy cPanel/Passenger deployment is retired; see
+  `docs/DEPLOYMENT.md`.
 
 ## Local setup
 
@@ -121,23 +122,26 @@ artifact for push deployment (no server-side build on the host).
 
 ## Deployment (overview)
 
-`git push` to `main` → the VPS deploys the committed tree to the beta
-runtime → verify `beta.microchess.ir` → deploy that exact, tested commit
-to the production runtime.
+`git push` to `main` → the deployment host installs the committed tree
+into the beta runtime → verify `beta.microchess.ir` → deploy that exact,
+tested commit to the production runtime.
 
 ```text
 GitHub main
    ↓
-/opt/projects/micro-chess/repo      ← only Git working tree (source of truth)
+<PROJECT_ROOT>/repo           ← only Git working tree (source of truth)
    ↓  ops/deploy.sh beta
-/opt/projects/micro-chess/beta      ← beta.microchess.ir
+<PROJECT_ROOT>/beta           ← beta environment (beta.microchess.ir)
    ↓  verify, then promote the tested commit
-/opt/projects/micro-chess/production  ← microchess.ir
+<PROJECT_ROOT>/production     ← production environment (microchess.ir)
 ```
 
 `beta/` and `production/` are runtime deployments, not Git repositories,
 and are never hand-edited. Each has its own service, port, database, and
-`.env`. Operator reference: `docs/DEPLOYMENT.md` (canonical).
+`.env`. Host paths, service names, ports, and backup locations are
+operator-side configuration and are intentionally not in this public
+repository. Architecture and principles: `docs/DEPLOYMENT.md`
+(canonical).
 `docs/platform/CPANEL_DEPLOYMENT.md` is the retired cPanel runbook, kept
 for the historical record only.
 

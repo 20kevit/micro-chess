@@ -88,6 +88,6 @@ step exists; PostgreSQL later is a `DATABASE_URL` change only.
 
 Stop the server, delete the gitignored `backend/microchess.db`,
 restart, and re-run the seeds above. Production data is never
-touched by this flow. On the VPS each runtime keeps its own `.env`
-and database, and beta must never use the production database — see
-`docs/DEPLOYMENT.md`.
+touched by this flow. On a deployment host each runtime keeps its own
+`.env` and database, and beta must never use the production database —
+see `docs/DEPLOYMENT.md`.

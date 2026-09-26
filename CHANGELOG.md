@@ -3,16 +3,45 @@
 Deployment and platform changes. Product behavior is documented
 per phase in `docs/platform/IMPLEMENTATION_STATE.md`.
 
-## 2026-09-25 — VPS deployment architecture (infrastructure only)
+## 2026-09-26 — Public repository sanitization (documentation only)
+
+No application behavior changed. No application source, test, database,
+or runtime file was modified.
+
+* Host-specific operational detail was removed from the tracked
+  documentation: real filesystem paths, service accounts, service unit
+  names, loopback ports, backup locations, ACME/certificate paths,
+  reverse-proxy vhost paths, and references to unrelated services on the
+  same host. `docs/DEPLOYMENT.md` now uses neutral placeholders
+  (`<PROJECT_ROOT>`, `<PRODUCTION_SERVICE>`, `<BETA_SERVICE>`,
+  `<INTERNAL_PORT>`, `<APP_USER>`, `<BACKUP_ROOT>`, `<SERVER_IP>`).
+* `ops/deploy.sh` no longer contains host values. It resolves its
+  layout from its own location and reads paths, unit names, ports, and
+  database files from a private, never-committed env file
+  (`MICROCHESS_*`), failing closed with a clear error when a value is
+  missing instead of guessing. No deployment invariant changed.
+* `AGENTS.md` now states the public-repository rule for agents: keep
+  host detail out of tracked files, and keep operator-only detail in a
+  private runbook outside the repository.
+* No credential, token, key, or password was found in the tracked tree.
+  The existing `.gitignore` rules for `.env` and `*.db` remain the
+  primary control.
+* The retired cPanel artifacts (`.cpanel.yml`, `backend/passenger_wsgi.py`,
+  `backend/lswsgi`, `docs/platform/CPANEL_DEPLOYMENT.md`) are unchanged:
+  they describe a different, retired hosting account, and
+  `backend/tests/test_passenger_wsgi.py` asserts against their content.
+
+## 2026-09-25 — Single-host deployment architecture (infrastructure only)
 
 No application behavior changed. This entry records the move to a
 single-host, two-runtime deployment and the documentation that now
 describes it.
 
-* Production is served from a VPS: Nginx fronts two independent
-  Uvicorn runtimes, `microchess.service` (production, `127.0.0.1:8000`)
-  and `microchess-beta.service` (beta, `127.0.0.1:8001`), each with its
-  own non-root service user, virtualenv, `.env`, and SQLite database.
+* Production is served from a single host: Nginx, as a reverse proxy,
+  fronts two independent Uvicorn runtimes — one production service and
+  one beta service — each with its own non-root service account,
+  virtualenv, `.env`, and SQLite database. Each binds to loopback only;
+  Nginx is the single public entry point.
 * `repo/` is the only Git working tree. `beta/` and `production/` are
   runtime deployments, not repositories, and are never hand-edited.
 * `main` is the only permanent branch. `master` and the two superseded
@@ -32,13 +61,13 @@ describes it.
   reference. AGENTS.md, README, CONFIGURATION, SETUP, TESTING,
   ARCHITECTURE, REPOSITORY_MAP, SECURITY, and the platform architecture
   map were synchronised with it.
-* Telegram verification remains disabled; production Bale credentials
-  remain in production only.
+* Telegram verification remains disabled; production messaging-bot
+  credentials remain in production only.
 
 ### Known limitation
 
 TLS is not installed. The ACME HTTP-01 webroot is configured on every
-vhost, but Let's Encrypt validators time out reaching this host on port
+vhost, but certificate validators time out reaching this host on port
 80, so no certificate can be issued from here yet. Both domains are
 served over plain HTTP until inbound 80/443 is reachable from the
 validation networks. Details in `docs/DEPLOYMENT.md` section 9.

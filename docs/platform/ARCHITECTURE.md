@@ -137,15 +137,18 @@ FastAPI serves the committed `frontend/dist/` from
 `backend/static/` with SPA fallback (`app/core/frontend.py`,
 mounted last; `/api/*` never falls back). Two independent Uvicorn
 runtimes on one host — beta and production — each with its own service
-unit, port, `.env`, and SQLite database, behind Nginx:
+unit, loopback port, `.env`, and SQLite database, behind Nginx as a
+reverse proxy that is the only public entry point:
 
 ```text
 GitHub main -> repo/ -> beta/ -> production/
 ```
 
-The retired cPanel/Passenger deployment is history only;
-`passenger_wsgi.py` and `.cpanel.yml` are kept but unused. Current
-architecture, paths, services, and rollback: `docs/DEPLOYMENT.md`.
+Host paths, service names, ports, and backup locations are operator-side
+configuration and are not in this public repository. The retired
+cPanel/Passenger deployment is history only; `passenger_wsgi.py`,
+`lswsgi`, and `.cpanel.yml` are kept but unused. Architecture,
+principles, and rollback: `docs/DEPLOYMENT.md`.
 
 ## 8. Invariants
 

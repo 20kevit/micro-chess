@@ -33,16 +33,18 @@ schema-reuse notes): `docs/LICHESS_PUZZLES.md`.
 There is no debug mode in the codebase. CORS and rate limits are
 env-driven only.
 
-## Per-runtime files on the VPS
+## Per-runtime files on the deployment host
 
 Each runtime owns its own `backend/.env` and its own SQLite database.
-Neither is committed. Beta and production MUST NOT share either one;
-see `docs/DEPLOYMENT.md`.
+Neither is committed. Beta and production MUST NOT share either one; see
+`docs/DEPLOYMENT.md`. Where each runtime actually lives on the host is
+operator-side configuration and is intentionally not in this public
+repository.
 
 | Runtime | `.env` | Database |
 |---|---|---|
-| beta | `beta/backend/.env` | `beta/backend/microchess-beta.db` |
-| production | `production/backend/.env` | `production/backend/microchess.db` |
+| beta | `beta/backend/.env` | `beta/backend/<beta-db>.db` |
+| production | `production/backend/.env` | `production/backend/<production-db>.db` |
 
 Both files are mode `0600` and are not reachable over HTTP.
 

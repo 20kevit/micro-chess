@@ -11,7 +11,7 @@ Conventions: backend paths are under `backend/`; frontend paths under
 
 ```text
 AGENTS.md                  Agent rules (read first; Persian UI, boundaries, gates,
-                           VPS layout: repo/ -> beta/ -> production/)
+                           public-repo + deployment workflow)
 README.md                  Product overview and implemented-feature summary
 CHANGELOG.md               Deployment/platform change log
 CONTRIBUTING.md / SECURITY.md
