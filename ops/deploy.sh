@@ -51,14 +51,17 @@ say()  { echo "==> $*"; }
 #   MICROCHESS_BETA_DB     beta SQLite file
 #
 # docs/DEPLOYMENT.md documents the variables; no host value is in Git.
-# Override the private env location with MICROCHESS_PRIVATE_ENV=<path>.
+# The private env file lives in the workspace's `private/` directory,
+# a sibling of `repo/`, `beta/`, and `production/` and therefore outside
+# the Git working tree. Override its location with
+# MICROCHESS_PRIVATE_ENV=<path>.
 
 # Layout defaults are derived from this script's own real path (symlink
 # resolved), so a fresh clone anywhere works without configuration.
 _here=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)
 _root=$(dirname "$(dirname "$_here")")
 
-PRIVATE_ENV=${MICROCHESS_PRIVATE_ENV:-$_root/../micro-chess-private/deploy.env}
+PRIVATE_ENV=${MICROCHESS_PRIVATE_ENV:-$_root/private/deploy.env}
 if [ -n "${MICROCHESS_PRIVATE_ENV:-}" ] && [ ! -r "$PRIVATE_ENV" ]; then
   die "MICROCHESS_PRIVATE_ENV is not readable: $PRIVATE_ENV"
 fi

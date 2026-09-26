@@ -17,6 +17,8 @@ CHANGELOG.md               Deployment/platform change log
 CONTRIBUTING.md / SECURITY.md
 .cpanel.yml                LEGACY retired cPanel task list; kept for the record
 ops/deploy.sh              deploy helper repo -> beta -> production (docs/DEPLOYMENT.md)
+                           reads host values from ../private/deploy.env, which is
+                           OUTSIDE this working tree and never tracked by Git
 docs/                      All documentation (see section 7)
 backend/                   FastAPI backend (authoritative logic)
   app/main.py              ASGI entry; thin router wiring only

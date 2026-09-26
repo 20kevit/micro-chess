@@ -26,9 +26,11 @@ Hard rules, verified in code and tests:
   committed.
 - Host-specific values (paths, service accounts, unit names, ports,
   backup locations, certificate paths) are **not** in this public
-  repository. They are supplied at deploy time from a private,
-  never-committed env file, and `ops/deploy.sh` fails closed if one is
-  missing rather than guessing.
+  repository. They live in a `private/` configuration directory that is
+  a sibling of the Git working tree on the deployment host, so it is
+  outside Git tracking entirely, and they are supplied at deploy time
+  from an env file in that directory. `ops/deploy.sh` fails closed if a
+  value is missing rather than guessing.
 
 ## Reporting a vulnerability
 

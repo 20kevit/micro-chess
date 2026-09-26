@@ -144,8 +144,10 @@ reverse proxy that is the only public entry point:
 GitHub main -> repo/ -> beta/ -> production/
 ```
 
-Host paths, service names, ports, and backup locations are operator-side
-configuration and are not in this public repository. The retired
+On the deployment host those live side by side with `private/`, an
+operator-only configuration directory that is a sibling of `repo/` and
+therefore outside Git tracking. Host paths, service names, ports, and
+backup locations are not in this public repository. The retired
 cPanel/Passenger deployment is history only; `passenger_wsgi.py`,
 `lswsgi`, and `.cpanel.yml` are kept but unused. Architecture,
 principles, and rollback: `docs/DEPLOYMENT.md`.

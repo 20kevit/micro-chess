@@ -33,15 +33,31 @@ GitHub (main)
    <PROJECT_ROOT>/production/  ← production environment runtime
 ```
 
-A deployment host holds one Git working tree and two runtime directories
-side by side, so a single agent session can read the source of truth and
-both live runtimes without leaving its workspace.
+A deployment host holds one Git working tree, two runtime directories,
+and one private configuration directory side by side, so a single agent
+session can read the source of truth, both live runtimes, and the
+operator-only configuration without leaving its workspace.
+
+```text
+<PROJECT_ROOT>/
+  repo/        Git working tree — the source of truth
+  beta/        beta environment runtime
+  production/  production environment runtime
+  private/     private operational configuration — NEVER tracked by Git
+```
 
 | Directory | Role | Git? | Editable? |
 |---|---|---|---|
 | `repo/` | Source of truth. Mirror of GitHub `main`. | **yes** (the only repo) | yes — this is where development happens |
 | `beta/` | Runtime deployment. | no | never hand-edit; re-deploy instead |
 | `production/` | Runtime deployment. | no | never hand-edit; re-deploy instead |
+| `private/` | Operator-only host configuration and the private runbook. | no — it is a sibling of `repo/`, so it is outside the Git working tree and cannot be committed or pushed | yes — by the operator only; never copied into `repo/` |
+
+`private/` being a sibling of `repo/` is what keeps it out of Git: no
+`git add`, no commit, and no push can reach it, because it is not inside
+a working tree. `.gitignore` additionally carries a `private/` rule as a
+defence in depth against a private directory ever being copied inside
+`repo/`.
 
 Two public domains, one per environment:
 
@@ -108,11 +124,16 @@ committed. The variables are:
 | `MICROCHESS_BETA_DB` | Beta SQLite file |
 
 The env file is looked up at `$MICROCHESS_PRIVATE_ENV`, falling back to
-`micro-chess-private/deploy.env` beside the workspace root. The helper
-fails closed with a clear error if a required value is missing; it never
-guesses. If the file is absent, `REPO`, the two runtime directories, and
-the backup root are derived from the script's own location, so a fresh
-clone anywhere is self-consistent.
+`<PROJECT_ROOT>/private/deploy.env` — the `private/` directory beside
+`repo/`, `beta/`, and `production/`. The helper fails closed with a clear
+error if a required value is missing; it never guesses. If the file is
+absent, `REPO`, the two runtime directories, and the backup root are
+derived from the script's own location, so a fresh clone anywhere is
+self-consistent.
+
+`private/` holds that env file plus the operator runbook that records the
+concrete values this document intentionally replaced with placeholders.
+Nothing in it is tracked, pushed, or symlinked into the repository.
 
 ---
 

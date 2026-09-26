@@ -136,6 +136,11 @@ GitHub main
 <PROJECT_ROOT>/production     ← production environment (microchess.ir)
 ```
 
+Alongside them sits `<PROJECT_ROOT>/private/`, the operator-only
+configuration directory (host paths, service names, ports, backup
+locations, and the private runbook). It is a sibling of `repo/`, so it is
+outside the Git working tree and is never committed or pushed.
+
 `beta/` and `production/` are runtime deployments, not Git repositories,
 and are never hand-edited. Each has its own service, port, database, and
 `.env`. Host paths, service names, ports, and backup locations are

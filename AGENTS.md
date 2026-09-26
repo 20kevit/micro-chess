@@ -59,14 +59,22 @@ neutral placeholders already in `docs/DEPLOYMENT.md` (`<PROJECT_ROOT>`,
 `<PRODUCTION_SERVICE>`, `<BETA_SERVICE>`, `<INTERNAL_PORT>`,
 `<APP_USER>`, `<BACKUP_ROOT>`).
 
-On the deployment host the project lives in a workspace holding three
+On the deployment host the project lives in a workspace holding four
 directories:
 
 ```text
 repo/        ONLY Git working tree. Source of truth. Edit here.
 beta/        Runtime deployment (beta environment).  NOT a Git repo.
 production/  Runtime deployment (production env.).  NOT a Git repo.
+private/     Private operational configuration.      NEVER tracked by Git.
 ```
+
+`private/` is a **sibling of `repo/`**, not a directory inside it. That
+is what keeps it untracked: no `git add`, commit, or push can reach it,
+because it is outside the Git working tree. `.gitignore` also carries a
+`private/` rule so a copy that ever lands inside `repo/` is still ignored.
+Read `private/` when you need host values; never copy anything out of it
+into the repository.
 
 - `main` is the only permanent branch. Push to `main`; no other branch
   becomes permanent.
@@ -93,9 +101,9 @@ production/  Runtime deployment (production env.).  NOT a Git repo.
   answers. Do not touch unrelated projects, services, or sites on the
   deployment host; they are out of scope.
 - Operator-only detail (real paths, units, ports, backups, host access)
-  belongs in a private, uncommitted runbook kept outside the repository
-  next to the deployment host. Never symlink it into a tracked file, and
-  never add a second public copy.
+  belongs in `private/` in the workspace beside `repo/`, which is outside
+  Git tracking. Never symlink it into a tracked file, and never add a
+  second public copy.
 
 ## Repository Map
 

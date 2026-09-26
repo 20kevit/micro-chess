@@ -48,6 +48,16 @@ repository.
 
 Both files are mode `0600` and are not reachable over HTTP.
 
+## Host-level configuration
+
+The values that describe the *host* rather than the application — the
+deployment host's directory layout, service names, ports, backup root,
+and certificate paths — are not in this repository at all. They live in a
+`private/` directory beside the Git working tree (outside Git tracking)
+and reach the tooling through a single env file that `ops/deploy.sh`
+reads. The variable names are documented in `docs/DEPLOYMENT.md`
+("Host configuration variables"); the values are not.
+
 ## Frontend (build-time)
 
 Single variable (`frontend/.env.example`), read in

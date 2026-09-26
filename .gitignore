@@ -40,6 +40,14 @@ node_modules/
 # the host). Rebuild with `npm ci && npm run build`
 # (VITE_API_BASE_URL empty for same-origin) before committing.
 
+# ---> Private operational configuration
+# On the deployment host this lives in `private/`, a SIBLING of `repo/`
+# (i.e. <PROJECT_ROOT>/private/), so it is already outside the Git
+# working tree and can never be added, committed, or pushed. This rule is
+# defence in depth: it also ignores a `private/` directory if one is ever
+# copied inside the working tree by mistake. Never relax it.
+private/
+
 # ---> Misc
 .opencode/
 *.log

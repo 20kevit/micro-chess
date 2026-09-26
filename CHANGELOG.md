@@ -3,6 +3,44 @@
 Deployment and platform changes. Product behavior is documented
 per phase in `docs/platform/IMPLEMENTATION_STATE.md`.
 
+## 2026-09-26 — Private operations directory moved into the project root
+
+Infrastructure and documentation only. No application behavior changed.
+No application source, test, database, or runtime file was modified, and
+nothing was deployed to beta or production.
+
+* The private, operator-only operations directory moved from
+  `/opt/projects/micro-chess-private/` (a sibling of the project root) to
+  `private/` inside the project root, so the server layout is now:
+
+  ```text
+  /opt/projects/micro-chess/
+    repo/         Git working tree
+    beta/         beta runtime
+    production/   production runtime
+    private/      private operational configuration — NEVER tracked by Git
+  ```
+
+* `private/` remains completely outside Git. It is a **sibling of
+  `repo/`**, not a directory inside it, so no `git add`, commit, or push
+  can reach it: it is not inside a Git working tree at all.
+* `.gitignore` gained a `private/` rule as defence in depth, so a private
+  directory that is ever copied inside `repo/` is still ignored.
+* `ops/deploy.sh` now resolves its private env file at
+  `<PROJECT_ROOT>/private/deploy.env` instead of the old sibling path. It
+  still holds no host values, still fails closed when a value is missing,
+  and all seven safety invariants are unchanged. Validated read-only
+  (`ops/deploy.sh status`); no deploy and no service restart.
+* Documentation updated to describe the four-directory layout and to keep
+  `repo/` (Git), `beta/` (runtime), `production/` (runtime), and `private/`
+  (untracked operator configuration) clearly distinct: `AGENTS.md`,
+  `README.md`, `SECURITY.md`, `docs/DEPLOYMENT.md`,
+  `docs/CONFIGURATION.md`, `docs/REPOSITORY_MAP.md`, and
+  `docs/platform/ARCHITECTURE.md`.
+* Credentials are unaffected: they remain only in each runtime's own
+  `backend/.env` (mode `0600`). `private/deploy.env` still contains no
+  credentials, only paths, unit names, ports, and database filenames.
+
 ## 2026-09-26 — Public repository sanitization (documentation only)
 
 No application behavior changed. No application source, test, database,
